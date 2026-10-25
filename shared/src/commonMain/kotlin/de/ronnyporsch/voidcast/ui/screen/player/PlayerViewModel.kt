@@ -106,16 +106,15 @@ class PlayerViewModel(
                 if (durationMs > 0 && playback.currentSong != null && playerState.isPlaying && !currentState.isVideo) {
                     val nextSong = getNextSong()?.takeIf { !playsAsVideo(it) }
 
-                    // Pre-buffer the next track
+                    // Pre-buffer the next track early, so skipping to it doesn't have to wait for it to load either.
+                    // Not right away, in case this song gets skipped too; short songs need it before their transition
                     if (!hasPreparedNext && nextSong != null && crossfadePlayer != null) {
-                        val preBufferThreshold = if (settings.crossfadeEnabled) {
+                        val transitionLeadMs = if (settings.crossfadeEnabled) {
                             (settings.crossfadeDurationSeconds * 1000L) + 3000L
-                        } else if (settings.gaplessEnabled) {
-                            5000L
                         } else {
-                            -1L // don't pre-buffer
+                            5000L
                         }
-                        if (preBufferThreshold > 0 && remainingMs <= preBufferThreshold) {
+                        if (positionMs >= PREFETCH_AFTER_MS || remainingMs <= transitionLeadMs) {
                             hasPreparedNext = true
                             streamUrl(nextSong)?.let { crossfadePlayer?.prepareNext(it) }
                         }
@@ -686,7 +685,7 @@ class PlayerViewModel(
             emitEffect(PlayerEffect.PlaybackError("\"${song.title}\" isn't available offline"))
             return
         }
-        audioPlayer.play(url)
+        if (crossfadePlayer?.playPrepared(url) != true) audioPlayer.play(url)
     }
 
     /** Null if the song can't be played, i.e. while not connected to the server it isn't downloaded. */
@@ -789,3 +788,6 @@ class PlayerViewModel(
         }
     }
 }
+
+/** How long a song plays before the next one gets pre-buffered. */
+private const val PREFETCH_AFTER_MS = 3000L

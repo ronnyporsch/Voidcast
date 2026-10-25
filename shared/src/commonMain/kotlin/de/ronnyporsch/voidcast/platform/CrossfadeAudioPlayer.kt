@@ -18,6 +18,7 @@ class CrossfadeAudioPlayer(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var stateCollectionJob: Job? = null
     private var crossfadeJob: Job? = null
+    private var prepareJob: Job? = null
 
     private var currentPlayer: AudioPlayer = playerA
         set(value) {
@@ -52,15 +53,42 @@ class CrossfadeAudioPlayer(
     fun prepareNext(url: String) {
         if (nextPreparedUrl == url) return
         nextPreparedUrl = url
+        val player = nextPlayer
         // Start loading on the next player (it will buffer/download)
-        nextPlayer.play(url)
+        player.play(url)
         // Immediately pause it so it's ready but not audible
-        nextPlayer.setVolume(0f)
-        scope.launch {
+        player.setVolume(0f)
+        prepareJob?.cancel()
+        prepareJob = scope.launch {
             // Wait a bit for the player to start buffering, then pause
             delay(100)
-            nextPlayer.pause()
+            player.pause()
         }
+    }
+
+    /**
+     * Plays [url] from the start on the player [prepareNext] loaded it on, so it doesn't have to be loaded again.
+     * Returns false if it isn't prepared (or failed to load); then nothing changed.
+     */
+    fun playPrepared(url: String): Boolean {
+        if (isCrossfading || nextPreparedUrl != url || nextPlayer.state.value.error != null) return false
+        prepareJob?.cancel()
+        val inPlayer = nextPlayer
+        val outPlayer = currentPlayer
+
+        outPlayer.stop()
+        outPlayer.setVolume(1f)
+        // It played for a moment before being paused
+        inPlayer.seekTo(0)
+        inPlayer.setVolume(1f)
+        inPlayer.resume()
+
+        currentPlayer = inPlayer
+        nextPlayer = outPlayer
+        nextPreparedUrl = null
+
+        collectCurrentPlayerState()
+        return true
     }
 
     fun startCrossfade(durationMs: Long) {
@@ -68,6 +96,8 @@ class CrossfadeAudioPlayer(
         isCrossfading = true
         isCrossfadePaused = false
         crossfadeJob?.cancel()
+        // The incoming player must not be paused by a still pending prepareNext
+        prepareJob?.cancel()
 
         val outPlayer = currentPlayer
         val inPlayer = nextPlayer
@@ -111,6 +141,7 @@ class CrossfadeAudioPlayer(
     }
 
     fun playNextGapless() {
+        prepareJob?.cancel()
         val inPlayer = nextPlayer
         val outPlayer = currentPlayer
 
