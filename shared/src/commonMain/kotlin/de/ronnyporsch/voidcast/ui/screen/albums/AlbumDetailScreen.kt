@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.domain.model.formatFileSize
+import de.ronnyporsch.voidcast.domain.model.formatTotalDuration
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.ClickableArtistText
 import de.ronnyporsch.voidcast.ui.components.libraryFormat
@@ -145,6 +147,16 @@ fun AlbumDetailScreen(
                                 if (album.songCount > 0) {
                                     append(" \u2022 ")
                                     append("${album.songCount} song${if (album.songCount != 1) "s" else ""}")
+                                }
+                                val totalDuration = album.songs.sumOf { it.duration }.takeIf { it > 0 } ?: album.duration
+                                if (totalDuration > 0) {
+                                    append(" \u2022 ")
+                                    append(totalDuration.formatTotalDuration())
+                                }
+                                val totalSize = album.songs.sumOf { it.size ?: 0L }
+                                if (totalSize > 0) {
+                                    append(" \u2022 ")
+                                    append(totalSize.formatFileSize())
                                 }
                             }
                             Text(

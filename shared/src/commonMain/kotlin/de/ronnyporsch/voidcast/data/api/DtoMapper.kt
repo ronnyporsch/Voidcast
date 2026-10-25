@@ -57,6 +57,7 @@ fun SongDto.toDomain() = Song(
     genre = genre,
     bitRate = bitRate,
     codec = suffix?.takeIf { it.isNotBlank() }?.let(::codecDisplayName),
+    size = size,
     dateAdded = created,
 )
 

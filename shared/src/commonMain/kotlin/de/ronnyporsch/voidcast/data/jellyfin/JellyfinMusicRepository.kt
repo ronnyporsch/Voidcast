@@ -47,7 +47,7 @@ class JellyfinMusicRepository(
 
     override suspend fun getAlbum(albumId: String): Result<Album> = runCatching {
         coroutineScope {
-            val songs = async { songs("parentId" to albumId, "sortBy" to "ParentIndexNumber,IndexNumber,SortName", WITH_FORMAT) }
+            val songs = async { songs("parentId" to albumId, "sortBy" to "ParentIndexNumber,IndexNumber,SortName", WITH_FORMAT_AND_SIZE) }
             api.getItem(albumId).toAlbum().copy(songs = songs.await())
         }
     }
@@ -227,6 +227,9 @@ class JellyfinMusicRepository(
 /** Song query parameter for codec and bitrate; only where shown, the media streams make responses a lot bigger. */
 private val WITH_FORMAT = "fields" to "Genres,DateCreated,MediaStreams"
 
+/** Like [WITH_FORMAT], plus the media sources for the file sizes. */
+private val WITH_FORMAT_AND_SIZE = "fields" to "Genres,DateCreated,MediaStreams,MediaSources"
+
 private fun LyricDto.toLyrics(): Lyrics? =
     lyrics.takeIf { it.isNotEmpty() }?.let { lines ->
         Lyrics(lines.map { LyricLine(it.text, it.start?.let { ticks -> ticks / 10_000L }) })
@@ -279,6 +282,7 @@ internal fun BaseItemDto.toSong() = Song(
     genre = genres.firstOrNull(),
     bitRate = mediaStreams.firstOrNull { it.type == "Audio" }?.bitRate?.let { (it + 500) / 1000 },
     codec = mediaStreams.firstOrNull { it.type == "Audio" }?.codec?.let(::codecDisplayName),
+    size = mediaSources.firstOrNull()?.size,
     dateAdded = dateCreated,
 )
 

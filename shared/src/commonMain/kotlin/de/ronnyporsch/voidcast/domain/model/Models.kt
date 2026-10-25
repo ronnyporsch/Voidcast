@@ -60,6 +60,8 @@ data class Song(
     val bitRate: Int? = null,
     /** Display name such as "FLAC" or "Opus", see [codecDisplayName]. */
     val codec: String? = null,
+    /** File size in bytes; null if the server doesn't tell. */
+    val size: Long? = null,
     /** A YouTube (music) video, which can be played with picture. */
     val isVideo: Boolean = false,
     /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
@@ -131,6 +133,27 @@ data class PlaybackState(
 
 enum class RepeatMode {
     Off, All, One
+}
+
+/** E.g. "1 h 23 min" or "45 min"; for totals such as a playlist's length. */
+fun Int.formatTotalDuration(): String {
+    val hours = this / 3600
+    val minutes = (this % 3600 + 30) / 60
+    return if (hours > 0) "$hours h $minutes min" else "$minutes min"
+}
+
+/** E.g. "512 KB", "4.2 MB" or "1.3 GB". */
+fun Long.formatFileSize(): String {
+    val units = listOf("B", "KB", "MB", "GB", "TB")
+    var value = toDouble()
+    var unit = 0
+    while (value >= 1024 && unit < units.lastIndex) {
+        value /= 1024
+        unit++
+    }
+    if (unit < 2) return "${value.toLong()} ${units[unit]}"
+    val tenths = (value * 10 + 0.5).toLong()
+    return "${tenths / 10}.${tenths % 10} ${units[unit]}"
 }
 
 fun Int.formatDuration(): String {

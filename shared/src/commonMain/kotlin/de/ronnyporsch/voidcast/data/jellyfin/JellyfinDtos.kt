@@ -62,8 +62,16 @@ data class BaseItemDto(
     @SerialName("Genres") val genres: List<String> = emptyList(),
     /** Only with the MediaStreams field. */
     @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto> = emptyList(),
+    /** Only with the MediaSources field. */
+    @SerialName("MediaSources") val mediaSources: List<MediaSourceDto> = emptyList(),
     /** Identifies the entry within a playlist (the same song can be in it more than once). */
     @SerialName("PlaylistItemId") val playlistItemId: String? = null,
+)
+
+@Serializable
+data class MediaSourceDto(
+    /** In bytes. */
+    @SerialName("Size") val size: Long? = null,
 )
 
 @Serializable

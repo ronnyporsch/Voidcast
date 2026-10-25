@@ -114,6 +114,8 @@ data class SongDto(
     val bitRate: Int? = null,
     /** File extension, e.g. "flac". */
     val suffix: String? = null,
+    /** In bytes. */
+    val size: Long? = null,
     /** When it got added to the library, ISO 8601. */
     val created: String? = null,
 )

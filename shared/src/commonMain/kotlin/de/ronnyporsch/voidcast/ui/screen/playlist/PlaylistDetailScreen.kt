@@ -29,6 +29,8 @@ import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
 import de.ronnyporsch.voidcast.ui.components.contextMenuIndices
 import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.domain.model.formatFileSize
+import de.ronnyporsch.voidcast.domain.model.formatTotalDuration
 import de.ronnyporsch.voidcast.ui.components.rememberTouchSelection
 import de.ronnyporsch.voidcast.ui.components.touchSelection
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -134,8 +136,14 @@ fun PlaylistDetailScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                             )
 
+                            val totalDuration = playlist.songs.sumOf { it.duration }
+                            val totalSize = playlist.songs.sumOf { it.size ?: 0L }
                             Text(
-                                text = "${playlist.songCount} songs",
+                                text = listOfNotNull(
+                                    "${playlist.songCount} songs",
+                                    totalDuration.takeIf { it > 0 }?.formatTotalDuration(),
+                                    totalSize.takeIf { it > 0 }?.formatFileSize(),
+                                ).joinToString(" \u2022 "),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

@@ -109,7 +109,7 @@ class JellyfinApiService {
     suspend fun getMusicGenres(params: Map<String, Any?>): ItemsResultDto = get("MusicGenres", params + ("userId" to userId))
 
     suspend fun getPlaylistItems(playlistId: String): ItemsResultDto =
-        get("Playlists/$playlistId/Items", mapOf("userId" to userId))
+        get("Playlists/$playlistId/Items", mapOf("userId" to userId, "fields" to "MediaSources"))
 
     suspend fun createPlaylist(name: String, songIds: List<String>): PlaylistCreationResultDto {
         val response = client.post("${baseUrl()}/Playlists") {
