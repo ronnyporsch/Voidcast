@@ -1,12 +1,20 @@
 [
   {
     "guid": "38651385-45e3-4f8e-bc70-c45f5910a4a0",
-    "name": "Voidcast",
-    "description": "Searches YouTube Music for Voidcast clients and downloads the tracks they pick into the music library using yt-dlp.",
-    "overview": "YouTube Music search and downloads for Voidcast",
-    "owner": "Voidcast",
+    "name": "KMusicPlayer",
+    "description": "Searches YouTube Music for KMusicPlayer clients and downloads the tracks they pick into the music library using yt-dlp.",
+    "overview": "YouTube Music search and downloads for KMusicPlayer",
+    "owner": "KMusicPlayer",
     "category": "General",
     "versions": [
+      {
+        "version": "1.10.0.0",
+        "changelog": "Plugin versions come from git tags; installable from the GitHub plugin repository",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.10.0/kmusicplayer_1.10.0.0.zip",
+        "checksum": "3ff1f6d5ac8416d1c72ff31b30867533",
+        "timestamp": "2026-10-25T13:15:39Z"
+      },
       {
         "version": "1.2.1.0",
         "changelog": "Plugin: Fixed YouTube album parsing",
