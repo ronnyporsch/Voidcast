@@ -3,6 +3,10 @@ package de.ronnyporsch.voidcast.ui.screen.library
 import androidx.compose.foundation.lazy.LazyListState
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.domain.model.Genre
+import de.ronnyporsch.voidcast.domain.model.LibraryCategory
+import de.ronnyporsch.voidcast.domain.model.LibraryOrder
+import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
@@ -24,14 +28,16 @@ class LibraryViewModel(
     playlistChanges: Flow<String> = emptyFlow(),
     private val downloads: PlaylistDownloads? = null,
     favorites: Favorites? = null,
+    /** What the sidebar showed last time. */
+    initialView: LibraryViewSettings = LibraryViewSettings(),
+    /** Called when the sidebar's category or order changed, to keep them. */
+    private val onViewChanged: (LibraryViewSettings) -> Unit = {},
 ) : MviStore<LibraryState, LibraryEvent, LibraryEffect>(
-    LibraryState(isLoading = awaitingConnection, canDownloadPlaylists = downloads?.isSupported == true)
+    LibraryState(view = initialView, isLoading = awaitingConnection, canDownloadPlaylists = downloads?.isSupported == true)
 ) {
 
     // The sidebar is shown next to other screens too and keeps its scroll position across them
-    val artistSidebarState = LazyListState()
-    val playlistSidebarState = LazyListState()
-    val favoritesSidebarState = LazyListState()
+    val sidebarStates: Map<LibraryCategory, LazyListState> = LibraryCategory.entries.associateWith { LazyListState() }
 
     init {
         if (repository.isConfigured) {
@@ -74,9 +80,17 @@ class LibraryViewModel(
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is LibraryEvent.SongRangeSelected ->
                 setState { copy(selectedSongIds = detailSongs.selectedThrough(event.index, selectedSongIds)) }
-            is LibraryEvent.SidebarTabSelected -> {
-                setState { copy(selectedSidebarTab = event.tab) }
-                loadTabData(event.tab)
+            is LibraryEvent.CategorySelected -> {
+                setView(currentState.view.copy(category = event.category))
+                loadTabData(event.category)
+            }
+            is LibraryEvent.SortSelected -> {
+                val view = currentState.view
+                val current = view.orderOf(view.category)
+                val order = if (current.sort == event.sort) current.copy(reversed = !current.reversed) else LibraryOrder(event.sort)
+                setView(view.copy(orders = view.orders + (view.category to order)))
+                // Show the start of the reordered list
+                launch { sidebarStates.getValue(view.category).scrollToItem(0) }
             }
             is LibraryEvent.Refresh -> loadAll()
             is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
@@ -88,6 +102,7 @@ class LibraryViewModel(
                     is LibrarySelection.Album -> onEvent(LibraryEvent.AlbumClicked(selection.album))
                     is LibrarySelection.Playlist -> selectPlaylist(selection.playlistId)
                     LibrarySelection.FavoriteSongs -> onEvent(LibraryEvent.FavoriteSongsClicked)
+                    is LibrarySelection.Genre -> onEvent(LibraryEvent.GenreClicked(selection.genre))
                 }
             }
             is LibraryEvent.ArtistClicked -> {
@@ -239,6 +254,11 @@ class LibraryViewModel(
                 emitEffect(LibraryEffect.NavigateToAlbum(event.album.id))
             is LibraryEvent.OpenPlaylistScreen ->
                 emitEffect(LibraryEffect.NavigateToPlaylist(event.playlist.id))
+            is LibraryEvent.OpenGenreScreen ->
+                emitEffect(LibraryEffect.NavigateToGenre(event.genre))
+            is LibraryEvent.GenreClicked -> selectGenre(event.genre)
+            is LibraryEvent.PlaySongs ->
+                if (event.songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(event.songs, event.startIndex))
             is LibraryEvent.SongArtistClicked -> {
                 emitEffect(LibraryEffect.NavigateToArtist(null, event.artistName))
             }
@@ -265,6 +285,35 @@ class LibraryViewModel(
             is LibraryEvent.ShuffleAllFavoriteSongs -> {
                 val songs = currentState.favoriteSongs
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+            }
+        }
+    }
+
+    private fun setView(view: LibraryViewSettings) {
+        setState { copy(view = view) }
+        onViewChanged(view)
+    }
+
+    private fun selectGenre(genre: Genre) {
+        setState {
+            copy(
+                activeDetailView = LibraryDetailView.Genres,
+                selectedGenre = genre,
+                selectedGenreAlbums = emptyList(),
+                selectedGenreAlbumsLoading = true,
+                selectedArtistId = null,
+                selectedArtist = null,
+                selectedAlbumId = null,
+                selectedAlbum = null,
+                selectedPlaylistId = null,
+                selectedPlaylist = null,
+                selectedPlaylistLoading = false,
+            )
+        }
+        launch {
+            val albums = repository.getGenreAlbums(genre).getOrDefault(emptyList())
+            if (currentState.selectedGenre?.id == genre.id) {
+                setState { copy(selectedGenreAlbums = albums, selectedGenreAlbumsLoading = false) }
             }
         }
     }
@@ -302,16 +351,21 @@ class LibraryViewModel(
                     isOffline = true,
                     playlists = playlists,
                     artists = artists,
-                    selectedSidebarTab = LibrarySidebarTab.Playlists,
+                    // The downloaded songs tell them now
+                    albums = emptyList(),
+                    songs = emptyList(),
+                    genres = emptyList(),
                     activeDetailView = LibraryDetailView.Playlists,
                 )
             }
             ensureDefaultSelection()
+            loadTabData(currentState.category)
         }
     }
 
     private fun loadAll() {
-        setState { copy(isLoading = true, isOffline = false, error = null) }
+        // Albums, songs and genres get loaded again when shown, they may be of a different server now
+        setState { copy(isLoading = true, isOffline = false, error = null, albums = emptyList(), songs = emptyList(), genres = emptyList()) }
         launch {
             val artistsResult = repository.getArtists()
             val playlistsResult = repository.getPlaylists()
@@ -329,13 +383,13 @@ class LibraryViewModel(
             }
 
             ensureDefaultSelection()
-            loadTabData(currentState.selectedSidebarTab)
+            loadTabData(currentState.category)
         }
     }
 
-    private fun loadTabData(tab: LibrarySidebarTab) {
-        when (tab) {
-            LibrarySidebarTab.Artists -> {
+    private fun loadTabData(category: LibraryCategory) {
+        when (category) {
+            LibraryCategory.Artists -> {
                 if (currentState.artists.isEmpty()) {
                     launch {
                         repository.getArtists().onSuccess {
@@ -348,8 +402,17 @@ class LibraryViewModel(
                 }
             }
             // Favorites are loaded on connecting and kept up to date by Favorites
-            LibrarySidebarTab.Favorites -> {}
-            LibrarySidebarTab.Playlists -> {
+            LibraryCategory.Favorites -> {}
+            LibraryCategory.Albums -> if (currentState.albums.isEmpty()) {
+                loadCategory(category, { getAlbums() }) { copy(albums = it) }
+            }
+            LibraryCategory.Songs -> if (currentState.songs.isEmpty()) {
+                loadCategory(category, { getAllSongs() }) { copy(songs = it) }
+            }
+            LibraryCategory.Genres -> if (currentState.genres.isEmpty()) {
+                loadCategory(category, { getGenres() }) { copy(genres = it) }
+            }
+            LibraryCategory.Playlists -> {
                 if (currentState.playlists.isEmpty()) {
                     launch {
                         repository.getPlaylists().onSuccess {
@@ -357,6 +420,23 @@ class LibraryViewModel(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /** Loads the items of a sidebar [category] with [load] and puts them into the state with [update]. */
+    private fun <T> loadCategory(
+        category: LibraryCategory,
+        load: suspend MusicRepository.() -> Result<T>,
+        update: LibraryState.(T) -> LibraryState,
+    ) {
+        if (category in currentState.loadingCategories) return
+        setState { copy(loadingCategories = loadingCategories + category) }
+        launch {
+            val result = repository.load()
+            setState {
+                val loaded = result.getOrNull()
+                (if (loaded != null) update(loaded) else this).copy(loadingCategories = loadingCategories - category)
             }
         }
     }
@@ -407,7 +487,7 @@ class LibraryViewModel(
                     loadPlaylist(playlist.id)
                 }
             }
-            LibraryDetailView.FavoriteSongs -> {}
+            LibraryDetailView.FavoriteSongs, LibraryDetailView.Genres -> {}
         }
     }
 

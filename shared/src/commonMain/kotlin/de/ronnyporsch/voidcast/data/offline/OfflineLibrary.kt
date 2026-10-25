@@ -3,11 +3,12 @@ package de.ronnyporsch.voidcast.data.offline
 import de.ronnyporsch.voidcast.data.repository.SearchResults
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
+import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.Song
 
 /** The library as far as the downloaded [songs] tell it, for browsing while the server isn't reachable. */
 class OfflineLibrary(songs: List<Song>) {
-    private val songs = songs.sortedWith(compareBy({ it.album.lowercase() }, { it.discNumber ?: 1 }, { it.track ?: 0 }))
+    val songs = songs.sortedWith(compareBy({ it.album.lowercase() }, { it.discNumber ?: 1 }, { it.track ?: 0 }))
 
     val albums: List<Album> = this.songs
         .filter { it.albumId.isNotBlank() }
@@ -25,6 +26,7 @@ class OfflineLibrary(songs: List<Song>) {
                 year = songs.firstNotNullOfOrNull { it.year },
                 duration = songs.sumOf { it.duration },
                 songs = songs,
+                dateAdded = songs.mapNotNull { it.dateAdded }.maxOrNull(),
             )
         }
 
@@ -36,6 +38,19 @@ class OfflineLibrary(songs: List<Song>) {
             artist.copy(albumCount = albums.count { album -> album.songs.any { artist.matches(it) } })
         }
         .sortedBy { it.name.lowercase() }
+
+    /** Genres by name, as far as the songs have one. */
+    val genres: List<Genre> = this.songs
+        .filter { !it.genre.isNullOrBlank() }
+        .groupBy { it.genre!!.lowercase() }
+        .map { (_, songs) ->
+            val name = songs.first().genre!!
+            Genre(id = name, name = name, albumCount = songs.map { it.albumId }.distinct().size, songCount = songs.size)
+        }
+        .sortedBy { it.name.lowercase() }
+
+    fun albumsOfGenre(name: String): List<Album> =
+        albums.filter { album -> album.songs.any { it.genre.equals(name, ignoreCase = true) } }
 
     fun artist(name: String): Artist? = artists.firstOrNull { it.name.equals(name, ignoreCase = true) }
 

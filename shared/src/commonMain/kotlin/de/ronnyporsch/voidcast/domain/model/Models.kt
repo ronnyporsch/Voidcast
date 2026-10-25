@@ -15,6 +15,8 @@ data class Artist(
     val name: String,
     val albumCount: Int = 0,
     val coverArtId: String? = null,
+    /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
+    val dateAdded: String? = null,
 )
 
 data class ArtistInfo(
@@ -35,6 +37,8 @@ data class Album(
     val songs: List<Song> = emptyList(),
     /** E.g. "Album", "Single" or "EP"; only known for YouTube Music albums. */
     val releaseType: String? = null,
+    /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
+    val dateAdded: String? = null,
 )
 
 @Serializable
@@ -58,6 +62,8 @@ data class Song(
     val codec: String? = null,
     /** A YouTube (music) video, which can be played with picture. */
     val isVideo: Boolean = false,
+    /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
+    val dateAdded: String? = null,
 )
 
 /** What kind of item a favorite is; servers mark them through different endpoints. */
@@ -92,6 +98,16 @@ data class Playlist(
     val duration: Int = 0,
     val coverArtId: String? = null,
     val songs: List<Song> = emptyList(),
+    /** When it got created, as an ISO 8601 timestamp; null if the server doesn't tell. */
+    val dateAdded: String? = null,
+)
+
+/** A genre of the library; on Subsonic servers its [id] is its name. */
+data class Genre(
+    val id: String,
+    val name: String,
+    val albumCount: Int = 0,
+    val songCount: Int = 0,
 )
 
 enum class PlaybackStatus {

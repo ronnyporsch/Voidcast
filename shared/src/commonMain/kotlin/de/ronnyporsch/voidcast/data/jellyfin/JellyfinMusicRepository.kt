@@ -17,7 +17,7 @@ class JellyfinMusicRepository(
     override suspend fun ping(): Boolean = api.ping()
 
     override suspend fun getArtists(): Result<List<Artist>> = runCatching {
-        api.getAlbumArtists(mapOf("sortBy" to "SortName", "fields" to "ItemCounts", "enableUserData" to false))
+        api.getAlbumArtists(mapOf("sortBy" to "SortName", "fields" to "ItemCounts,DateCreated", "enableUserData" to false))
             .items.map { it.toArtist() }
     }
 
@@ -52,13 +52,26 @@ class JellyfinMusicRepository(
         }
     }
 
+    override suspend fun getAlbums(): Result<List<Album>> = runCatching { albums("sortBy" to "SortName") }
+
+    override suspend fun getAllSongs(): Result<List<Song>> = runCatching { songs("sortBy" to "SortName") }
+
+    override suspend fun getGenres(): Result<List<Genre>> = runCatching {
+        api.getMusicGenres(mapOf("sortBy" to "SortName", "fields" to "ItemCounts", "enableUserData" to false))
+            .items.map { Genre(id = it.id, name = it.name, albumCount = it.albumCount ?: 0, songCount = it.songCount ?: 0) }
+    }
+
+    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> = runCatching {
+        albums("genreIds" to genre.id, "sortBy" to "SortName")
+    }
+
     override suspend fun getPlaylists(): Result<List<Playlist>> = runCatching {
         api.getItems(
             mapOf(
                 "includeItemTypes" to "Playlist",
                 "recursive" to true,
                 "sortBy" to "SortName",
-                "fields" to "ChildCount",
+                "fields" to "ChildCount,DateCreated",
                 "enableUserData" to false,
             )
         ).items
@@ -160,7 +173,7 @@ class JellyfinMusicRepository(
                 "recursive" to true,
                 "isFavorite" to true,
                 "sortBy" to "SortName",
-                "fields" to "Genres,ChildCount,ItemCounts",
+                "fields" to "Genres,ChildCount,ItemCounts,DateCreated",
                 "enableUserData" to false,
             )
         ).items
@@ -195,7 +208,7 @@ class JellyfinMusicRepository(
                 "includeItemTypes" to "MusicAlbum",
                 "recursive" to true,
                 "sortBy" to "ProductionYear,SortName",
-                "fields" to "ChildCount",
+                "fields" to "ChildCount,DateCreated",
                 "enableUserData" to false,
             ) + params
         ).items.map { it.toAlbum() }
@@ -205,14 +218,14 @@ class JellyfinMusicRepository(
             mapOf(
                 "includeItemTypes" to "Audio",
                 "recursive" to true,
-                "fields" to "Genres",
+                "fields" to "Genres,DateCreated",
                 "enableUserData" to false,
             ) + params
         ).items.map { it.toSong() }
 }
 
 /** Song query parameter for codec and bitrate; only where shown, the media streams make responses a lot bigger. */
-private val WITH_FORMAT = "fields" to "Genres,MediaStreams"
+private val WITH_FORMAT = "fields" to "Genres,DateCreated,MediaStreams"
 
 private fun LyricDto.toLyrics(): Lyrics? =
     lyrics.takeIf { it.isNotEmpty() }?.let { lines ->
@@ -229,6 +242,7 @@ private fun BaseItemDto.toArtist() = Artist(
     // Needs the ItemCounts field; an artist's ChildCount counts the entries of its folder, not its albums
     albumCount = albumCount ?: 0,
     coverArtId = id.takeIf { "Primary" in imageTags },
+    dateAdded = dateCreated,
 )
 
 private fun BaseItemDto.toAlbum() = Album(
@@ -241,6 +255,7 @@ private fun BaseItemDto.toAlbum() = Album(
     songCount = childCount ?: 0,
     year = productionYear,
     duration = ticksToSeconds(),
+    dateAdded = dateCreated,
 )
 
 internal fun BaseItemDto.toSong() = Song(
@@ -264,6 +279,7 @@ internal fun BaseItemDto.toSong() = Song(
     genre = genres.firstOrNull(),
     bitRate = mediaStreams.firstOrNull { it.type == "Audio" }?.bitRate?.let { (it + 500) / 1000 },
     codec = mediaStreams.firstOrNull { it.type == "Audio" }?.codec?.let(::codecDisplayName),
+    dateAdded = dateCreated,
 )
 
 private fun BaseItemDto.toPlaylist() = Playlist(
@@ -272,4 +288,5 @@ private fun BaseItemDto.toPlaylist() = Playlist(
     songCount = childCount ?: 0,
     duration = ticksToSeconds(),
     coverArtId = id.takeIf { "Primary" in imageTags },
+    dateAdded = dateCreated,
 )

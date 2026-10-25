@@ -6,6 +6,7 @@ import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.ArtistInfo
 import de.ronnyporsch.voidcast.domain.model.AudioStreamInfo
+import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.audioFormat
@@ -66,6 +67,18 @@ class OfflineMusicRepository(
 
     override suspend fun getAlbum(albumId: String): Result<Album> =
         server.getAlbum(albumId).recoverOffline { library().album(albumId) }
+
+    override suspend fun getAlbums(): Result<List<Album>> =
+        server.getAlbums().recoverOffline { library().albums.map { it.copy(songs = emptyList()) }.ifEmpty { null } }
+
+    override suspend fun getAllSongs(): Result<List<Song>> =
+        server.getAllSongs().recoverOffline { library().songs.ifEmpty { null } }
+
+    override suspend fun getGenres(): Result<List<Genre>> =
+        server.getGenres().recoverOffline { library().genres.ifEmpty { null } }
+
+    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> =
+        server.getGenreAlbums(genre).recoverOffline { library().albumsOfGenre(genre.name) }
 
     // Artists without an id are looked up by name again, so the songs crediting them get found
     override suspend fun findArtistByName(name: String): Result<Artist?> =

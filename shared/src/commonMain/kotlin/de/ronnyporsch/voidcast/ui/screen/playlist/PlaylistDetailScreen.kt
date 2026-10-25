@@ -27,6 +27,10 @@ import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
 import de.ronnyporsch.voidcast.ui.components.contextMenuIndices
+import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
+import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.ui.components.rememberTouchSelection
+import de.ronnyporsch.voidcast.ui.components.touchSelection
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 
 @Composable
@@ -60,12 +64,27 @@ fun PlaylistDetailScreen(
             }
         } else {
             val playlist = state.playlist ?: return
+            val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+            val songSelection = rememberTouchSelection(
+                items = playlist.songs,
+                selectedIds = state.selectedSongIds,
+                onChange = { viewModel.onEvent(PlaylistDetailEvent.SongsSelected(it)) },
+                id = { it.id },
+                key = songKey,
+            )
+            TouchSelectionBar(
+                selection = songSelection,
+                songs = { songSelection.selectedItems },
+                onRemoveFromPlaylist = {
+                    viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(playlist.songs.indices.filter { playlist.songs[it].id in state.selectedSongIds }))
+                },
+            )
 
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(bottom = 100.dp),
-                    modifier = Modifier.onKeyEvent { event ->
+                    modifier = Modifier.touchSelection(songSelection, listState).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
                             val playlist = state.playlist ?: return@onKeyEvent false
                             val currentIndex = playlist.songs.indexOfFirst { it.id in state.selectedSongIds }
@@ -149,14 +168,15 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    itemsIndexed(playlist.songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
+                    itemsIndexed(playlist.songs, key = songKey) { index, song ->
                         SongRow(
                             song = song,
                             index = index,
                             // Taps on mobile play the song; artist links would be too easy to hit by accident
                             onArtistClick = if (isMobile) null else { name -> viewModel.onEvent(PlaylistDetailEvent.ArtistClicked(name)) },
                             onAlbumClick = { albumId -> viewModel.onEvent(PlaylistDetailEvent.AlbumClicked(albumId)) },
-                            onSongClick = { viewModel.onEvent(PlaylistDetailEvent.SongClicked(song, index)) },
+                            onSongClick = { songSelection.click(song) { viewModel.onEvent(PlaylistDetailEvent.SongClicked(song, index)) } },
+                            longPressSelects = songSelection.isEnabled,
                             onSongDoubleClick = { viewModel.onEvent(PlaylistDetailEvent.SongDoubleClicked(song, index)) },
                             onSongCtrlClick = { viewModel.onEvent(PlaylistDetailEvent.SongSelectionToggled(song)) },
                             onSongShiftClick = { viewModel.onEvent(PlaylistDetailEvent.SongRangeSelected(index)) },

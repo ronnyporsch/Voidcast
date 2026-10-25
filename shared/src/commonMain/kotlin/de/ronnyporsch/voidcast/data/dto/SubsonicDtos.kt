@@ -23,6 +23,8 @@ data class SubsonicResponseBody(
     val lyricsList: LyricsListDto? = null,
     val lyrics: LyricsDto? = null,
     val starred2: Starred2Dto? = null,
+    val albumList2: AlbumList2Dto? = null,
+    val genres: GenresDto? = null,
 )
 
 @Serializable
@@ -71,6 +73,8 @@ data class AlbumDto(
     val songCount: Int = 0,
     val year: Int? = null,
     val duration: Int = 0,
+    /** When it got added to the library, ISO 8601. */
+    val created: String? = null,
 )
 
 @Serializable
@@ -85,6 +89,8 @@ data class AlbumWithSongsDto(
     val songCount: Int = 0,
     val year: Int? = null,
     val duration: Int = 0,
+    /** When it got added to the library, ISO 8601. */
+    val created: String? = null,
     val song: List<SongDto> = emptyList(),
 )
 
@@ -107,6 +113,8 @@ data class SongDto(
     val bitRate: Int? = null,
     /** File extension, e.g. "flac". */
     val suffix: String? = null,
+    /** When it got added to the library, ISO 8601. */
+    val created: String? = null,
 )
 
 @Serializable
@@ -121,6 +129,8 @@ data class PlaylistDto(
     val songCount: Int = 0,
     val duration: Int = 0,
     val coverArt: String? = null,
+    /** ISO 8601. */
+    val created: String? = null,
 )
 
 @Serializable
@@ -130,6 +140,8 @@ data class PlaylistWithSongsDto(
     val songCount: Int = 0,
     val duration: Int = 0,
     val coverArt: String? = null,
+    /** ISO 8601. */
+    val created: String? = null,
     val entry: List<SongDto> = emptyList(),
 )
 
@@ -155,6 +167,24 @@ data class Starred2Dto(
     val artist: List<ArtistDto> = emptyList(),
     val album: List<AlbumDto> = emptyList(),
     val song: List<SongDto> = emptyList(),
+)
+
+@Serializable
+data class AlbumList2Dto(
+    val album: List<AlbumDto> = emptyList(),
+)
+
+@Serializable
+data class GenresDto(
+    val genre: List<GenreDto> = emptyList(),
+)
+
+@Serializable
+data class GenreDto(
+    /** The genre's name. */
+    val value: String = "",
+    val songCount: Int = 0,
+    val albumCount: Int = 0,
 )
 
 /** OpenSubsonic getLyricsBySongId. */

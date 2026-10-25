@@ -16,6 +16,9 @@ val SpotifySurface = Color(0xFF282828)
 val SpotifyLightGray = Color(0xFFB3B3B3)
 val SpotifyWhite = Color(0xFFFFFFFF)
 
+/** Background of selected songs and albums; tinted, so it shows on every background, the sidebar's included. */
+val SelectionColor = AccentColor.copy(alpha = 0.22f)
+
 private val DarkColorScheme = darkColorScheme(
     primary = AccentColor,
     onPrimary = SpotifyBlack,

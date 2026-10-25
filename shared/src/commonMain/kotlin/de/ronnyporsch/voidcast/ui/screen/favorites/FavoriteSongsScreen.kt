@@ -11,6 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -34,6 +38,15 @@ fun FavoriteSongsScreen(
 ) {
     val listState = rememberLazyListState()
     val headerState = rememberCollapsingHeaderState(listState)
+    var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+    val touchSelection = rememberTouchSelection(
+        items = songs,
+        selectedIds = selectedIds,
+        onChange = { selectedIds = it },
+        id = { it.id },
+        key = ::favoriteSongKey,
+    )
+    TouchSelectionBar(touchSelection, songs = { touchSelection.selectedItems })
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -51,17 +64,20 @@ fun FavoriteSongsScreen(
             headerState = headerState,
             onSongClick = { _, index -> onPlay(songs, index, null) },
             onSongDoubleClick = { _, index -> onPlay(songs, index, null) },
-            isSelected = { false },
+            isSelected = { it in selectedIds },
             isPlaying = { it == currentSongId },
             onArtistClick = onArtistClick,
             onAlbumClick = onAlbumClick,
             onPlayAll = { if (songs.isNotEmpty()) onPlay(songs, 0, null) },
             onShuffle = { if (songs.isNotEmpty()) onPlay(songs, 0, true) },
+            touchSelection = touchSelection,
         )
     }
 }
 
 const val FAVORITE_SONGS_TITLE = "Favorite songs"
+
+private fun favoriteSongKey(index: Int, song: Song): Any = "${song.id}::$index"
 
 /** Stands in for a cover: a heart on a green gradient. */
 @Composable
@@ -97,13 +113,18 @@ fun FavoriteSongsList(
     onSongCtrlClick: (Song) -> Unit = {},
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
+    /** Mobile: selects the songs by touch. */
+    touchSelection: TouchSelection<Song>? = null,
 ) {
     RememberScrollPosition(state, "favoriteSongs")
     Box(modifier) {
         LazyColumn(
             state = state,
             contentPadding = PaddingValues(bottom = 100.dp),
-            modifier = Modifier.fillMaxSize().onKeyEvent { event ->
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (touchSelection != null) Modifier.touchSelection(touchSelection, state) else Modifier)
+                .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val currentIndex = songs.indexOfFirst { isSelected(it.id) }
                 when (event.key) {
@@ -182,11 +203,14 @@ fun FavoriteSongsList(
                     }
                 }
 
-                itemsIndexed(songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
+                itemsIndexed(songs, key = ::favoriteSongKey) { index, song ->
                     SongRow(
                         song = song,
                         index = index,
-                        onSongClick = { onSongClick(song, index) },
+                        onSongClick = {
+                            if (touchSelection != null) touchSelection.click(song) { onSongClick(song, index) } else onSongClick(song, index)
+                        },
+                        longPressSelects = touchSelection?.isEnabled == true,
                         onSongDoubleClick = { onSongDoubleClick(song, index) },
                         onSongCtrlClick = { onSongCtrlClick(song) },
                         onSongShiftClick = { onSongShiftClick(song, index) },

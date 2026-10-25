@@ -143,13 +143,31 @@ class SubsonicApiService {
         }.body()
     }
 
-    suspend fun searchSongs(query: String, songCount: Int = 500): SubsonicResponse {
+    suspend fun searchSongs(query: String, songCount: Int = 500, songOffset: Int = 0): SubsonicResponse {
         return client.get("${baseUrl()}/rest/search3.view") {
             addAuthParams()
             parameter("query", query)
             parameter("artistCount", 0)
             parameter("albumCount", 0)
             parameter("songCount", songCount)
+            parameter("songOffset", songOffset)
+        }.body()
+    }
+
+    /** A page of albums; [type] is e.g. "alphabeticalByName" or "byGenre" (with [genre]). */
+    suspend fun getAlbumList2(type: String, genre: String? = null, size: Int = 500, offset: Int = 0): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getAlbumList2.view") {
+            addAuthParams()
+            parameter("type", type)
+            genre?.let { parameter("genre", it) }
+            parameter("size", size)
+            parameter("offset", offset)
+        }.body()
+    }
+
+    suspend fun getGenres(): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getGenres.view") {
+            addAuthParams()
         }.body()
     }
 

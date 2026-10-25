@@ -5,10 +5,19 @@ import de.ronnyporsch.voidcast.data.dto.AlbumDto
 import de.ronnyporsch.voidcast.data.dto.ArtistDto
 import de.ronnyporsch.voidcast.data.dto.SongDto
 import de.ronnyporsch.voidcast.data.repository.collectAppearsOnAlbumIds
+import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
+import de.ronnyporsch.voidcast.domain.model.LibraryCategory
+import de.ronnyporsch.voidcast.domain.model.LibraryOrder
+import de.ronnyporsch.voidcast.domain.model.LibrarySort
+import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
+import de.ronnyporsch.voidcast.platform.decodeLibraryView
+import de.ronnyporsch.voidcast.platform.encode
+import de.ronnyporsch.voidcast.util.sortedBy
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatDuration
 import de.ronnyporsch.voidcast.domain.model.formatDurationMs
+import de.ronnyporsch.voidcast.ui.components.TouchSelection
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.navigation.Navigator
 import de.ronnyporsch.voidcast.ui.navigation.Screen
@@ -217,5 +226,63 @@ class SharedCommonTest {
         // A new visit of an equal screen starts at the top
         navigator.push(Screen.Search)
         assertTrue(navigator.currentEntry.value.id != search.id)
+    }
+
+    @Test
+    fun albums_sort_alphabetically_by_release_date_and_by_date_added() {
+        val albums = listOf(
+            Album(id = "1", name = "beta", year = 2001, dateAdded = "2024-01-02T00:00:00Z"),
+            Album(id = "2", name = "Alpha", year = null, dateAdded = null),
+            Album(id = "3", name = "gamma", year = 2020, dateAdded = "2023-05-01T00:00:00Z"),
+        )
+        assertEquals(listOf("2", "1", "3"), albums.sortedBy(LibraryOrder(LibrarySort.Alphabetical)).map { it.id })
+        // Newest first, unknown dates last
+        assertEquals(listOf("3", "1", "2"), albums.sortedBy(LibraryOrder(LibrarySort.ReleaseDate)).map { it.id })
+        assertEquals(listOf("1", "3", "2"), albums.sortedBy(LibraryOrder(LibrarySort.DateAdded)).map { it.id })
+        // Reversed: Z to A, oldest first; unknown dates still last
+        assertEquals(listOf("3", "1", "2"), albums.sortedBy(LibraryOrder(LibrarySort.Alphabetical, reversed = true)).map { it.id })
+        assertEquals(listOf("1", "3", "2"), albums.sortedBy(LibraryOrder(LibrarySort.ReleaseDate, reversed = true)).map { it.id })
+        assertEquals(listOf("3", "1", "2"), albums.sortedBy(LibraryOrder(LibrarySort.DateAdded, reversed = true)).map { it.id })
+    }
+
+    @Test
+    fun songs_sorted_by_release_date_keep_their_track_order() {
+        val songs = listOf(
+            Song(id = "b2", title = "Z", album = "B", track = 2, year = 2010),
+            Song(id = "a1", title = "Y", album = "A", track = 1, year = 2000),
+            Song(id = "b1", title = "X", album = "B", track = 1, year = 2010),
+        )
+        assertEquals(listOf("b1", "b2", "a1"), songs.sortedBy(LibraryOrder(LibrarySort.ReleaseDate)).map { it.id })
+        assertEquals(listOf("a1", "b1", "b2"), songs.sortedBy(LibraryOrder(LibrarySort.ReleaseDate, reversed = true)).map { it.id })
+        assertEquals(listOf("b1", "a1", "b2"), songs.sortedBy(LibraryOrder(LibrarySort.Alphabetical)).map { it.id })
+    }
+
+    @Test
+    fun library_view_settings_survive_storing_them() {
+        val view = LibraryViewSettings(LibraryCategory.Albums, mapOf(LibraryCategory.Albums to LibraryOrder(LibrarySort.DateAdded, reversed = true)))
+        assertEquals(view, decodeLibraryView(view.encode()))
+        assertEquals(LibraryViewSettings(), decodeLibraryView(null))
+        assertEquals(LibraryViewSettings(), decodeLibraryView("not json"))
+        assertEquals(LibraryOrder(), view.orderOf(LibraryCategory.Songs))
+    }
+
+    @Test
+    fun touch_selection_drags_select_and_unselect_ranges() {
+        val selection = TouchSelection<Song>()
+        val songs = (0..5).map { Song(id = "s$it", title = "Song $it") }
+        selection.items = songs
+        selection.id = { it.id }
+        selection.onChange = { selection.selectedIds = it }
+        selection.selectedIds = setOf("s0")
+        selection.startDrag(2)
+        selection.dragTo(4)
+        assertEquals(setOf("s0", "s2", "s3", "s4"), selection.selectedIds)
+        // Moving back shrinks the range again
+        selection.dragTo(3)
+        assertEquals(setOf("s0", "s2", "s3"), selection.selectedIds)
+        // Starting on a selected song unselects
+        selection.startDrag(3)
+        selection.dragTo(2)
+        assertEquals(setOf("s0"), selection.selectedIds)
     }
 }

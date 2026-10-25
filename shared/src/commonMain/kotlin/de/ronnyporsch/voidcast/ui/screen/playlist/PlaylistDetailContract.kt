@@ -14,6 +14,8 @@ sealed class PlaylistDetailEvent {
     data class SongClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : PlaylistDetailEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
+    /** Mobile: the songs selected by touch, see TouchSelection. */
+    data class SongsSelected(val ids: Set<String>) : PlaylistDetailEvent()
     data class SongSelectionToggled(val song: Song) : PlaylistDetailEvent()
     /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
     data class SongRangeSelected(val index: Int) : PlaylistDetailEvent()

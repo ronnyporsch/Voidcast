@@ -37,6 +37,7 @@ data class AppSettings(
     val playback: PlaybackSettings = PlaybackSettings(),
     /** Identifies this installation to Jellyfin, so logging in again replaces the previous session. */
     val jellyfinDeviceId: String = "",
+    val libraryView: LibraryViewSettings = LibraryViewSettings(),
 ) {
     val hasSavedConnection: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()

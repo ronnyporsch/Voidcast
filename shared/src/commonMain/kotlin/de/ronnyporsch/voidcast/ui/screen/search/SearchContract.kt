@@ -40,6 +40,8 @@ sealed class SearchEvent {
     data class SongClicked(val song: Song, val index: Int) : SearchEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
+    /** Mobile: the songs selected by touch, see TouchSelection. */
+    data class SongsSelected(val ids: Set<String>) : SearchEvent()
     data class SongSelectionToggled(val song: Song) : SearchEvent()
     /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
     data class SongRangeSelected(val index: Int) : SearchEvent()

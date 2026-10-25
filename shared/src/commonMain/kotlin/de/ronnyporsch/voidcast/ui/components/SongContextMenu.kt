@@ -185,6 +185,10 @@ fun SongContextMenu(
     title: String? = null,
     /** Offers to mark the songs as favorites. */
     showFavorites: Boolean = true,
+    /** Opens with the playlists to add the songs to. */
+    showPlaylistsFirst: Boolean = false,
+    /** Called after an action got chosen (not when the menu is just closed), e.g. to end a selection. */
+    onActionDone: () -> Unit = {},
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
@@ -192,7 +196,7 @@ fun SongContextMenu(
     if (editor == null && addToQueue == null && onRemoveFromPlaylist == null && songDownloads == null) return
     // YouTube Music results aren't in the library; the server downloads them first where it can
     val canAddToPlaylist = editor != null && (editor.canAddYouTube || songs.none { it.isYouTube })
-    var showPlaylists by remember { mutableStateOf(false) }
+    var showPlaylists by remember { mutableStateOf(showPlaylistsFirst) }
     var showCreateDialog by remember { mutableStateOf(false) }
     // The menu forgets the songs when it closes, but the dialog outlives it
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
@@ -205,7 +209,12 @@ fun SongContextMenu(
     val singleDownloadIds by (songDownloads?.singleSongIds ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
     LaunchedEffect(expanded) {
-        if (!expanded) showPlaylists = false
+        if (!expanded) showPlaylists = showPlaylistsFirst
+        else if (showPlaylistsFirst) editor?.refreshPlaylists()
+    }
+    fun finish() {
+        onDismiss()
+        onActionDone()
     }
 
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, offset = offset) {
@@ -228,7 +237,7 @@ fun SongContextMenu(
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null) },
                     onClick = {
                         addToQueue(songs)
-                        onDismiss()
+                        finish()
                     },
                 )
             }
@@ -244,7 +253,7 @@ fun SongContextMenu(
                         },
                         onClick = {
                             favoriteSongs.forEach { favorites.set(FavoriteKind.Song, it.id, add) }
-                            onDismiss()
+                            finish()
                         },
                     )
                 }
@@ -273,7 +282,7 @@ fun SongContextMenu(
                         leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
                         onClick = {
                             songDownloads.downloadSongs(missing)
-                            onDismiss()
+                            finish()
                         },
                     )
                 } else if (removable.isNotEmpty()) {
@@ -282,7 +291,7 @@ fun SongContextMenu(
                         leadingIcon = { Icon(Icons.Default.FileDownloadOff, contentDescription = null) },
                         onClick = {
                             songDownloads.removeSongs(removable.map { it.id })
-                            onDismiss()
+                            finish()
                         },
                     )
                 }
@@ -293,7 +302,7 @@ fun SongContextMenu(
                     leadingIcon = { Icon(Icons.Default.GraphicEq, contentDescription = null) },
                     onClick = {
                         streamFormatLookup(songs.filter { it.isYouTube })
-                        onDismiss()
+                        finish()
                     },
                 )
             }
@@ -303,7 +312,7 @@ fun SongContextMenu(
                     leadingIcon = { Icon(Icons.Default.PlaylistRemove, contentDescription = null) },
                     onClick = {
                         onRemoveFromPlaylist()
-                        onDismiss()
+                        finish()
                     },
                 )
             }
@@ -328,7 +337,7 @@ fun SongContextMenu(
                     text = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = {
                         editor.addToPlaylist(playlist, songs)
-                        onDismiss()
+                        finish()
                     },
                 )
             }
@@ -341,6 +350,7 @@ fun SongContextMenu(
             if (name.isNotBlank()) {
                 editor.createPlaylist(name.trim(), dialogSongs)
                 showCreateDialog = false
+                onActionDone()
             }
         }
         AlertDialog(

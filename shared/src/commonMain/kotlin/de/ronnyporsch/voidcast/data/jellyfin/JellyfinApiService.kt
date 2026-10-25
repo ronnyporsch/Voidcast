@@ -106,6 +106,8 @@ class JellyfinApiService {
 
     suspend fun getArtists(params: Map<String, Any?>): ItemsResultDto = get("Artists", params + ("userId" to userId))
 
+    suspend fun getMusicGenres(params: Map<String, Any?>): ItemsResultDto = get("MusicGenres", params + ("userId" to userId))
+
     suspend fun getPlaylistItems(playlistId: String): ItemsResultDto =
         get("Playlists/$playlistId/Items", mapOf("userId" to userId))
 

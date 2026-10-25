@@ -49,6 +49,7 @@ import de.ronnyporsch.voidcast.domain.model.isYouTube
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SelectionColor
 
 /** Ids of the songs that are downloaded on this device; [SongRow] marks them. */
 val LocalDownloadedSongIds = compositionLocalOf<Set<String>> { emptySet() }
@@ -94,6 +95,8 @@ fun SongRow(
     contextMenuSongs: () -> List<Song> = { listOf(song) },
     /** Adds "Remove from playlist" to the context menu; removes the songs the menu acts on. */
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    /** Mobile: a long press selects the song (see [TouchSelection]) rather than opening the context menu. */
+    longPressSelects: Boolean = false,
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     val platform = getPlatform()
@@ -119,7 +122,11 @@ fun SongRow(
     val haptics = LocalHapticFeedback.current
 
     val openMenu = { if (hasContextMenu) menuSongs = currentContextMenuSongs() }
-    val background = if (isSelected || menuSongs != null) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
+    val background = when {
+        isSelected -> SelectionColor
+        menuSongs != null -> MaterialTheme.colorScheme.surfaceVariant
+        else -> Color.Transparent
+    }
 
     val rowModifier = if (platform.isMobile) {
         modifier
@@ -149,7 +156,7 @@ fun SongRow(
                     }
                 }
             }
-            .combinedClickable(onClick = onSongClick, onLongClick = openMenu)
+            .combinedClickable(onClick = onSongClick, onLongClick = if (longPressSelects) null else openMenu)
     } else {
         modifier
             .fillMaxWidth()

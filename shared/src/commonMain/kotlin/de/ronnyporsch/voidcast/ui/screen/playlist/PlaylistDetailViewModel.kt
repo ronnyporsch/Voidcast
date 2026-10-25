@@ -17,6 +17,7 @@ class PlaylistDetailViewModel(
 
     override fun onEvent(event: PlaylistDetailEvent) {
         when (event) {
+            is PlaylistDetailEvent.SongsSelected -> setState { copy(selectedSongIds = event.ids) }
             is PlaylistDetailEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is PlaylistDetailEvent.SongRangeSelected -> setState {

@@ -73,6 +73,9 @@ import de.ronnyporsch.voidcast.ui.components.SongDragAndDrop
 import de.ronnyporsch.voidcast.ui.components.SongDragOverlay
 import de.ronnyporsch.voidcast.ui.components.PlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.onMouseNavigation
+import de.ronnyporsch.voidcast.ui.components.LocalSelectionBarHost
+import de.ronnyporsch.voidcast.ui.components.SelectionActionBar
+import de.ronnyporsch.voidcast.ui.components.SelectionBarHost
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
@@ -167,6 +170,8 @@ fun App() {
             playlistChanges = repository.playlistChanges,
             downloads = connection.downloads,
             favorites = connection.favorites,
+            initialView = settingsHolder.settings.value.libraryView,
+            onViewChanged = { view -> settingsHolder.update { copy(libraryView = view) } },
         )
     }
     val searchViewModel = remember { SearchViewModel(repository, youTube) }
@@ -211,6 +216,8 @@ fun App() {
                     navigator.push(Screen.PlaylistSongs(effect.playlistId))
                 LibraryEffect.NavigateToFavoriteSongs ->
                     navigator.push(Screen.FavoriteSongs)
+                is LibraryEffect.NavigateToGenre ->
+                    navigator.push(Screen.GenreAlbums(effect.genre))
                 is LibraryEffect.PlaySongs ->
                     playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
             }
@@ -256,8 +263,11 @@ fun App() {
         PendingSongDownloads(queuedSongIds, downloadingSongIds)
     }
 
+    val selectionBarHost = remember { SelectionBarHost() }
+
     VoidcastTheme {
         CompositionLocalProvider(
+            LocalSelectionBarHost provides selectionBarHost,
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
@@ -336,6 +346,14 @@ fun App() {
             },
         )
 
+        // Back ends a selection (mobile) first
+        val selectionBar = selectionBarHost.current
+        NavigationBackHandler(
+            state = rememberNavigationEventState(NavigationEventInfo.None),
+            isBackEnabled = selectionBar != null,
+            onBackCompleted = { selectionBarHost.current?.onClear() },
+        )
+
         Scaffold(
             // Mouse back/forward buttons work anywhere in the window, including the top/bottom bars
             modifier = Modifier.onMouseNavigation(
@@ -362,7 +380,7 @@ fun App() {
                         // These screens draw their own back button in their header
                         val hasOwnBackButton = currentScreen is Screen.ArtistAlbums || currentScreen is Screen.AlbumSongs ||
                             currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings ||
-                            currentScreen is Screen.FavoriteSongs
+                            currentScreen is Screen.FavoriteSongs || currentScreen is Screen.GenreAlbums
                         if (navigator.canGoBack() && !hasOwnBackButton) {
                             IconButton(onClick = { navigator.pop() }) {
                                 Icon(
@@ -418,7 +436,11 @@ fun App() {
                         } else {
                             Box(Modifier.height(66.dp))
                         }
-                        BottomNavigationBar(currentScreen, navigator)
+                        if (selectionBar != null) {
+                            SelectionActionBar(selectionBar)
+                        } else {
+                            BottomNavigationBar(currentScreen, navigator)
+                        }
                     }
                 }
             },
@@ -570,6 +592,15 @@ fun App() {
                             onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                             currentSongId = playerState.playback.currentSong?.id,
+                        )
+                    }
+
+                    is Screen.GenreAlbums -> {
+                        GenreAlbumsScreen(
+                            genre = screen.genre,
+                            repository = repository,
+                            onBack = { navigator.pop() },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it.id)) },
                         )
                     }
 

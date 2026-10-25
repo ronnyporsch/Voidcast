@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.navigation
 
+import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.ui.components.ScrollPositions
 import de.ronnyporsch.voidcast.ui.screen.library.LibrarySelection
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,7 @@ sealed class Screen {
     data class AlbumSongs(val albumId: String) : Screen()
     data class PlaylistSongs(val playlistId: String) : Screen()
     data object FavoriteSongs : Screen()
+    data class GenreAlbums(val genre: Genre) : Screen()
     data object Player : Screen()
     data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()

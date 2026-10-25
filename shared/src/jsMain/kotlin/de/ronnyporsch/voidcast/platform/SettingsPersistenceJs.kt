@@ -16,6 +16,7 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("crossfadeEnabled", settings.playback.crossfadeEnabled.toString())
     storage.setItem("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds.toString())
     storage.setItem("jellyfinDeviceId", settings.jellyfinDeviceId)
+    storage.setItem("libraryView", settings.libraryView.encode())
 }
 
 actual fun loadSettings(): AppSettings? {
@@ -34,5 +35,6 @@ actual fun loadSettings(): AppSettings? {
             crossfadeDurationSeconds = storage.getItem("crossfadeDurationSeconds")?.toIntOrNull() ?: 5,
         ),
         jellyfinDeviceId = storage.getItem("jellyfinDeviceId") ?: "",
+        libraryView = decodeLibraryView(storage.getItem("libraryView")),
     )
 }

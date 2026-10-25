@@ -3,15 +3,19 @@ package de.ronnyporsch.voidcast.ui.screen.library
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloadStatus
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
+import de.ronnyporsch.voidcast.domain.model.Genre
+import de.ronnyporsch.voidcast.domain.model.LibraryCategory
+import de.ronnyporsch.voidcast.domain.model.LibraryOrder
+import de.ronnyporsch.voidcast.domain.model.LibrarySort
+import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 
-enum class LibrarySidebarTab { Playlists, Artists, Favorites }
-
-enum class LibraryDetailView { Artists, Albums, Playlists, FavoriteSongs }
+enum class LibraryDetailView { Artists, Albums, Playlists, FavoriteSongs, Genres }
 
 data class LibraryState(
-    val selectedSidebarTab: LibrarySidebarTab = LibrarySidebarTab.Playlists,
+    /** What the sidebar lists and how it orders it. */
+    val view: LibraryViewSettings = LibraryViewSettings(),
     val activeDetailView: LibraryDetailView = LibraryDetailView.Playlists,
     val artists: List<Artist> = emptyList(),
     val selectedArtistId: String? = null,
@@ -28,6 +32,15 @@ data class LibraryState(
     val selectedPlaylistId: String? = null,
     val selectedPlaylist: Playlist? = null,
     val selectedPlaylistLoading: Boolean = false,
+    /** All albums, songs and genres of the library; loaded when their category is first shown. */
+    val albums: List<Album> = emptyList(),
+    val songs: List<Song> = emptyList(),
+    val genres: List<Genre> = emptyList(),
+    /** Categories of the sidebar being loaded. */
+    val loadingCategories: Set<LibraryCategory> = emptySet(),
+    val selectedGenre: Genre? = null,
+    val selectedGenreAlbums: List<Album> = emptyList(),
+    val selectedGenreAlbumsLoading: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
@@ -42,6 +55,23 @@ data class LibraryState(
     val favoriteSongs: List<Song> = emptyList(),
 )
 
+val LibraryState.category: LibraryCategory get() = view.category
+
+val LibraryState.order: LibraryOrder get() = view.orderOf(view.category)
+
+/** The orders offered for the sidebar's category; leaves out dates the server doesn't tell. */
+val LibraryState.availableSorts: List<LibrarySort>
+    get() = category.sorts.filter { sort ->
+        sort != LibrarySort.DateAdded || when (category) {
+            LibraryCategory.Playlists -> playlists.any { it.dateAdded != null }
+            LibraryCategory.Artists -> artists.any { it.dateAdded != null }
+            LibraryCategory.Albums -> albums.any { it.dateAdded != null }
+            LibraryCategory.Songs -> songs.any { it.dateAdded != null }
+            LibraryCategory.Favorites -> favoriteAlbums.any { it.dateAdded != null } || favoriteArtists.any { it.dateAdded != null }
+            LibraryCategory.Genres -> false
+        }
+    }
+
 /** The songs the detail pane shows. */
 val LibraryState.detailSongs: List<Song>
     get() = when (activeDetailView) {
@@ -49,10 +79,13 @@ val LibraryState.detailSongs: List<Song>
         LibraryDetailView.Playlists -> selectedPlaylist?.songs.orEmpty()
         LibraryDetailView.Artists -> selectedArtistSongs
         LibraryDetailView.FavoriteSongs -> favoriteSongs
+        LibraryDetailView.Genres -> emptyList()
     }
 
 sealed class LibraryEvent {
-    data class SidebarTabSelected(val tab: LibrarySidebarTab) : LibraryEvent()
+    data class CategorySelected(val category: LibraryCategory) : LibraryEvent()
+    /** Orders the sidebar's current category by [sort]; choosing its current sort again reverses it. */
+    data class SortSelected(val sort: LibrarySort) : LibraryEvent()
     data object Refresh : LibraryEvent()
     /** Connecting to the server failed; show what is stored on the device meanwhile. */
     data object ConnectionFailed : LibraryEvent()
@@ -62,6 +95,7 @@ sealed class LibraryEvent {
     data class OpenArtistScreen(val artist: Artist) : LibraryEvent()
     data class OpenAlbumScreen(val album: Album) : LibraryEvent()
     data class OpenPlaylistScreen(val playlist: Playlist) : LibraryEvent()
+    data class OpenGenreScreen(val genre: Genre) : LibraryEvent()
     /** Shows the item in the detail pane, unless it is shown already. */
     data class Show(val selection: LibrarySelection) : LibraryEvent()
     data class ArtistClicked(val artist: Artist) : LibraryEvent()
@@ -93,6 +127,9 @@ sealed class LibraryEvent {
     data object PlayAllFavoriteSongs : LibraryEvent()
     data object ShuffleAllFavoriteSongs : LibraryEvent()
     data class SongAlbumClicked(val albumId: String) : LibraryEvent()
+    data class GenreClicked(val genre: Genre) : LibraryEvent()
+    /** Plays songs of the sidebar, e.g. all songs of the library from the one at [startIndex] on. */
+    data class PlaySongs(val songs: List<Song>, val startIndex: Int) : LibraryEvent()
 }
 
 sealed class LibraryEffect {
@@ -100,5 +137,6 @@ sealed class LibraryEffect {
     data class NavigateToAlbum(val albumId: String) : LibraryEffect()
     data class NavigateToPlaylist(val playlistId: String) : LibraryEffect()
     data object NavigateToFavoriteSongs : LibraryEffect()
+    data class NavigateToGenre(val genre: Genre) : LibraryEffect()
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : LibraryEffect()
 }

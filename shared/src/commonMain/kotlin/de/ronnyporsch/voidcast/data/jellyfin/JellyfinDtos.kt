@@ -56,6 +56,9 @@ data class BaseItemDto(
     @SerialName("ParentIndexNumber") val parentIndexNumber: Int? = null,
     @SerialName("ChildCount") val childCount: Int? = null,
     @SerialName("AlbumCount") val albumCount: Int? = null,
+    @SerialName("SongCount") val songCount: Int? = null,
+    /** When it got added to the library, ISO 8601; only with the DateCreated field. */
+    @SerialName("DateCreated") val dateCreated: String? = null,
     @SerialName("Genres") val genres: List<String> = emptyList(),
     /** Only with the MediaStreams field. */
     @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto> = emptyList(),

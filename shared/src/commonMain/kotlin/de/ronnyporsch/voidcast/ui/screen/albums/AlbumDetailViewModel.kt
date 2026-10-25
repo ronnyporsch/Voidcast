@@ -33,6 +33,7 @@ class AlbumDetailViewModel(
 
     override fun onEvent(event: AlbumDetailEvent) {
         when (event) {
+            is AlbumDetailEvent.SongsSelected -> setState { copy(selectedSongIds = event.ids) }
             is AlbumDetailEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is AlbumDetailEvent.SongRangeSelected -> setState {

@@ -36,6 +36,7 @@ class ArtistAlbumsViewModel(
 
     override fun onEvent(event: ArtistAlbumsEvent) {
         when (event) {
+            is ArtistAlbumsEvent.SongsSelected -> setState { copy(selectedSongIds = event.ids) }
             is ArtistAlbumsEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is ArtistAlbumsEvent.SongRangeSelected ->

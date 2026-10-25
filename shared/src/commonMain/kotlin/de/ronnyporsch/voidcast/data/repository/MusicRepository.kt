@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.data.repository
 
 import de.ronnyporsch.voidcast.data.api.*
+import de.ronnyporsch.voidcast.data.dto.SubsonicResponse
 import de.ronnyporsch.voidcast.domain.model.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -28,6 +29,13 @@ interface MusicRepository {
     suspend fun getAppearsOnAlbums(artistName: String, ownAlbumIds: List<String>): Result<List<Album>>
     suspend fun getArtistInfo(artistId: String): Result<ArtistInfo>
     suspend fun getAlbum(albumId: String): Result<Album>
+    /** Every album of the library, without their songs. */
+    suspend fun getAlbums(): Result<List<Album>>
+    /** Every song of the library. */
+    suspend fun getAllSongs(): Result<List<Song>>
+    suspend fun getGenres(): Result<List<Genre>>
+    /** The albums of [genre], without their songs. */
+    suspend fun getGenreAlbums(genre: Genre): Result<List<Album>>
     suspend fun getPlaylists(): Result<List<Playlist>>
     suspend fun getPlaylist(playlistId: String): Result<Playlist>
     suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): Result<Playlist>
@@ -129,6 +137,48 @@ class MusicRepositoryImpl(
         val response = api.getAlbum(albumId)
         val body = response.subsonicResponse
         body.album?.toDomain() ?: throw IllegalStateException("Album not found")
+    }
+
+    override suspend fun getAlbums(): Result<List<Album>> = runCatching {
+        albumList { offset -> api.getAlbumList2("alphabeticalByName", offset = offset) }
+    }
+
+    // An empty query matches every song on OpenSubsonic servers such as Navidrome
+    override suspend fun getAllSongs(): Result<List<Song>> = runCatching {
+        val songs = mutableListOf<Song>()
+        while (true) {
+            val body = api.searchSongs("", songCount = PAGE_SIZE, songOffset = songs.size).subsonicResponse
+            if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading songs")
+            val page = body.searchResult3?.song.orEmpty()
+            songs += page.map { it.toDomain() }
+            if (page.size < PAGE_SIZE) break
+        }
+        songs
+    }
+
+    override suspend fun getGenres(): Result<List<Genre>> = runCatching {
+        val body = api.getGenres().subsonicResponse
+        if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading genres")
+        body.genres?.genre.orEmpty()
+            .filter { it.value.isNotBlank() }
+            .map { Genre(id = it.value, name = it.value, albumCount = it.albumCount, songCount = it.songCount) }
+    }
+
+    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> = runCatching {
+        albumList { offset -> api.getAlbumList2("byGenre", genre = genre.name, offset = offset) }
+    }
+
+    /** All pages of getAlbumList2. */
+    private suspend fun albumList(page: suspend (offset: Int) -> SubsonicResponse): List<Album> {
+        val albums = mutableListOf<Album>()
+        while (true) {
+            val body = page(albums.size).subsonicResponse
+            if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading albums")
+            val items = body.albumList2?.album.orEmpty()
+            albums += items.map { it.toDomain() }
+            if (items.size < PAGE_SIZE) break
+        }
+        return albums
     }
 
     override suspend fun getPlaylists(): Result<List<Playlist>> = runCatching {
@@ -259,4 +309,9 @@ class MusicRepositoryImpl(
     override fun getDownloadUrl(songId: String): String = api.getDownloadUrl(songId)
 
     override fun getCoverArtUrl(coverArtId: String, size: Int): String = api.getCoverArtUrl(coverArtId, size)
+
+    private companion object {
+        /** The most items Subsonic servers return per request of a list. */
+        const val PAGE_SIZE = 500
+    }
 }

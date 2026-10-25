@@ -24,6 +24,7 @@ fun AlbumDto.toDomain() = Album(
     songCount = songCount,
     year = year,
     duration = duration,
+    dateAdded = created,
 )
 
 fun AlbumWithSongsDto.toDomain() = Album(
@@ -37,6 +38,7 @@ fun AlbumWithSongsDto.toDomain() = Album(
     year = year,
     duration = duration,
     songs = song.map { it.toDomain() },
+    dateAdded = created,
 )
 
 fun SongDto.toDomain() = Song(
@@ -55,6 +57,7 @@ fun SongDto.toDomain() = Song(
     genre = genre,
     bitRate = bitRate,
     codec = suffix?.takeIf { it.isNotBlank() }?.let(::codecDisplayName),
+    dateAdded = created,
 )
 
 fun PlaylistDto.toDomain() = Playlist(
@@ -63,6 +66,7 @@ fun PlaylistDto.toDomain() = Playlist(
     songCount = songCount,
     duration = duration,
     coverArtId = coverArt,
+    dateAdded = created,
 )
 
 fun PlaylistWithSongsDto.toDomain() = Playlist(
@@ -72,6 +76,7 @@ fun PlaylistWithSongsDto.toDomain() = Playlist(
     duration = duration,
     coverArtId = coverArt,
     songs = entry.map { it.toDomain() },
+    dateAdded = created,
 )
 
 /** Falls back to the single display artist for servers without OpenSubsonic multi-artist support. */

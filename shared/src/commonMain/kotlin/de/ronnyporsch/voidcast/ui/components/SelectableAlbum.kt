@@ -28,6 +28,12 @@ import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SelectionColor
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Icon
 import kotlinx.coroutines.launch
 
 /** Loads the songs of albums for the album context menu, in their order; reports failures itself. */
@@ -52,6 +58,10 @@ class AlbumSelection {
         selectedIds = emptySet()
     }
 
+    fun set(ids: Set<String>) {
+        selectedIds = ids
+    }
+
     /** The albums a context menu on [album] acts on: the selection if [album] is part of it, otherwise only [album]. */
     fun menuAlbums(albums: List<Album>, album: Album): List<Album> =
         if (album.id in selectedIds) albums.filter { it.id in selectedIds }.distinctBy { it.id } else listOf(album)
@@ -61,9 +71,38 @@ class AlbumSelection {
 fun rememberAlbumSelection(): AlbumSelection = remember { AlbumSelection() }
 
 /**
+ * Mobile: selects [albums] (keyed by their ids in the lazy list) of [selection] by touch, see [TouchSelection].
+ * [onChange] is called besides, e.g. to end a selection of songs on the same screen.
+ */
+@Composable
+fun rememberAlbumTouchSelection(
+    albums: List<Album>,
+    selection: AlbumSelection,
+    key: (index: Int, album: Album) -> Any = { _, album -> album.id },
+    onChange: (Set<String>) -> Unit = {},
+): TouchSelection<Album> = rememberTouchSelection(
+    items = albums,
+    selectedIds = selection.selectedIds,
+    onChange = {
+        selection.set(it)
+        onChange(it)
+    },
+    id = { it.id },
+    key = key,
+)
+
+/** [TouchSelectionBar] for selected albums; it acts on their songs. */
+@Composable
+fun AlbumTouchSelectionBar(selection: TouchSelection<Album>) {
+    val loadSongs = LocalAlbumSongs.current ?: return
+    TouchSelectionBar(selection, songs = { loadSongs(selection.selectedItems) }, showFavorites = false)
+}
+
+/**
  * Makes [content], an album in a list of [albums] (in the order they are shown), selectable with Ctrl- and
- * Shift-clicks; a plain click clears the selection and calls [onClick]. Right-click (long press on mobile) opens the
- * song context menu with the songs of the selected albums, or only of this one if it isn't selected.
+ * Shift-clicks; a plain click clears the selection and calls [onClick]. Right-click opens the song context menu with
+ * the songs of the selected albums, or only of this one if it isn't selected. On mobile a long press does that too,
+ * unless there is a [touchSelection] to select albums with.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -73,6 +112,7 @@ fun SelectableAlbum(
     selection: AlbumSelection,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    touchSelection: TouchSelection<Album>? = null,
     content: @Composable () -> Unit,
 ) {
     val isMobile = remember { getPlatform().isMobile }
@@ -104,7 +144,9 @@ fun SelectableAlbum(
         menuAlbums = null
         menuSongs = null
     }
-    val clickModifier = if (isMobile) {
+    val clickModifier = if (isMobile && touchSelection != null) {
+        Modifier.clickable { touchSelection.click(album, onClick) }
+    } else if (isMobile) {
         Modifier.combinedClickable(onClick = onClick, onLongClick = openMenu)
     } else {
         Modifier.clickable {
@@ -123,8 +165,11 @@ fun SelectableAlbum(
         Box(
             Modifier
                 .background(
-                    if (album.id in selection.selectedIds || menuAlbums != null) MaterialTheme.colorScheme.surfaceVariant
-                    else Color.Transparent
+                    when {
+                        album.id in selection.selectedIds -> SelectionColor
+                        menuAlbums != null -> MaterialTheme.colorScheme.surfaceVariant
+                        else -> Color.Transparent
+                    }
                 )
                 .onSizeChanged { height = it.height }
                 .pointerInput(loadSongs) {
@@ -145,6 +190,15 @@ fun SelectableAlbum(
                 .then(clickModifier),
         ) {
             content()
+            if (album.id in selection.selectedIds) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = AccentColor,
+                    modifier = Modifier.align(Alignment.TopStart).padding(12.dp).size(24.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                )
+            }
         }
 
         if (menuAlbums != null && menuSongs == null) {

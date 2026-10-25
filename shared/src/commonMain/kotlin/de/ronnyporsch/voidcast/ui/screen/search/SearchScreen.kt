@@ -31,6 +31,12 @@ import de.ronnyporsch.voidcast.ui.components.rememberAlbumSelection
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
+import de.ronnyporsch.voidcast.ui.components.AlbumTouchSelectionBar
+import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
+import de.ronnyporsch.voidcast.ui.components.rememberAlbumTouchSelection
+import de.ronnyporsch.voidcast.ui.components.rememberTouchSelection
+import de.ronnyporsch.voidcast.ui.components.touchSelection
+import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -46,6 +52,23 @@ fun SearchScreen(
     val listState = rememberLazyListState()
     RememberScrollPosition(listState)
     val albumSelection = rememberAlbumSelection()
+    // Mobile: albums and songs are selected by touch, one kind at a time
+    val albumTouchSelection = rememberAlbumTouchSelection(state.albums, albumSelection, key = { _, album -> "album-${album.id}" }) {
+        if (it.isNotEmpty() && state.selectedSongIds.isNotEmpty()) viewModel.onEvent(SearchEvent.SongsSelected(emptySet()))
+    }
+    val songKey = { index: Int, song: Song -> "song-${song.id}::$index" }
+    val songTouchSelection = rememberTouchSelection(
+        items = state.songs,
+        selectedIds = state.selectedSongIds,
+        onChange = {
+            viewModel.onEvent(SearchEvent.SongsSelected(it))
+            if (it.isNotEmpty()) albumSelection.clear()
+        },
+        id = { it.id },
+        key = songKey,
+    )
+    AlbumTouchSelectionBar(albumTouchSelection)
+    TouchSelectionBar(songTouchSelection, songs = { songTouchSelection.selectedItems })
     val focusManager = LocalFocusManager.current
     // Clicking a result unfocuses the search bar, which hides the soft keyboard on mobile
     val onResultClick: (SearchEvent) -> Unit = { event ->
@@ -72,7 +95,10 @@ fun SearchScreen(
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(bottom = 100.dp),
-                    modifier = Modifier.onKeyEvent { event ->
+                    modifier = Modifier
+                        .touchSelection(albumTouchSelection, listState)
+                        .touchSelection(songTouchSelection, listState)
+                        .onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
                             // Library songs and YouTube Music songs form one navigable list
                             val allSongs = state.songs + state.youTubeSongs
@@ -134,6 +160,7 @@ fun SearchScreen(
                                 albums = state.albums,
                                 selection = albumSelection,
                                 onClick = { onResultClick(SearchEvent.AlbumClicked(album)) },
+                                touchSelection = albumTouchSelection,
                             ) {
                                 SearchAlbumRow(
                                     album = album,
@@ -147,11 +174,12 @@ fun SearchScreen(
                         item {
                             Text("Songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         }
-                        itemsIndexed(state.songs, key = { index, song -> "song-${song.id}::$index" }) { index, song ->
+                        itemsIndexed(state.songs, key = songKey) { index, song ->
                             SongRow(
                                 song = song,
                                 onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
-                                onSongClick = { onResultClick(SearchEvent.SongClicked(song, index)) },
+                                onSongClick = { songTouchSelection.click(song) { onResultClick(SearchEvent.SongClicked(song, index)) } },
+                                longPressSelects = songTouchSelection.isEnabled,
                                 onSongDoubleClick = { onResultClick(SearchEvent.SongDoubleClicked(song, index)) },
                                 onSongCtrlClick = { viewModel.onEvent(SearchEvent.SongSelectionToggled(song)) },
                                 onSongShiftClick = { viewModel.onEvent(SearchEvent.SongRangeSelected(index)) },

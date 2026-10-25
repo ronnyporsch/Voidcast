@@ -39,7 +39,14 @@ import de.ronnyporsch.voidcast.ui.screen.favorites.FAVORITE_SONGS_TITLE
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsList
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoritesImage
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import de.ronnyporsch.voidcast.domain.model.LibraryOrder
+import de.ronnyporsch.voidcast.domain.model.LibraryCategory
+import de.ronnyporsch.voidcast.domain.model.LibrarySort
+import de.ronnyporsch.voidcast.util.sortedBy
 import kotlinx.coroutines.launch
 
 @Composable
@@ -222,60 +229,99 @@ private fun LibrarySidebar(
         viewModel.onEvent(playEvent)
         onOpen(selection)
     }
+    val order = state.order
+    val listState = viewModel.sidebarStates.getValue(state.category)
+    val isCategoryLoading = state.category in state.loadingCategories
     Surface(
         modifier = modifier,
         color = containerColor,
         shape = RoundedCornerShape(0.dp),
     ) {
         Column(Modifier.fillMaxSize()) {
-            TabRow(
-                selectedTabIndex = state.selectedSidebarTab.ordinal,
-                containerColor = containerColor,
-                contentColor = MaterialTheme.colorScheme.onBackground,
-            ) {
-                LibrarySidebarTab.entries.forEach { tab ->
-                    Tab(
-                        selected = state.selectedSidebarTab == tab,
-                        onClick = { viewModel.onEvent(LibraryEvent.SidebarTabSelected(tab)) },
-                        text = if (tab == LibrarySidebarTab.Favorites) null else {
-                            {
-                                Text(
-                                    tab.name,
-                                    fontWeight = if (state.selectedSidebarTab == tab) FontWeight.Bold else FontWeight.Normal,
-                                )
-                            }
-                        },
-                        // Four labels don't fit the sidebar
-                        icon = if (tab == LibrarySidebarTab.Favorites) {
-                            {
-                                Icon(
-                                    Icons.Default.Favorite,
-                                    contentDescription = "Favorites",
-                                    tint = if (state.selectedSidebarTab == tab) AccentColor else SpotifyLightGray,
-                                )
-                            }
-                        } else null,
+            LibrarySidebarHeader(
+                category = state.category,
+                order = order,
+                sorts = state.availableSorts,
+                onCategorySelected = { viewModel.onEvent(LibraryEvent.CategorySelected(it)) },
+                onSortSelected = { viewModel.onEvent(LibraryEvent.SortSelected(it)) },
+                onCreatePlaylist = onCreatePlaylist.takeIf { state.category == LibraryCategory.Playlists },
+            )
+
+            when (state.category) {
+                LibraryCategory.Artists -> {
+                    val artists = remember(state.artists, order) { state.artists.sortedBy(order) }
+                    SidebarList(
+                        items = artists,
+                        key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
+                        name = { it.name },
+                        showAlphabet = order.sort == LibrarySort.Alphabetical,
+                        state = listState,
+                        emptyText = "No artists",
+                    ) { _, artist ->
+                        ArtistListItem(
+                            artist = artist,
+                            isSelected = artist.id == state.selectedArtistId,
+                            onClick = { open(LibrarySelection.Artist(artist), LibraryEvent.OpenArtistScreen(artist)) },
+                            onDoubleClick = if (openItemScreens) null else {
+                                { openAndPlay(LibrarySelection.Artist(artist), LibraryEvent.ArtistDoubleClicked(artist)) }
+                            },
+                        )
+                    }
+                }
+                LibraryCategory.Albums -> {
+                    val albums = remember(state.albums, order) { state.albums.sortedBy(order) }
+                    SidebarList(
+                        items = albums,
+                        key = { index, album -> "${album.id}::$index" },
+                        name = { it.name },
+                        showAlphabet = order.sort == LibrarySort.Alphabetical,
+                        state = listState,
+                        isLoading = isCategoryLoading,
+                        emptyText = "No albums",
+                    ) { _, album ->
+                        AlbumListItem(
+                            album = album,
+                            isSelected = state.activeDetailView == LibraryDetailView.Albums && album.id == state.selectedAlbumId,
+                            onClick = { open(LibrarySelection.Album(album), LibraryEvent.OpenAlbumScreen(album)) },
+                            onDoubleClick = if (openItemScreens) null else {
+                                { openAndPlay(LibrarySelection.Album(album), LibraryEvent.AlbumDoubleClicked(album)) }
+                            },
+                        )
+                    }
+                }
+                LibraryCategory.Songs -> {
+                    val songs = remember(state.songs, order) { state.songs.sortedBy(order) }
+                    SongSidebar(
+                        songs = songs,
+                        showAlphabet = order.sort == LibrarySort.Alphabetical,
+                        state = listState,
+                        isLoading = isCategoryLoading,
+                        onPlay = { index -> viewModel.onEvent(LibraryEvent.PlaySongs(songs, index)) },
+                        onArtistClick = { viewModel.onEvent(LibraryEvent.SongArtistClicked(it)) },
+                        onAlbumClick = { viewModel.onEvent(LibraryEvent.SongAlbumClicked(it)) },
                     )
                 }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            when (state.selectedSidebarTab) {
-                LibrarySidebarTab.Artists -> ArtistSidebar(
-                    artists = state.artists,
-                    selectedArtistId = state.selectedArtistId,
-                    onArtistClick = {
-                        open(LibrarySelection.Artist(it), LibraryEvent.OpenArtistScreen(it))
-                    },
-                    onArtistDoubleClick = if (openItemScreens) null else {
-                        { openAndPlay(LibrarySelection.Artist(it), LibraryEvent.ArtistDoubleClicked(it)) }
-                    },
-                    state = viewModel.artistSidebarState,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                LibrarySidebarTab.Favorites -> FavoritesSidebar(
+                LibraryCategory.Genres -> {
+                    val genres = remember(state.genres) { state.genres.sortedBy { it.name.lowercase() } }
+                    SidebarList(
+                        items = genres,
+                        key = { _, genre -> genre.id },
+                        name = { it.name },
+                        showAlphabet = true,
+                        state = listState,
+                        isLoading = isCategoryLoading,
+                        emptyText = "No genres",
+                    ) { _, genre ->
+                        GenreListItem(
+                            genre = genre,
+                            isSelected = state.activeDetailView == LibraryDetailView.Genres && genre.id == state.selectedGenre?.id,
+                            onClick = { open(LibrarySelection.Genre(genre), LibraryEvent.OpenGenreScreen(genre)) },
+                        )
+                    }
+                }
+                LibraryCategory.Favorites -> FavoritesSidebar(
                     state = state,
+                    order = order,
                     onSongsClick = {
                         open(LibrarySelection.FavoriteSongs, LibraryEvent.OpenFavoriteSongsScreen)
                     },
@@ -291,27 +337,239 @@ private fun LibrarySidebar(
                     onAlbumDoubleClick = if (openItemScreens) null else {
                         { openAndPlay(LibrarySelection.Album(it), LibraryEvent.AlbumDoubleClicked(it)) }
                     },
-                    listState = viewModel.favoritesSidebarState,
+                    listState = listState,
                     modifier = Modifier.fillMaxSize(),
                 )
-                LibrarySidebarTab.Playlists -> PlaylistSidebar(
-                    playlists = state.playlists,
-                    selectedPlaylistId = state.selectedPlaylistId,
-                    onPlaylistClick = {
-                        open(LibrarySelection.Playlist(it.id), LibraryEvent.OpenPlaylistScreen(it))
-                    },
-                    onPlaylistDoubleClick = if (openItemScreens) null else {
-                        { openAndPlay(LibrarySelection.Playlist(it.id), LibraryEvent.PlaylistDoubleClicked(it)) }
-                    },
-                    onCreatePlaylist = onCreatePlaylist,
-                    state = viewModel.playlistSidebarState,
-                    modifier = Modifier.fillMaxSize(),
-                    downloads = if (state.canDownloadPlaylists) state.playlistDownloads else null,
-                    onDownload = { viewModel.onEvent(LibraryEvent.DownloadPlaylist(it)) },
-                    onRemoveDownload = { viewModel.onEvent(LibraryEvent.RemovePlaylistDownload(it)) },
+                LibraryCategory.Playlists -> {
+                    val playlists = remember(state.playlists, order) { state.playlists.sortedBy(order) }
+                    PlaylistSidebar(
+                        playlists = playlists,
+                        showAlphabet = order.sort == LibrarySort.Alphabetical,
+                        selectedPlaylistId = state.selectedPlaylistId,
+                        onPlaylistClick = {
+                            open(LibrarySelection.Playlist(it.id), LibraryEvent.OpenPlaylistScreen(it))
+                        },
+                        onPlaylistDoubleClick = if (openItemScreens) null else {
+                            { openAndPlay(LibrarySelection.Playlist(it.id), LibraryEvent.PlaylistDoubleClicked(it)) }
+                        },
+                        state = listState,
+                        downloads = if (state.canDownloadPlaylists) state.playlistDownloads else null,
+                        onDownload = { viewModel.onEvent(LibraryEvent.DownloadPlaylist(it)) },
+                        onRemoveDownload = { viewModel.onEvent(LibraryEvent.RemovePlaylistDownload(it)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Picks what the sidebar lists and how it orders it; playlists get a button to create one. */
+@Composable
+private fun LibrarySidebarHeader(
+    category: LibraryCategory,
+    order: LibraryOrder,
+    sorts: List<LibrarySort>,
+    onCategorySelected: (LibraryCategory) -> Unit,
+    onSortSelected: (LibrarySort) -> Unit,
+    onCreatePlaylist: (() -> Unit)?,
+) {
+    var categoryMenuOpen by remember { mutableStateOf(false) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .clickable { categoryMenuOpen = true }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = category.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose what to show")
+            }
+            DropdownMenu(expanded = categoryMenuOpen, onDismissRequest = { categoryMenuOpen = false }) {
+                LibraryCategory.entries.forEach { entry ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                entry.title,
+                                fontWeight = if (entry == category) FontWeight.Bold else FontWeight.Normal,
+                                color = if (entry == category) AccentColor else Color.Unspecified,
+                            )
+                        },
+                        onClick = {
+                            categoryMenuOpen = false
+                            onCategorySelected(entry)
+                        },
+                    )
+                }
+            }
+        }
+
+        if (onCreatePlaylist != null) {
+            TextButton(onClick = onCreatePlaylist) {
+                Text("+ New", color = AccentColor, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (sorts.size > 1) {
+            Box {
+                TooltipIconButton(
+                    onClick = { sortMenuOpen = true },
+                    icon = Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = "Sort: ${order.description}",
+                    tint = if (order == LibraryOrder()) SpotifyLightGray else AccentColor,
+                )
+                DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                    sorts.forEach { entry ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    entry.title,
+                                    fontWeight = if (entry == order.sort) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (entry == order.sort) AccentColor else Color.Unspecified,
+                                )
+                            },
+                            // The current sort shows its direction; choosing it again reverses it
+                            trailingIcon = if (entry == order.sort) {
+                                {
+                                    Icon(
+                                        if (order.isAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                        contentDescription = order.description,
+                                        tint = AccentColor,
+                                    )
+                                }
+                            } else null,
+                            onClick = {
+                                sortMenuOpen = false
+                                onSortSelected(entry)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The scrolling list of a sidebar category, with a letter index next to it when it is ordered alphabetically by
+ * [name]. Shows [emptyText] if there are no [items].
+ */
+@Composable
+private fun <T> SidebarList(
+    items: List<T>,
+    key: (index: Int, item: T) -> Any,
+    name: (T) -> String,
+    showAlphabet: Boolean,
+    state: LazyListState,
+    emptyText: String,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    /** Added to the lazy list's modifier. */
+    listModifier: Modifier = Modifier,
+    itemContent: @Composable (index: Int, item: T) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    Box(modifier = modifier.fillMaxSize().padding(12.dp)) {
+        when {
+            isLoading && items.isEmpty() -> CircularProgressIndicator(color = AccentColor, modifier = Modifier.align(Alignment.Center))
+            items.isEmpty() -> Text(
+                text = emptyText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
+            )
+            else -> {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = state,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f).then(listModifier),
+                    ) {
+                        itemsIndexed(items, key = key) { index, item -> itemContent(index, item) }
+                    }
+
+                    if (showAlphabet) {
+                        AlphabetScroller(
+                            // In the order of the list, which may be Z to A
+                            alphabet = items.mapNotNull { name(it).firstOrNull()?.uppercaseChar() }.distinct(),
+                            onCharClicked = { char ->
+                                val index = items.indexOfFirst { name(it).firstOrNull()?.uppercaseChar() == char }
+                                if (index != -1) {
+                                    scope.launch { state.animateScrollToItem(index) }
+                                }
+                            }
+                        )
+                    }
+                }
+
+                VerticalScrollbar(
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    state = state
                 )
             }
         }
+    }
+}
+
+/**
+ * All songs of the library. Mobile: tapping a song plays the list from there. Desktop and web: a click selects it
+ * (with Ctrl and Shift several), a double click plays the list from there.
+ */
+@Composable
+private fun SongSidebar(
+    songs: List<Song>,
+    showAlphabet: Boolean,
+    state: LazyListState,
+    isLoading: Boolean,
+    onPlay: (index: Int) -> Unit,
+    onArtistClick: (String) -> Unit,
+    onAlbumClick: (String) -> Unit,
+) {
+    val isMobile = remember { getPlatform().isMobile }
+    var selectedIds by remember { mutableStateOf(emptySet<String>()) }
+    val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+    val touchSelection = rememberTouchSelection(
+        items = songs,
+        selectedIds = selectedIds,
+        onChange = { selectedIds = it },
+        id = { it.id },
+        key = songKey,
+    )
+    TouchSelectionBar(touchSelection, songs = { touchSelection.selectedItems })
+    SidebarList(
+        items = songs,
+        key = songKey,
+        listModifier = Modifier.touchSelection(touchSelection, state),
+        name = { it.title },
+        showAlphabet = showAlphabet,
+        state = state,
+        isLoading = isLoading,
+        emptyText = "No songs",
+    ) { index, song ->
+        SongRow(
+            song = song,
+            onSongClick = { touchSelection.click(song) { if (isMobile) onPlay(index) else selectedIds = setOf(song.id) } },
+            longPressSelects = touchSelection.isEnabled,
+            onSongDoubleClick = {
+                selectedIds = setOf(song.id)
+                onPlay(index)
+            },
+            onSongCtrlClick = { selectedIds = selectedIds.toggled(song.id) },
+            onSongShiftClick = { selectedIds = songs.selectedThrough(index, selectedIds) },
+            contextMenuSongs = { songs.contextMenuSongs(song, selectedIds) },
+            isSelected = song.id in selectedIds,
+            onArtistClick = onArtistClick,
+            onAlbumClick = onAlbumClick,
+            contentPadding = PaddingValues(10.dp),
+        )
     }
 }
 
@@ -327,6 +585,7 @@ private fun LibraryDetailPane(
     val albumDetailState = rememberLazyListState()
     val playlistDetailState = rememberLazyListState()
     val favoriteSongsState = rememberLazyListState()
+    val genreDetailState = rememberLazyGridState()
     when (state.activeDetailView) {
         LibraryDetailView.Artists -> ArtistDetailPane(
             artist = state.selectedArtist,
@@ -395,6 +654,31 @@ private fun LibraryDetailPane(
                 )
             }
         }
+        LibraryDetailView.Genres -> Surface(
+            modifier = modifier,
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(0.dp),
+        ) {
+            val genre = state.selectedGenre
+            if (genre != null) {
+                val headerState = rememberCollapsingHeaderState(genreDetailState)
+                Box(Modifier.fillMaxSize()) {
+                    GenreAlbumsGrid(
+                        genre = genre,
+                        albums = state.selectedGenreAlbums,
+                        isLoading = state.selectedGenreAlbumsLoading,
+                        onAlbumClick = { viewModel.onEvent(LibraryEvent.OpenAlbumScreen(it)) },
+                        state = genreDetailState,
+                        headerState = headerState,
+                    )
+                    CollapsedHeaderOverlay(
+                        state = headerState,
+                        title = genre.name,
+                        image = { modifier -> GenreImage(modifier) },
+                    )
+                }
+            }
+        }
         LibraryDetailView.Playlists -> PlaylistDetailPane(
             playlist = state.selectedPlaylist,
             isLoading = state.selectedPlaylistLoading,
@@ -423,58 +707,6 @@ private fun LibraryDetailPane(
 }
 
 @Composable
-private fun ArtistSidebar(
-    artists: List<Artist>,
-    selectedArtistId: String?,
-    onArtistClick: (Artist) -> Unit,
-    onArtistDoubleClick: ((Artist) -> Unit)?,
-    state: LazyListState,
-    modifier: Modifier = Modifier,
-) {
-    val scope = rememberCoroutineScope()
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(12.dp),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = state,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        itemsIndexed(artists, key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" }) { _, artist ->
-                            ArtistListItem(
-                                artist = artist,
-                                isSelected = artist.id == selectedArtistId,
-                                onClick = { onArtistClick(artist) },
-                                onDoubleClick = onArtistDoubleClick?.let { { it(artist) } },
-                            )
-                        }
-                    }
-
-                    AlphabetScroller(
-                        alphabet = artists.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
-                        onCharClicked = { char ->
-                            val index = artists.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
-                            if (index != -1) {
-                                scope.launch { state.animateScrollToItem(index) }
-                            }
-                        }
-                    )
-                }
-
-                VerticalScrollbar(
-                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                    state = state
-                )
-            }
-        }
-    }
-
-    @Composable
 private fun ArtistDetailPane(
     artist: Artist?,
     albums: List<Album>,
@@ -887,8 +1119,9 @@ private fun ArtistHeader(
     }
 }
 
+/** [showArtist] where the albums aren't all of one artist. */
 @Composable
-private fun AlbumCard(album: Album) {
+internal fun AlbumCard(album: Album, showArtist: Boolean = false) {
     val coverArt = LocalCoverArtUrlProvider.current
     Column(
         modifier = Modifier
@@ -915,8 +1148,11 @@ private fun AlbumCard(album: Album) {
         }
 
         Text(
-            text = album.year?.toString() ?: "",
+            text = if (showArtist) listOfNotNull(album.artist.ifBlank { null }, album.year?.toString()).joinToString(" \u2022 ")
+            else album.year?.toString() ?: "",
             style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -925,130 +1161,87 @@ private fun AlbumCard(album: Album) {
 @Composable
 private fun PlaylistSidebar(
     playlists: List<Playlist>,
+    showAlphabet: Boolean,
     selectedPlaylistId: String?,
     onPlaylistClick: (Playlist) -> Unit,
     onPlaylistDoubleClick: ((Playlist) -> Unit)?,
-    onCreatePlaylist: () -> Unit,
     state: LazyListState,
-    modifier: Modifier = Modifier,
     /** Null where playlists can't be downloaded. */
     downloads: Map<String, PlaylistDownloadStatus>? = null,
     onDownload: (Playlist) -> Unit = {},
     onRemoveDownload: (Playlist) -> Unit = {},
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
-    val scope = rememberCoroutineScope()
     // Songs dragged onto a playlist get added to it
     val playlistEditor = LocalPlaylistEditor.current
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(12.dp),
-    ) {
+    SidebarList(
+        items = playlists,
+        key = { _, playlist -> playlist.id },
+        name = { it.name },
+        showAlphabet = showAlphabet,
+        state = state,
+        emptyText = "No playlists",
+    ) { _, playlist ->
+        val isSelected = playlist.id == selectedPlaylistId
+        val dropTarget = rememberSongDropTarget { songs -> playlistEditor?.addToPlaylist(playlist, songs) }
+
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Playlists",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            TextButton(onClick = onCreatePlaylist) {
-                Text("+ New", color = AccentColor, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = state,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        items(playlists, key = { it.id }) { playlist ->
-                            val isSelected = playlist.id == selectedPlaylistId
-                            val dropTarget = rememberSongDropTarget { songs -> playlistEditor?.addToPlaylist(playlist, songs) }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .songDropTarget(dropTarget)
-                                    .clip(RoundedCornerShape(0.dp))
-                                    .background(
-                                        when {
-                                            dropTarget?.isHovered == true -> AccentColor.copy(alpha = 0.32f)
-                                            isSelected -> AccentColor.copy(alpha = 0.16f)
-                                            dropTarget?.isActive == true -> AccentColor.copy(alpha = 0.08f)
-                                            else -> Color.Transparent
-                                        }
-                                    )
-                                    .combinedClickable(
-                                        onClick = { onPlaylistClick(playlist) },
-                                        onDoubleClick = onPlaylistDoubleClick?.let { { it(playlist) } },
-                                    )
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                CoverArtImage(
-                                    url = coverArt.getUrl(playlist.coverArtId),
-                                    modifier = Modifier.size(44.dp),
-                                    cornerRadius = 0.dp,
-                                    placeholderFontSize = 18.sp,
-                                )
-
-                                Spacer(Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = playlist.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        text = "${playlist.songCount} song${if (playlist.songCount != 1) "s" else ""}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-
-                                if (downloads != null) {
-                                    PlaylistDownloadButton(
-                                        playlistName = playlist.name,
-                                        status = downloads[playlist.id],
-                                        onDownload = { onDownload(playlist) },
-                                        onRemove = { onRemoveDownload(playlist) },
-                                    )
-                                }
-                            }
-                        }
+            modifier = Modifier
+                .fillMaxWidth()
+                .songDropTarget(dropTarget)
+                .clip(RoundedCornerShape(0.dp))
+                .background(
+                    when {
+                        dropTarget?.isHovered == true -> AccentColor.copy(alpha = 0.32f)
+                        isSelected -> AccentColor.copy(alpha = 0.16f)
+                        dropTarget?.isActive == true -> AccentColor.copy(alpha = 0.08f)
+                        else -> Color.Transparent
                     }
+                )
+                .combinedClickable(
+                    onClick = { onPlaylistClick(playlist) },
+                    onDoubleClick = onPlaylistDoubleClick?.let { { it(playlist) } },
+                )
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CoverArtImage(
+                url = coverArt.getUrl(playlist.coverArtId),
+                modifier = Modifier.size(44.dp),
+                cornerRadius = 0.dp,
+                placeholderFontSize = 18.sp,
+            )
 
-                    AlphabetScroller(
-                        alphabet = playlists.mapNotNull { it.name.firstOrNull()?.uppercaseChar() }.distinct().sorted(),
-                        onCharClicked = { char ->
-                            val index = playlists.indexOfFirst { it.name.firstOrNull()?.uppercaseChar() == char }
-                            if (index != -1) {
-                                scope.launch { state.animateScrollToItem(index) }
-                            }
-                        }
-                    )
-                }
+            Spacer(Modifier.width(12.dp))
 
-                VerticalScrollbar(
-                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                    state = state
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${playlist.songCount} song${if (playlist.songCount != 1) "s" else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (downloads != null) {
+                PlaylistDownloadButton(
+                    playlistName = playlist.name,
+                    status = downloads[playlist.id],
+                    onDownload = { onDownload(playlist) },
+                    onRemove = { onRemoveDownload(playlist) },
                 )
             }
         }
     }
+}
 
-    @Composable
+@Composable
 private fun PlaylistDetailPane(
     playlist: Playlist?,
     isLoading: Boolean,
@@ -1307,6 +1500,7 @@ private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit
 @Composable
 private fun FavoritesSidebar(
     state: LibraryState,
+    order: LibraryOrder,
     onSongsClick: () -> Unit,
     onArtistClick: (Artist) -> Unit,
     onArtistDoubleClick: ((Artist) -> Unit)?,
@@ -1315,6 +1509,8 @@ private fun FavoritesSidebar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
+    val artists = remember(state.favoriteArtists, order) { state.favoriteArtists.sortedBy(order) }
+    val albums = remember(state.favoriteAlbums, order) { state.favoriteAlbums.sortedBy(order) }
     Box(modifier = modifier.padding(12.dp)) {
         LazyColumn(
             state = listState,
@@ -1352,9 +1548,9 @@ private fun FavoritesSidebar(
                 }
             }
 
-            if (state.favoriteArtists.isNotEmpty()) {
+            if (artists.isNotEmpty()) {
                 item(key = "artists-header") { FavoritesSectionTitle("Artists") }
-                items(state.favoriteArtists, key = { "artist:${it.id}" }) { artist ->
+                items(artists, key = { "artist:${it.id}" }) { artist ->
                     ArtistListItem(
                         artist = artist,
                         isSelected = state.activeDetailView == LibraryDetailView.Artists && artist.id == state.selectedArtistId,
@@ -1364,9 +1560,9 @@ private fun FavoritesSidebar(
                 }
             }
 
-            if (state.favoriteAlbums.isNotEmpty()) {
+            if (albums.isNotEmpty()) {
                 item(key = "albums-header") { FavoritesSectionTitle("Albums") }
-                items(state.favoriteAlbums, key = { "album:${it.id}" }) { album ->
+                items(albums, key = { "album:${it.id}" }) { album ->
                     AlbumListItem(
                         album = album,
                         isSelected = state.activeDetailView == LibraryDetailView.Albums && album.id == state.selectedAlbumId,

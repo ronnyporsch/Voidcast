@@ -46,6 +46,7 @@ class SearchViewModel(
 
     override fun onEvent(event: SearchEvent) {
         when (event) {
+            is SearchEvent.SongsSelected -> setState { copy(selectedSongIds = event.ids) }
             is SearchEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
             is SearchEvent.SongRangeSelected ->

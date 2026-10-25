@@ -41,6 +41,12 @@ import de.ronnyporsch.voidcast.ui.components.libraryFormat
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
+import de.ronnyporsch.voidcast.ui.components.AlbumTouchSelectionBar
+import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
+import de.ronnyporsch.voidcast.ui.components.rememberAlbumTouchSelection
+import de.ronnyporsch.voidcast.ui.components.rememberTouchSelection
+import de.ronnyporsch.voidcast.ui.components.touchSelection
+import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 
@@ -58,6 +64,23 @@ fun ArtistAlbumsScreen(
     val (albums, singles) = state.albums.partition { it.releaseType == null || it.releaseType == "Album" }
     // In the order they are shown, for selecting ranges of them
     val shownAlbums = albums + singles + state.appearsOnAlbums
+    // Mobile: albums and songs are selected by touch, one kind at a time
+    val albumTouchSelection = rememberAlbumTouchSelection(shownAlbums, albumSelection) {
+        if (it.isNotEmpty() && state.selectedSongIds.isNotEmpty()) viewModel.onEvent(ArtistAlbumsEvent.SongsSelected(emptySet()))
+    }
+    val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+    val songTouchSelection = rememberTouchSelection(
+        items = state.songs,
+        selectedIds = state.selectedSongIds,
+        onChange = {
+            viewModel.onEvent(ArtistAlbumsEvent.SongsSelected(it))
+            if (it.isNotEmpty()) albumSelection.clear()
+        },
+        id = { it.id },
+        key = songKey,
+    )
+    AlbumTouchSelectionBar(albumTouchSelection)
+    TouchSelectionBar(songTouchSelection, songs = { songTouchSelection.selectedItems })
     val headerState = rememberCollapsingHeaderState(gridState)
 
     Column(
@@ -86,7 +109,10 @@ fun ArtistAlbumsScreen(
                     contentPadding = PaddingValues(bottom = 100.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.onKeyEvent { event ->
+                    modifier = Modifier
+                        .touchSelection(albumTouchSelection, gridState)
+                        .touchSelection(songTouchSelection, gridState)
+                        .onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
                             val currentIndex = state.songs.indexOfFirst { it.id in state.selectedSongIds }
                             when (event.key) {
@@ -136,6 +162,7 @@ fun ArtistAlbumsScreen(
                                 albums = shownAlbums,
                                 selection = albumSelection,
                                 onClick = { viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album)) },
+                                touchSelection = albumTouchSelection,
                             ) {
                                 AlbumCard(album, downloaded = album.id in state.downloadedAlbumIds)
                             }
@@ -158,6 +185,7 @@ fun ArtistAlbumsScreen(
                                 albums = shownAlbums,
                                 selection = albumSelection,
                                 onClick = { viewModel.onEvent(ArtistAlbumsEvent.AlbumClicked(album)) },
+                                touchSelection = albumTouchSelection,
                             ) {
                                 AlbumCard(album, downloaded = album.id in state.downloadedAlbumIds)
                             }
@@ -212,14 +240,15 @@ fun ArtistAlbumsScreen(
 
                         itemsIndexed(
                             state.songs,
-                            key = { index, song -> "${song.id}::$index" },
+                            key = songKey,
                             span = { _, _ -> GridItemSpan(maxLineSpan) },
                         ) { index, song ->
                             Column {
                                 SongRow(
                                     song = song,
                                     index = index,
-                                    onSongClick = { viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index)) },
+                                    onSongClick = { songTouchSelection.click(song) { viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index)) } },
+                                    longPressSelects = songTouchSelection.isEnabled,
                                     onSongDoubleClick = { viewModel.onEvent(ArtistAlbumsEvent.SongDoubleClicked(song, index)) },
                                     onSongCtrlClick = { viewModel.onEvent(ArtistAlbumsEvent.SongSelectionToggled(song)) },
                                     onSongShiftClick = { viewModel.onEvent(ArtistAlbumsEvent.SongRangeSelected(index)) },
