@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -25,6 +26,7 @@ import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.components.SongRow
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
+import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.navigation.QueueTab
@@ -139,79 +141,83 @@ private fun QueueList(
         }
     }
 
-    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 100.dp), modifier = Modifier.fillMaxSize()) {
-        if (currentSong == null) {
-            item(key = "empty") { EmptyText("Nothing is playing") }
-            return@LazyColumn
-        }
-        item(key = "nowPlayingHeader") { SectionHeader("Now playing") }
-        item(key = "nowPlaying") {
-            SongRow(
-                song = currentSong,
-                onSongClick = {},
-                onArtistClick = onArtistClick,
-                onAlbumClick = onAlbumClick,
-                showAlbum = true,
-                isPlaying = true,
-            )
-        }
-        item(key = "upcomingHeader") { SectionHeader("Next up") }
-        if (entries.isEmpty()) {
-            item(key = "upcomingEmpty") {
-                val device = state.remoteDevice
-                EmptyText(
-                    if (device != null && !device.isVoidcast) "${device.name} doesn't share what comes next."
-                    else "Nothing comes next. Add songs with \"Add to queue\" in their menu."
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 100.dp), modifier = Modifier.fillMaxSize()) {
+            if (currentSong == null) {
+                item(key = "empty") { EmptyText("Nothing is playing") }
+                return@LazyColumn
+            }
+            item(key = "nowPlayingHeader") { SectionHeader("Now playing") }
+            item(key = "nowPlaying") {
+                SongRow(
+                    song = currentSong,
+                    onSongClick = {},
+                    onArtistClick = onArtistClick,
+                    onAlbumClick = onAlbumClick,
+                    showAlbum = true,
+                    isPlaying = true,
+                )
+            }
+            item(key = "upcomingHeader") { SectionHeader("Next up") }
+            if (entries.isEmpty()) {
+                item(key = "upcomingEmpty") {
+                    val device = state.remoteDevice
+                    EmptyText(
+                        if (device != null && !device.isVoidcast) "${device.name} doesn't share what comes next."
+                        else "Nothing comes next. Add songs with \"Add to queue\" in their menu."
+                    )
+                }
+            }
+            items(entries, key = { it.key }) { entry ->
+                val isDragged = reorder.draggedKey == entry.key
+                val play: () -> Unit = {
+                    if (state.canEditQueue) queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.PlayQueueIndex(it)) }
+                }
+                SongRow(
+                    song = entry.song,
+                    onSongClick = { if (isMobile) play() else selectedKey = entry.key },
+                    onSongDoubleClick = play,
+                    onArtistClick = onArtistClick,
+                    onAlbumClick = onAlbumClick,
+                    showAlbum = true,
+                    isSelected = selectedKey == entry.key || isDragged,
+                    onRemoveClick = if (!state.canEditQueue) null else {
+                        { queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.RemoveFromQueue(it)) } }
+                    },
+                    removeDescription = "Remove from queue",
+                    trailingContent = (@Composable {
+                        Icon(
+                            Icons.Default.DragHandle,
+                            contentDescription = "Drag to reorder",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(if (isMobile) 32.dp else 24.dp)
+                                .pointerInput(entry.key) {
+                                    detectDragGestures(
+                                        onDragStart = { reorder.start(entry.key, latestEntries) },
+                                        onDragEnd = { reorder.end() },
+                                        onDragCancel = { reorder.end() },
+                                    ) { change, amount ->
+                                        change.consume()
+                                        reorder.drag(amount.y)
+                                    }
+                                },
+                        )
+                    }).takeIf { state.canEditQueue },
+                    modifier = if (isDragged) {
+                        Modifier
+                            .zIndex(1f)
+                            .graphicsLayer { translationY = reorder.offset }
+                            .shadow(6.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    } else {
+                        Modifier.animateItem()
+                    },
                 )
             }
         }
-        items(entries, key = { it.key }) { entry ->
-            val isDragged = reorder.draggedKey == entry.key
-            val play: () -> Unit = {
-                if (state.canEditQueue) queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.PlayQueueIndex(it)) }
-            }
-            SongRow(
-                song = entry.song,
-                onSongClick = { if (isMobile) play() else selectedKey = entry.key },
-                onSongDoubleClick = play,
-                onArtistClick = onArtistClick,
-                onAlbumClick = onAlbumClick,
-                showAlbum = true,
-                isSelected = selectedKey == entry.key || isDragged,
-                onRemoveClick = if (!state.canEditQueue) null else {
-                    { queueIndexOf(entry.key)?.let { onEvent(PlayerEvent.RemoveFromQueue(it)) } }
-                },
-                removeDescription = "Remove from queue",
-                trailingContent = (@Composable {
-                    Icon(
-                        Icons.Default.DragHandle,
-                        contentDescription = "Drag to reorder",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(if (isMobile) 32.dp else 24.dp)
-                            .pointerInput(entry.key) {
-                                detectDragGestures(
-                                    onDragStart = { reorder.start(entry.key, latestEntries) },
-                                    onDragEnd = { reorder.end() },
-                                    onDragCancel = { reorder.end() },
-                                ) { change, amount ->
-                                    change.consume()
-                                    reorder.drag(amount.y)
-                                }
-                            },
-                    )
-                }).takeIf { state.canEditQueue },
-                modifier = if (isDragged) {
-                    Modifier
-                        .zIndex(1f)
-                        .graphicsLayer { translationY = reorder.offset }
-                        .shadow(6.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                } else {
-                    Modifier.animateItem()
-                },
-            )
-        }
+
+        VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), listState)
     }
 }
 
@@ -224,23 +230,28 @@ private fun RecentlyPlayedList(
 ) {
     val isMobile = remember { getPlatform().isMobile }
     var selectedId by remember { mutableStateOf<String?>(null) }
-    LazyColumn(contentPadding = PaddingValues(bottom = 100.dp), modifier = Modifier.fillMaxSize()) {
-        if (state.recentlyPlayed.isEmpty()) {
-            item { EmptyText("Songs you play show up here") }
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 100.dp), modifier = Modifier.fillMaxSize()) {
+            if (state.recentlyPlayed.isEmpty()) {
+                item { EmptyText("Songs you play show up here") }
+            }
+            items(state.recentlyPlayed, key = { it.id }) { song ->
+                val play = { onEvent(PlayerEvent.PlayNow(song)) }
+                SongRow(
+                    song = song,
+                    onSongClick = { if (isMobile) play() else selectedId = song.id },
+                    onSongDoubleClick = play,
+                    onArtistClick = onArtistClick,
+                    onAlbumClick = onAlbumClick,
+                    showAlbum = true,
+                    isSelected = selectedId == song.id,
+                    isPlaying = song.id == state.playback.currentSong?.id,
+                )
+            }
         }
-        items(state.recentlyPlayed, key = { it.id }) { song ->
-            val play = { onEvent(PlayerEvent.PlayNow(song)) }
-            SongRow(
-                song = song,
-                onSongClick = { if (isMobile) play() else selectedId = song.id },
-                onSongDoubleClick = play,
-                onArtistClick = onArtistClick,
-                onAlbumClick = onAlbumClick,
-                showAlbum = true,
-                isSelected = selectedId == song.id,
-                isPlaying = song.id == state.playback.currentSong?.id,
-            )
-        }
+
+        VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), listState)
     }
 }
 

@@ -70,6 +70,9 @@ class YouTubeService(private val connection: MusicServerConnection) {
 
     val currentCapabilities: YouTubeCapabilities get() = capabilitiesFor(connection.plugin.value)
 
+    /** Whether the connected Jellyfin server lacks the Voidcast plugin, so YouTube Music is unavailable. */
+    val pluginMissing: StateFlow<Boolean> = connection.pluginMissing
+
     // One thread, so the download bookkeeping below needs no locking
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
     /** Song ids of running server download jobs, by job id. */

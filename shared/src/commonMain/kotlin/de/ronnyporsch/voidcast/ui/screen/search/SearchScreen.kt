@@ -24,7 +24,12 @@ import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.ArtistImage
 import de.ronnyporsch.voidcast.ui.components.ClickableArtistText
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
+import de.ronnyporsch.voidcast.ui.components.PluginMissingWarning
+import de.ronnyporsch.voidcast.ui.components.SelectableAlbum
 import de.ronnyporsch.voidcast.ui.components.SongRow
+import de.ronnyporsch.voidcast.ui.components.rememberAlbumSelection
+import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
+import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadMessage
@@ -39,6 +44,8 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val listState = rememberLazyListState()
+    RememberScrollPosition(listState)
+    val albumSelection = rememberAlbumSelection()
     val focusManager = LocalFocusManager.current
     // Clicking a result unfocuses the search bar, which hides the soft keyboard on mobile
     val onResultClick: (SearchEvent) -> Unit = { event ->
@@ -61,166 +68,183 @@ fun SearchScreen(
                 Text(if (state.youTubeAvailable) "Search your music library and YouTube Music" else "Search your music library", style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
             }
         } else {
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(bottom = 100.dp),
-                modifier = Modifier.onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown) {
-                        // Library songs and YouTube Music songs form one navigable list
-                        val allSongs = state.songs + state.youTubeSongs
-                        val currentIndex = allSongs.indexOfFirst { it.id in state.selectedSongIds }
-                        val targetIndex = when (event.key) {
-                            Key.DirectionDown -> currentIndex + 1
-                            Key.DirectionUp -> currentIndex - 1
-                            else -> return@onKeyEvent false
-                        }
-                        if (currentIndex >= 0 && targetIndex in allSongs.indices) {
-                            val song = allSongs[targetIndex]
-                            viewModel.onEvent(
-                                if (targetIndex < state.songs.size) {
-                                    SearchEvent.SongClicked(song, targetIndex)
-                                } else {
-                                    SearchEvent.YouTubeSongClicked(song, targetIndex - state.songs.size)
-                                }
-                            )
-                            true
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = 100.dp),
+                    modifier = Modifier.onKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown) {
+                            // Library songs and YouTube Music songs form one navigable list
+                            val allSongs = state.songs + state.youTubeSongs
+                            val currentIndex = allSongs.indexOfFirst { it.id in state.selectedSongIds }
+                            val targetIndex = when (event.key) {
+                                Key.DirectionDown -> currentIndex + 1
+                                Key.DirectionUp -> currentIndex - 1
+                                else -> return@onKeyEvent false
+                            }
+                            if (currentIndex >= 0 && targetIndex in allSongs.indices) {
+                                val song = allSongs[targetIndex]
+                                viewModel.onEvent(
+                                    if (targetIndex < state.songs.size) {
+                                        SearchEvent.SongClicked(song, targetIndex)
+                                    } else {
+                                        SearchEvent.YouTubeSongClicked(song, targetIndex - state.songs.size)
+                                    }
+                                )
+                                true
+                            } else false
                         } else false
-                    } else false
-                }
-            ) {
-                if (state.artists.isNotEmpty()) {
-                    item {
-                        Text("Artists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     }
-                    items(state.artists, key = { "artist-${it.id}" }) { artist ->
-                        SearchArtistRow(artist) {
-                            onResultClick(SearchEvent.ArtistClicked(artist))
+                ) {
+                    if (state.youTubePluginMissing) {
+                        item(key = "plugin-missing") {
+                            PluginMissingWarning(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         }
                     }
-                }
 
-                if (state.playlists.isNotEmpty()) {
-                    item {
-                        Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    }
-                    items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
-                        SearchPlaylistRow(playlist) {
-                            onResultClick(SearchEvent.PlaylistClicked(playlist))
+                    if (state.artists.isNotEmpty()) {
+                        item {
+                            Text("Artists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                        items(state.artists, key = { "artist-${it.id}" }) { artist ->
+                            SearchArtistRow(artist) {
+                                onResultClick(SearchEvent.ArtistClicked(artist))
+                            }
                         }
                     }
-                }
 
-                if (state.albums.isNotEmpty()) {
-                    item {
-                        Text("Albums", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    if (state.playlists.isNotEmpty()) {
+                        item {
+                            Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                        items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
+                            SearchPlaylistRow(playlist) {
+                                onResultClick(SearchEvent.PlaylistClicked(playlist))
+                            }
+                        }
                     }
-                    items(state.albums, key = { "album-${it.id}" }) { album ->
-                        SearchAlbumRow(
-                            album = album,
-                            onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
-                            onClick = { onResultClick(SearchEvent.AlbumClicked(album)) },
-                        )
-                    }
-                }
 
-                if (state.songs.isNotEmpty()) {
-                    item {
-                        Text("Songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    }
-                    itemsIndexed(state.songs, key = { index, song -> "song-${song.id}::$index" }) { index, song ->
-                        SongRow(
-                            song = song,
-                            onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
-                            onSongClick = { onResultClick(SearchEvent.SongClicked(song, index)) },
-                            onSongDoubleClick = { onResultClick(SearchEvent.SongDoubleClicked(song, index)) },
-                            onSongCtrlClick = { viewModel.onEvent(SearchEvent.SongSelectionToggled(song)) },
-                            contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
-                            isSelected = song.id in state.selectedSongIds,
-                            isPlaying = currentSongId == song.id,
-                            showAlbum = true
-                        )
-                    }
-                }
-
-                if (state.youTubeAvailable) {
-                    item {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("YouTube Music", style = MaterialTheme.typography.titleLarge)
-                            if (state.isYouTubeLoading) {
-                                Spacer(Modifier.width(12.dp))
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = AccentColor,
-                                    strokeWidth = 2.dp,
+                    if (state.albums.isNotEmpty()) {
+                        item {
+                            Text("Albums", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                        items(state.albums, key = { "album-${it.id}" }) { album ->
+                            SelectableAlbum(
+                                album = album,
+                                albums = state.albums,
+                                selection = albumSelection,
+                                onClick = { onResultClick(SearchEvent.AlbumClicked(album)) },
+                            ) {
+                                SearchAlbumRow(
+                                    album = album,
+                                    onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
                                 )
                             }
                         }
                     }
-                    state.youTubeError?.let { error ->
+
+                    if (state.songs.isNotEmpty()) {
                         item {
-                            Text(
-                                error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                            )
+                            Text("Songs", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         }
-                    }
-                    if (!state.isYouTubeLoading && state.youTubeError == null && state.youTubeArtists.isEmpty() && state.youTubeSongs.isEmpty()) {
-                        item {
-                            Text(
-                                "No results on YouTube Music",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = SpotifyLightGray,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                            )
-                        }
-                    }
-                    if (state.youTubeArtists.isNotEmpty()) {
-                        item { SearchSubheader("Artists") }
-                    }
-                    items(state.youTubeArtists, key = { "yt-artist-${it.id}" }) { artist ->
-                        SearchArtistRow(artist, subtitle = "Artist \u2022 YouTube Music") {
-                            onResultClick(SearchEvent.ArtistClicked(artist))
-                        }
-                    }
-                    if (state.youTubeSongs.isNotEmpty()) {
-                        item { SearchSubheader(if (state.youTubeSongs.any { it.isVideo }) "Songs & videos" else "Songs") }
-                    }
-                    itemsIndexed(state.youTubeSongs, key = { index, song -> "yt-${song.id}::$index" }) { index, song ->
-                        val download = state.downloads[song.id]
-                        Column {
+                        itemsIndexed(state.songs, key = { index, song -> "song-${song.id}::$index" }) { index, song ->
                             SongRow(
                                 song = song,
-                                onArtistClick = { name ->
-                                    onResultClick(SearchEvent.ArtistNameClicked(name, song.youTubeArtistId(name)))
-                                },
-                                onSongClick = { onResultClick(SearchEvent.YouTubeSongClicked(song, index)) },
-                                onSongDoubleClick = { onResultClick(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
+                                onArtistClick = { name -> onResultClick(SearchEvent.ArtistNameClicked(name)) },
+                                onSongClick = { onResultClick(SearchEvent.SongClicked(song, index)) },
+                                onSongDoubleClick = { onResultClick(SearchEvent.SongDoubleClicked(song, index)) },
+                                onSongCtrlClick = { viewModel.onEvent(SearchEvent.SongSelectionToggled(song)) },
+                                onSongShiftClick = { viewModel.onEvent(SearchEvent.SongRangeSelected(index)) },
+                                contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
                                 isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
-                                showAlbum = true,
-                                audioFormat = state.youTubeFormats[song.id],
-                                typeLabel = if (song.isVideo) "Video" else "Song",
-                                trailingContent = if (state.youTubeDownloadAvailable) {
-                                    { YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) } }
-                                } else null,
+                                showAlbum = true
                             )
-                            YouTubeDownloadMessage(download)
+                        }
+                    }
+
+                    if (state.youTubeAvailable) {
+                        item {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("YouTube Music", style = MaterialTheme.typography.titleLarge)
+                                if (state.isYouTubeLoading) {
+                                    Spacer(Modifier.width(12.dp))
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = AccentColor,
+                                        strokeWidth = 2.dp,
+                                    )
+                                }
+                            }
+                        }
+                        state.youTubeError?.let { error ->
+                            item {
+                                Text(
+                                    error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                )
+                            }
+                        }
+                        if (!state.isYouTubeLoading && state.youTubeError == null && state.youTubeArtists.isEmpty() && state.youTubeSongs.isEmpty()) {
+                            item {
+                                Text(
+                                    "No results on YouTube Music",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SpotifyLightGray,
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                )
+                            }
+                        }
+                        if (state.youTubeArtists.isNotEmpty()) {
+                            item { SearchSubheader("Artists") }
+                        }
+                        items(state.youTubeArtists, key = { "yt-artist-${it.id}" }) { artist ->
+                            SearchArtistRow(artist, subtitle = "Artist \u2022 YouTube Music") {
+                                onResultClick(SearchEvent.ArtistClicked(artist))
+                            }
+                        }
+                        if (state.youTubeSongs.isNotEmpty()) {
+                            item { SearchSubheader(if (state.youTubeSongs.any { it.isVideo }) "Songs & videos" else "Songs") }
+                        }
+                        itemsIndexed(state.youTubeSongs, key = { index, song -> "yt-${song.id}::$index" }) { index, song ->
+                            val download = state.downloads[song.id]
+                            Column {
+                                SongRow(
+                                    song = song,
+                                    onArtistClick = { name ->
+                                        onResultClick(SearchEvent.ArtistNameClicked(name, song.youTubeArtistId(name)))
+                                    },
+                                    onSongClick = { onResultClick(SearchEvent.YouTubeSongClicked(song, index)) },
+                                    onSongDoubleClick = { onResultClick(SearchEvent.YouTubeSongDoubleClicked(song, index)) },
+                                    isSelected = song.id in state.selectedSongIds,
+                                    isPlaying = currentSongId == song.id,
+                                    showAlbum = true,
+                                    audioFormat = state.youTubeFormats[song.id],
+                                    typeLabel = if (song.isVideo) "Video" else "Song",
+                                    trailingContent = if (state.youTubeDownloadAvailable) {
+                                        { YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) } }
+                                    } else null,
+                                )
+                                YouTubeDownloadMessage(download)
+                            }
+                        }
+                    }
+
+                    if (state.artists.isEmpty() && state.playlists.isEmpty() && state.albums.isEmpty() && state.songs.isEmpty() && !state.youTubeAvailable) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Text("No results found", style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }
 
-                if (state.artists.isEmpty() && state.playlists.isEmpty() && state.albums.isEmpty() && state.songs.isEmpty() && !state.youTubeAvailable) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No results found", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
+                VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), listState)
             }
         }
     }
@@ -284,12 +308,11 @@ private fun SearchPlaylistRow(playlist: Playlist, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SearchAlbumRow(album: Album, onArtistClick: (String) -> Unit, onClick: () -> Unit) {
+private fun SearchAlbumRow(album: Album, onArtistClick: (String) -> Unit) {
     val coverArt = LocalCoverArtUrlProvider.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

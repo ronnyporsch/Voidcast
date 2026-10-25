@@ -9,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -321,6 +322,11 @@ private fun LibraryDetailPane(
     currentSongId: String?,
     modifier: Modifier = Modifier,
 ) {
+    // One of each per visit of the library, so going back or forward to a visit shows the pane as it was scrolled
+    val artistDetailState = rememberLazyGridState()
+    val albumDetailState = rememberLazyListState()
+    val playlistDetailState = rememberLazyListState()
+    val favoriteSongsState = rememberLazyListState()
     when (state.activeDetailView) {
         LibraryDetailView.Artists -> ArtistDetailPane(
             artist = state.selectedArtist,
@@ -338,9 +344,10 @@ private fun LibraryDetailPane(
             isPlaying = { it == currentSongId },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllArtistSongs) },
             onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllArtistSongs) },
-            state = viewModel.artistDetailState,
+            state = artistDetailState,
             modifier = modifier,
             onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
             contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
         LibraryDetailView.Albums -> AlbumDetailPane(
@@ -352,9 +359,10 @@ private fun LibraryDetailPane(
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllAlbumSongs) },
             onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllAlbumSongs) },
-            state = viewModel.albumDetailState,
+            state = albumDetailState,
             modifier = modifier,
             onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
             contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
         LibraryDetailView.FavoriteSongs -> Surface(
@@ -362,11 +370,11 @@ private fun LibraryDetailPane(
             color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(0.dp),
         ) {
-            val headerState = rememberCollapsingHeaderState(viewModel.favoriteSongsState)
+            val headerState = rememberCollapsingHeaderState(favoriteSongsState)
             Box(Modifier.fillMaxSize()) {
                 FavoriteSongsList(
                     songs = state.favoriteSongs,
-                    state = viewModel.favoriteSongsState,
+                    state = favoriteSongsState,
                     headerState = headerState,
                     onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
                     onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
@@ -377,6 +385,7 @@ private fun LibraryDetailPane(
                     onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllFavoriteSongs) },
                     onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllFavoriteSongs) },
                     onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+                    onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
                     contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
                 )
                 CollapsedHeaderOverlay(
@@ -404,9 +413,10 @@ private fun LibraryDetailPane(
             onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
             onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllPlaylistSongs) },
             onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllPlaylistSongs) },
-            state = viewModel.playlistDetailState,
+            state = playlistDetailState,
             modifier = modifier,
             onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+            onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
             contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
     }
@@ -484,9 +494,11 @@ private fun ArtistDetailPane(
     onShuffle: () -> Unit,
     state: LazyGridState,
     onSongCtrlClick: (Song) -> Unit = {},
+    onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     modifier: Modifier = Modifier,
 ) {
+    RememberScrollPosition(state, "artist")
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surface,
@@ -502,6 +514,9 @@ private fun ArtistDetailPane(
             }
         } else {
             val headerState = rememberCollapsingHeaderState(state)
+            val albumSelection = rememberAlbumSelection()
+            // In the order they are shown, for selecting ranges of them
+            val shownAlbums = albums + appearsOnAlbums
             Box(Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
                     state = state,
@@ -551,7 +566,9 @@ private fun ArtistDetailPane(
                         }
 
                         items(albums, key = { it.id }) { album ->
-                            AlbumCard(album) { onAlbumClick(album) }
+                            SelectableAlbum(album, shownAlbums, albumSelection, onClick = { onAlbumClick(album) }) {
+                                AlbumCard(album)
+                            }
                         }
                     }
 
@@ -566,7 +583,9 @@ private fun ArtistDetailPane(
                         }
 
                         items(appearsOnAlbums, key = { it.id }) { album ->
-                            AlbumCard(album) { onAlbumClick(album) }
+                            SelectableAlbum(album, shownAlbums, albumSelection, onClick = { onAlbumClick(album) }) {
+                                AlbumCard(album)
+                            }
                         }
                     }
 
@@ -627,6 +646,7 @@ private fun ArtistDetailPane(
                                 onSongClick = { onSongClick(song, index) },
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
+                                onSongShiftClick = { onSongShiftClick(song, index) },
                                 contextMenuSongs = { contextMenuSongs(songs, song) },
                                 isSelected = isSelected(song.id),
                                 isPlaying = isPlaying(song.id),
@@ -649,6 +669,8 @@ private fun ArtistDetailPane(
                     title = artist.name,
                     image = { modifier -> ArtistImage(url = largeImageUrl, artistName = artist.name, modifier = modifier) },
                 )
+
+                VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
             }
         }
     }
@@ -667,9 +689,11 @@ private fun AlbumDetailPane(
     state: LazyListState,
     modifier: Modifier = Modifier,
     onSongCtrlClick: (Song) -> Unit = {},
+    onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
+    RememberScrollPosition(state, "album")
 
     Surface(
         modifier = modifier,
@@ -797,6 +821,7 @@ private fun AlbumDetailPane(
                             onSongClick = { onSongClick(song, index) },
                             onSongDoubleClick = { onSongDoubleClick(song, index) },
                             onSongCtrlClick = { onSongCtrlClick(song) },
+                            onSongShiftClick = { onSongShiftClick(song, index) },
                             contextMenuSongs = { contextMenuSongs(album.songs, song) },
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
@@ -811,6 +836,8 @@ private fun AlbumDetailPane(
                     title = album.name,
                     image = { modifier -> CoverArtImage(url = coverArt.getUrl(album.coverArtId), modifier = modifier) },
                 )
+
+                VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
             }
         }
     }
@@ -861,13 +888,11 @@ private fun ArtistHeader(
 }
 
 @Composable
-private fun AlbumCard(album: Album, onClick: () -> Unit) {
+private fun AlbumCard(album: Album) {
     val coverArt = LocalCoverArtUrlProvider.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(0.dp))
-            .clickable(onClick = onClick)
             .padding(8.dp),
     ) {
         CoverArtImage(
@@ -1040,10 +1065,12 @@ private fun PlaylistDetailPane(
     state: LazyListState,
     modifier: Modifier = Modifier,
     onSongCtrlClick: (Song) -> Unit = {},
+    onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     contextMenuIndices: (List<Song>, Int) -> List<Int> = { _, index -> listOf(index) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
+    RememberScrollPosition(state, "playlist")
 
     Surface(
         modifier = modifier,
@@ -1164,6 +1191,7 @@ private fun PlaylistDetailPane(
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
                                 onRemoveClick = { onRemoveClick(listOf(index)) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
+                                onSongShiftClick = { onSongShiftClick(song, index) },
                                 contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
                                 onRemoveFromPlaylist = { onRemoveClick(contextMenuIndices(playlist.songs, index)) },
                                 isSelected = isSelected(song.id),
@@ -1179,6 +1207,8 @@ private fun PlaylistDetailPane(
                         title = playlist.name,
                         image = { modifier -> CoverArtImage(url = coverArt.getUrl(playlist.coverArtId), modifier = modifier) },
                     )
+
+                    VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
                 }
             }
         }

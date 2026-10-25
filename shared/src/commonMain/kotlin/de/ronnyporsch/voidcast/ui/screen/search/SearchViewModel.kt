@@ -6,6 +6,7 @@ import de.ronnyporsch.voidcast.data.youtube.YouTubeService
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -33,6 +34,9 @@ class SearchViewModel(
             }
         }
         viewModelScope.launch {
+            youTube.pluginMissing.collect { setState { copy(youTubePluginMissing = it) } }
+        }
+        viewModelScope.launch {
             youTube.downloads.collect { setState { copy(downloads = it) } }
         }
         viewModelScope.launch {
@@ -44,6 +48,8 @@ class SearchViewModel(
         when (event) {
             is SearchEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
+            is SearchEvent.SongRangeSelected ->
+                setState { copy(selectedSongIds = songs.selectedThrough(event.index, selectedSongIds)) }
             is SearchEvent.QueryChanged -> {
                 setState { copy(query = event.query) }
                 if (event.query.length >= 2) {

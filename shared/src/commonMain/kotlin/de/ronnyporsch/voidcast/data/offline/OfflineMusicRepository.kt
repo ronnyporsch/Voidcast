@@ -32,7 +32,10 @@ class OfflineMusicRepository(
 
     override suspend fun getPlaylists(): Result<List<Playlist>> =
         server.getPlaylists()
-            .onSuccess { cache.putPlaylists(it) }
+            .onSuccess {
+                cache.putPlaylists(it)
+                downloads.onPlaylistsFetched(it)
+            }
             .recoverOffline {
                 val cached = cache.playlists()
                 val cachedIds = cached.mapTo(mutableSetOf()) { it.id }
@@ -43,7 +46,10 @@ class OfflineMusicRepository(
 
     override suspend fun getPlaylist(playlistId: String): Result<Playlist> =
         server.getPlaylist(playlistId)
-            .onSuccess { cache.putPlaylist(it) }
+            .onSuccess {
+                cache.putPlaylist(it)
+                downloads.onPlaylistsFetched(listOf(it))
+            }
             .recoverOffline { downloads.playlist(playlistId) ?: cache.playlist(playlistId) }
 
     override suspend fun getArtists(): Result<List<Artist>> =

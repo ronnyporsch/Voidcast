@@ -42,6 +42,15 @@ data class LibraryState(
     val favoriteSongs: List<Song> = emptyList(),
 )
 
+/** The songs the detail pane shows. */
+val LibraryState.detailSongs: List<Song>
+    get() = when (activeDetailView) {
+        LibraryDetailView.Albums -> selectedAlbum?.songs.orEmpty()
+        LibraryDetailView.Playlists -> selectedPlaylist?.songs.orEmpty()
+        LibraryDetailView.Artists -> selectedArtistSongs
+        LibraryDetailView.FavoriteSongs -> favoriteSongs
+    }
+
 sealed class LibraryEvent {
     data class SidebarTabSelected(val tab: LibrarySidebarTab) : LibraryEvent()
     data object Refresh : LibraryEvent()
@@ -75,6 +84,8 @@ sealed class LibraryEvent {
     data class SongDoubleClicked(val song: Song, val index: Int) : LibraryEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : LibraryEvent()
+    /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
+    data class SongRangeSelected(val index: Int) : LibraryEvent()
     data class SongArtistClicked(val artistName: String) : LibraryEvent()
     /** Shows the favorite songs in the detail pane. */
     data object FavoriteSongsClicked : LibraryEvent()

@@ -2,6 +2,7 @@ package de.ronnyporsch.voidcast.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
@@ -34,6 +35,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Adds songs to playlists from the song context menu (and drag and drop), on any screen. Reports the outcome to
@@ -146,6 +150,20 @@ val LocalSongDownloads = staticCompositionLocalOf<PlaylistDownloads?> { null }
 
 fun Set<String>.toggled(songId: String): Set<String> = if (songId in this) this - songId else this + songId
 
+/**
+ * Shift-click on the item at [index]: adds the items from it to the nearest selected one to [selectedIds]. Without a
+ * selection only the clicked item gets selected.
+ */
+fun <T> List<T>.selectedThrough(index: Int, selectedIds: Set<String>, id: (T) -> String): Set<String> {
+    val nearest = indices.filter { id(this[it]) in selectedIds }.minByOrNull { abs(it - index) }
+        ?: return setOf(id(this[index]))
+    return selectedIds + subList(min(nearest, index), max(nearest, index) + 1).map(id)
+}
+
+/** See [selectedThrough]. */
+fun List<Song>.selectedThrough(index: Int, selectedSongIds: Set<String>): Set<String> =
+    selectedThrough(index, selectedSongIds) { it.id }
+
 /** The songs a context menu on [song] acts on: the selection if [song] is part of it, otherwise only [song]. */
 fun List<Song>.contextMenuSongs(song: Song, selectedSongIds: Set<String>): List<Song> =
     if (song.id in selectedSongIds) filter { it.id in selectedSongIds }.distinctBy { it.id } else listOf(song)
@@ -163,6 +181,10 @@ fun SongContextMenu(
     offset: DpOffset,
     /** Shows "Remove from playlist", for songs listed in a playlist. */
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    /** What the songs are, e.g. the albums they are from; by default the number of songs if there are several. */
+    title: String? = null,
+    /** Offers to mark the songs as favorites. */
+    showFavorites: Boolean = true,
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
@@ -187,12 +209,15 @@ fun SongContextMenu(
     }
 
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, offset = offset) {
-        if (songs.size > 1) {
+        val header = title ?: if (songs.size > 1) "${songs.size} songs selected" else null
+        if (header != null) {
             Text(
-                "${songs.size} songs selected",
+                header,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).widthIn(max = 280.dp),
             )
             HorizontalDivider()
         }
@@ -207,7 +232,7 @@ fun SongContextMenu(
                     },
                 )
             }
-            if (favorites != null) {
+            if (favorites != null && showFavorites) {
                 val favoriteSongs = songs.filter { favorites.canBeFavorite(it.id) }
                 if (favoriteSongs.isNotEmpty()) {
                     // Adds all unless all of them are favorites already

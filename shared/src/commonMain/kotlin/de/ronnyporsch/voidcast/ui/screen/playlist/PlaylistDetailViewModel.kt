@@ -3,6 +3,7 @@ package de.ronnyporsch.voidcast.ui.screen.playlist
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 
 class PlaylistDetailViewModel(
@@ -18,6 +19,9 @@ class PlaylistDetailViewModel(
         when (event) {
             is PlaylistDetailEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
+            is PlaylistDetailEvent.SongRangeSelected -> setState {
+                copy(selectedSongIds = playlist?.songs.orEmpty().selectedThrough(event.index, selectedSongIds))
+            }
             is PlaylistDetailEvent.SongClicked -> {
                 if (getPlatform().isMobile) {
                     val songs = currentState.playlist?.songs ?: return

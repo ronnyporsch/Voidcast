@@ -72,7 +72,16 @@ class PlaylistDownloads(
     val singleSongIds: StateFlow<Set<String>> = _singleSongIds.asStateFlow()
 
     init {
-        if (files != null) scope.launch { publish() }
+        if (files != null) {
+            scope.launch { publish() }
+            // Picks up songs added to downloaded playlists elsewhere, e.g. by another client, while the app runs
+            scope.launch {
+                while (true) {
+                    delay(SYNC_INTERVAL)
+                    if (repository.isConfigured) syncAll()
+                }
+            }
+        }
     }
 
     /** Downloads [playlist] and keeps it downloaded. */
@@ -145,6 +154,26 @@ class PlaylistDownloads(
             // A running sync may have fetched the playlist before the change
             jobs.remove(key(server, playlistId))?.cancelAndJoin()
             sync(server, playlistId)
+        }
+    }
+
+    /**
+     * Call with [playlists] just fetched from the server: syncs those downloaded ones that changed since, e.g. got
+     * songs added by another client. Playlists without their songs are compared by their number of songs.
+     */
+    fun onPlaylistsFetched(playlists: List<Playlist>) {
+        if (files == null || playlists.isEmpty()) return
+        scope.launch {
+            val server = serverKey()
+            for (playlist in playlists) {
+                val stored = entry(server, playlist.id)?.playlist ?: continue
+                val changed = if (playlist.songs.isNotEmpty()) {
+                    playlist.songs.map { it.id } != stored.songs.map { it.id }
+                } else {
+                    playlist.songCount != stored.songs.size
+                }
+                if (changed) sync(server, playlist.id)
+            }
         }
     }
 
@@ -302,5 +331,6 @@ class PlaylistDownloads(
     private companion object {
         const val FILE_NAME = "downloaded-playlists.json"
         const val SONGS_FILE_NAME = "downloaded-songs.json"
+        const val SYNC_INTERVAL = 15 * 60 * 1000L
     }
 }

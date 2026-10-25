@@ -35,7 +35,9 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import de.ronnyporsch.voidcast.data.youtube.YouTubeService
 import de.ronnyporsch.voidcast.domain.model.youTubeArtistId
+import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
 import de.ronnyporsch.voidcast.platform.GlobalShortcuts
 import de.ronnyporsch.voidcast.platform.createHttpClient
 import de.ronnyporsch.voidcast.platform.installGlobalShortcutListener
@@ -58,9 +60,11 @@ import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.LocalFavorites
 import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
+import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
 import de.ronnyporsch.voidcast.ui.components.description
 import de.ronnyporsch.voidcast.ui.components.LocalSongDragAndDrop
+import de.ronnyporsch.voidcast.ui.components.LocalScrollPositions
 import de.ronnyporsch.voidcast.ui.components.LocalDownloadedSongIds
 import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
 import de.ronnyporsch.voidcast.ui.components.LocalPendingSongDownloads
@@ -77,6 +81,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -131,6 +136,28 @@ fun App() {
                 }
                 snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
             }
+        }
+    }
+    val loadAlbumSongs: suspend (List<Album>) -> List<Song> = remember {
+        { albums ->
+            val loaded = coroutineScope {
+                albums.map { album ->
+                    async {
+                        when {
+                            album.songs.isNotEmpty() -> Result.success(album.songs)
+                            album.id.isYouTubeId -> runCatching { youTube.getAlbum(album.id).songs }
+                                .onFailure { if (it is CancellationException) throw it }
+                            else -> repository.getAlbum(album.id).map { it.songs }
+                        }
+                    }
+                }.awaitAll()
+            }
+            val failed = loaded.count { it.isFailure }
+            if (failed > 0) {
+                val what = albums.singleOrNull()?.let { "\"${it.name}\"" } ?: "$failed of ${albums.size} albums"
+                scope.launch { snackbarHostState.showSnackbar("Couldn't load the songs of $what", duration = SnackbarDuration.Short) }
+            }
+            loaded.flatMap { it.getOrDefault(emptyList()) }
         }
     }
     val libraryViewModel = remember {
@@ -235,6 +262,7 @@ fun App() {
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
             LocalAddToQueue provides addToQueue,
+            LocalAlbumSongs provides loadAlbumSongs,
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
@@ -243,7 +271,8 @@ fun App() {
             LocalSongDownloads provides connection.downloads.takeIf { it.isSupported },
         ) {
         Box(Modifier.fillMaxSize()) {
-        val currentScreen by navigator.currentScreen.collectAsState()
+        val currentEntry by navigator.currentEntry.collectAsState()
+        val currentScreen = currentEntry.screen
         val playerState by playerViewModel.state.collectAsState()
         val hasSong = playerState.playback.currentSong != null
         val isMobile = remember { getPlatform().isMobile }
@@ -433,6 +462,9 @@ fun App() {
                     )
                 }
             Box(Modifier.weight(1f).fillMaxHeight()) {
+                // Each visit of a screen starts afresh, apart from how far it was scrolled when going back or forward to it
+                CompositionLocalProvider(LocalScrollPositions provides currentEntry.scrollPositions) {
+                key(currentEntry.id) {
                 when (val screen = currentScreen) {
                     is Screen.Login -> {
                         val vm = remember { LoginViewModel(connection, settingsHolder.settings.value) }
@@ -588,6 +620,8 @@ fun App() {
                         }
                         SettingsScreen(vm) { navigator.pop() }
                     }
+                }
+                }
                 }
             }
             }

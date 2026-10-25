@@ -30,6 +30,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             connection.plugin.collect { plugin -> setState { copy(serverYouTubeInfo = plugin?.let(::describe)) } }
         }
+        viewModelScope.launch {
+            connection.pluginMissing.collect { setState { copy(pluginMissing = it) } }
+        }
         // Pick up changes an admin made to the plugin's settings
         launch { connection.refreshPlugin() }
     }

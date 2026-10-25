@@ -18,6 +18,8 @@ data class SearchState(
     val selectedSongIds: Set<String> = emptySet(),
     val youTubeAvailable: Boolean = false,
     val youTubeDownloadAvailable: Boolean = false,
+    /** The Jellyfin server has no Voidcast plugin, so YouTube Music can't be searched. */
+    val youTubePluginMissing: Boolean = false,
     val youTubeArtists: List<Artist> = emptyList(),
     val youTubeSongs: List<Song> = emptyList(),
     val isYouTubeLoading: Boolean = false,
@@ -39,6 +41,8 @@ sealed class SearchEvent {
     data class SongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : SearchEvent()
+    /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
+    data class SongRangeSelected(val index: Int) : SearchEvent()
     data class YouTubeSongClicked(val song: Song, val index: Int) : SearchEvent()
     data class YouTubeSongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
     data class DownloadYouTubeSong(val song: Song) : SearchEvent()

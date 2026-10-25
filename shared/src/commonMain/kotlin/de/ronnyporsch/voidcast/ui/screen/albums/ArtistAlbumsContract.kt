@@ -36,6 +36,8 @@ sealed class ArtistAlbumsEvent {
     data class SongDoubleClicked(val song: Song, val index: Int) : ArtistAlbumsEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : ArtistAlbumsEvent()
+    /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
+    data class SongRangeSelected(val index: Int) : ArtistAlbumsEvent()
     data object PlayAllSongs : ArtistAlbumsEvent()
     data object ShuffleAllSongs : ArtistAlbumsEvent()
     /** Downloads a YouTube Music song into the library. */

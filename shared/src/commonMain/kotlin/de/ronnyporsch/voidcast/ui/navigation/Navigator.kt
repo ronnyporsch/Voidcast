@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.navigation
 
+import de.ronnyporsch.voidcast.ui.components.ScrollPositions
 import de.ronnyporsch.voidcast.ui.screen.library.LibrarySelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,9 +25,23 @@ enum class QueueTab(val title: String) {
     RecentlyPlayed("Recently played"),
 }
 
+/**
+ * A visit of [screen] in the history. [scrollPositions] keeps how far its lists were scrolled, so going back or
+ * forward to it shows them as they were; [id] tells visits of equal screens apart.
+ */
+class BackStackEntry(
+    val screen: Screen,
+    val id: Long,
+    val scrollPositions: ScrollPositions = ScrollPositions(),
+)
+
 class Navigator(initialScreen: Screen = Screen.Login) {
-    private val backStack = mutableListOf(initialScreen)
-    private val forwardStack = mutableListOf<Screen>()
+    private var nextId = 0L
+    private val backStack = mutableListOf(entry(initialScreen))
+    private val forwardStack = mutableListOf<BackStackEntry>()
+
+    private val _currentEntry = MutableStateFlow(backStack.last())
+    val currentEntry: StateFlow<BackStackEntry> = _currentEntry.asStateFlow()
 
     private val _currentScreen = MutableStateFlow(initialScreen)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
@@ -34,39 +49,47 @@ class Navigator(initialScreen: Screen = Screen.Login) {
     fun push(screen: Screen) {
         if (_currentScreen.value == screen) return
         forwardStack.clear()
-        backStack.add(screen)
-        _currentScreen.value = screen
+        backStack.add(entry(screen))
+        show(backStack.last())
     }
 
     fun pop(): Boolean {
         if (backStack.size <= 1) return false
         val current = backStack.removeLast()
         forwardStack.add(current)
-        _currentScreen.value = backStack.last()
+        show(backStack.last())
         return true
     }
 
     fun forward(): Boolean {
         if (forwardStack.isEmpty()) return false
-        val screen = forwardStack.removeLast()
-        backStack.add(screen)
-        _currentScreen.value = screen
+        val entry = forwardStack.removeLast()
+        backStack.add(entry)
+        show(entry)
         return true
     }
 
-    /** Replaces the current screen without a way back to it, e.g. switching tabs. */
+    /** Replaces the current screen without a way back to it, e.g. switching tabs. It keeps its scroll positions. */
     fun replace(screen: Screen) {
-        backStack[backStack.lastIndex] = screen
-        _currentScreen.value = screen
+        val current = backStack.last()
+        backStack[backStack.lastIndex] = BackStackEntry(screen, current.id, current.scrollPositions)
+        show(backStack.last())
     }
 
     fun replaceAll(screen: Screen) {
         backStack.clear()
         forwardStack.clear()
-        backStack.add(screen)
-        _currentScreen.value = screen
+        backStack.add(entry(screen))
+        show(backStack.last())
     }
 
     fun canGoBack(): Boolean = backStack.size > 1
     fun canGoForward(): Boolean = forwardStack.isNotEmpty()
+
+    private fun entry(screen: Screen) = BackStackEntry(screen, nextId++)
+
+    private fun show(entry: BackStackEntry) {
+        _currentEntry.value = entry
+        _currentScreen.value = entry.screen
+    }
 }

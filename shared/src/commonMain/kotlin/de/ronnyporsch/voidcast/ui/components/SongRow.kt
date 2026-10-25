@@ -32,6 +32,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -87,6 +88,8 @@ fun SongRow(
     showFavorite: Boolean = false,
     /** Click while Ctrl (Cmd on macOS) is held, to add the song to or remove it from the selection. Desktop and web only. */
     onSongCtrlClick: (() -> Unit)? = null,
+    /** Click while Shift is held, to select the songs between this one and the selection. Desktop and web only. */
+    onSongShiftClick: (() -> Unit)? = null,
     /** The songs the context menu acts on, see [contextMenuSongs]. */
     contextMenuSongs: () -> List<Song> = { listOf(song) },
     /** Adds "Remove from playlist" to the context menu; removes the songs the menu acts on. */
@@ -103,6 +106,7 @@ fun SongRow(
     var menuSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pressPosition by remember { mutableStateOf(Offset.Zero) }
     var ctrlPressed by remember { mutableStateOf(false) }
+    var shiftPressed by remember { mutableStateOf(false) }
     var rowHeight by remember { mutableStateOf(0) }
     val currentContextMenuSongs by rememberUpdatedState(contextMenuSongs)
 
@@ -159,6 +163,7 @@ fun SongRow(
                         if (event.type != PointerEventType.Press) continue
                         pressPosition = event.changes.first().position
                         ctrlPressed = event.keyboardModifiers.isCtrlPressed || event.keyboardModifiers.isMetaPressed
+                        shiftPressed = event.keyboardModifiers.isShiftPressed
                         if (event.buttons.isSecondaryPressed && hasContextMenu) {
                             event.changes.forEach { it.consume() }
                             openMenu()
@@ -169,7 +174,12 @@ fun SongRow(
             .combinedClickable(
                 onClick = {
                     val ctrlClick = onSongCtrlClick
-                    if (ctrlPressed && ctrlClick != null) ctrlClick() else onSongClick()
+                    val shiftClick = onSongShiftClick
+                    when {
+                        shiftPressed && shiftClick != null -> shiftClick()
+                        ctrlPressed && ctrlClick != null -> ctrlClick()
+                        else -> onSongClick()
+                    }
                 },
                 onDoubleClick = onSongDoubleClick,
             )

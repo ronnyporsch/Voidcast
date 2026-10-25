@@ -47,6 +47,10 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
     /** The Voidcast plugin of the connected Jellyfin server, or null if there is none. */
     val plugin: StateFlow<PluginInfoDto?> = _plugin.asStateFlow()
 
+    private val _pluginMissing = MutableStateFlow(false)
+    /** Whether the connected server is a Jellyfin server known not to have the Voidcast plugin installed. */
+    val pluginMissing: StateFlow<Boolean> = _pluginMissing.asStateFlow()
+
     private val _connections = MutableStateFlow(0)
     /** Counts successful [connect]s. */
     val connections: StateFlow<Int> = _connections.asStateFlow()
@@ -90,6 +94,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
                 if (error != null) throw IllegalStateException(error.message.ifBlank { "Connection failed" })
                 active = subsonic
                 _plugin.value = null
+                _pluginMissing.value = false
             }
             ServerType.Jellyfin -> {
                 if (deviceId.isBlank()) deviceId = "voidcast-" + generateSalt(24)
@@ -137,21 +142,26 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         subsonicApi.reset()
         _serverType.value = null
         _plugin.value = null
+        _pluginMissing.value = false
         settingsHolder.update { copy(password = "") }
     }
 
     /** Re-reads what the Voidcast Jellyfin plugin offers, e.g. after an admin changed its settings. */
     suspend fun refreshPlugin() {
-        _plugin.value = if (active === jellyfin) {
-            try {
-                jellyfinApi.getPluginInfo()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                null
-            }
-        } else {
-            null
+        if (active !== jellyfin) {
+            _plugin.value = null
+            _pluginMissing.value = false
+            return
+        }
+        try {
+            val plugin = jellyfinApi.getPluginInfo()
+            _plugin.value = plugin
+            _pluginMissing.value = plugin == null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // E.g. not reachable; that doesn't tell whether the plugin is installed
+            _plugin.value = null
         }
     }
 

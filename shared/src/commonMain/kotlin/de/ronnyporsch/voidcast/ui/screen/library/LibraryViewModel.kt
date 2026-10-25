@@ -1,11 +1,11 @@
 package de.ronnyporsch.voidcast.ui.screen.library
 
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.grid.LazyGridState
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 import de.ronnyporsch.voidcast.util.newestAlbumsFirst
 import de.ronnyporsch.voidcast.util.newestFirst
@@ -28,13 +28,10 @@ class LibraryViewModel(
     LibraryState(isLoading = awaitingConnection, canDownloadPlaylists = downloads?.isSupported == true)
 ) {
 
+    // The sidebar is shown next to other screens too and keeps its scroll position across them
     val artistSidebarState = LazyListState()
-    val artistDetailState = LazyGridState()
-    val albumDetailState = LazyListState()
     val playlistSidebarState = LazyListState()
-    val playlistDetailState = LazyListState()
     val favoritesSidebarState = LazyListState()
-    val favoriteSongsState = LazyListState()
 
     init {
         if (repository.isConfigured) {
@@ -75,6 +72,8 @@ class LibraryViewModel(
         when (event) {
             is LibraryEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
+            is LibraryEvent.SongRangeSelected ->
+                setState { copy(selectedSongIds = detailSongs.selectedThrough(event.index, selectedSongIds)) }
             is LibraryEvent.SidebarTabSelected -> {
                 setState { copy(selectedSidebarTab = event.tab) }
                 loadTabData(event.tab)
@@ -218,12 +217,7 @@ class LibraryViewModel(
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
             }
             is LibraryEvent.SongClicked -> {
-                val songs = when (currentState.activeDetailView) {
-                    LibraryDetailView.Albums -> currentState.selectedAlbum?.songs.orEmpty()
-                    LibraryDetailView.Playlists -> currentState.selectedPlaylist?.songs.orEmpty()
-                    LibraryDetailView.Artists -> currentState.selectedArtistSongs
-                    LibraryDetailView.FavoriteSongs -> currentState.favoriteSongs
-                }
+                val songs = currentState.detailSongs
                 if (songs.isNotEmpty()) {
                     if (getPlatform().isMobile) {
                         emitEffect(LibraryEffect.PlaySongs(songs, event.index))
@@ -234,12 +228,7 @@ class LibraryViewModel(
             }
             is LibraryEvent.SongDoubleClicked -> {
                 setState { copy(selectedSongIds = setOf(event.song.id)) }
-                val songs = when (currentState.activeDetailView) {
-                    LibraryDetailView.Albums -> currentState.selectedAlbum?.songs.orEmpty()
-                    LibraryDetailView.Playlists -> currentState.selectedPlaylist?.songs.orEmpty()
-                    LibraryDetailView.Artists -> currentState.selectedArtistSongs
-                    LibraryDetailView.FavoriteSongs -> currentState.favoriteSongs
-                }
+                val songs = currentState.detailSongs
                 if (songs.isNotEmpty()) {
                     emitEffect(LibraryEffect.PlaySongs(songs, event.index))
                 }

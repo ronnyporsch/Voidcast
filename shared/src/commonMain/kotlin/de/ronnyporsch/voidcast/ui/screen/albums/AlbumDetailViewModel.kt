@@ -6,6 +6,7 @@ import de.ronnyporsch.voidcast.data.youtube.YouTubeService
 import de.ronnyporsch.voidcast.domain.model.isYouTubeId
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 import kotlinx.coroutines.launch
 
@@ -34,6 +35,9 @@ class AlbumDetailViewModel(
         when (event) {
             is AlbumDetailEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
+            is AlbumDetailEvent.SongRangeSelected -> setState {
+                copy(selectedSongIds = album?.songs.orEmpty().selectedThrough(event.index, selectedSongIds))
+            }
             is AlbumDetailEvent.SongClicked -> {
                 if (getPlatform().isMobile) {
                     val songs = currentState.album?.songs ?: return

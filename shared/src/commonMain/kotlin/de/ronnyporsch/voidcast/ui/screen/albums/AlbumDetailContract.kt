@@ -24,6 +24,8 @@ sealed class AlbumDetailEvent {
     data class SongDoubleClicked(val song: Song, val index: Int) : AlbumDetailEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
     data class SongSelectionToggled(val song: Song) : AlbumDetailEvent()
+    /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
+    data class SongRangeSelected(val index: Int) : AlbumDetailEvent()
     data object PlayAll : AlbumDetailEvent()
     data object ShuffleAll : AlbumDetailEvent()
     data class ArtistClicked(val artistName: String) : AlbumDetailEvent()

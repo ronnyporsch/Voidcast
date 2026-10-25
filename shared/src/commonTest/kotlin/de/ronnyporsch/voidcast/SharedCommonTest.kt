@@ -9,6 +9,9 @@ import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatDuration
 import de.ronnyporsch.voidcast.domain.model.formatDurationMs
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
+import de.ronnyporsch.voidcast.ui.navigation.Navigator
+import de.ronnyporsch.voidcast.ui.navigation.Screen
 import de.ronnyporsch.voidcast.util.md5
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -182,5 +185,37 @@ class SharedCommonTest {
         val albumIds = collectAppearsOnAlbumIds("Featured Artist", listOf("own-1"), songs)
 
         assertEquals(listOf("feat-1", "feat-2"), albumIds)
+    }
+
+    @Test
+    fun selectedThrough_adds_the_range_to_the_nearest_selected_song() {
+        val songs = (0..9).map { Song(id = "s$it", title = "Song $it") }
+        assertEquals(setOf("s2", "s3", "s4", "s8"), songs.selectedThrough(4, setOf("s2", "s8")))
+        assertEquals(setOf("s2", "s7", "s8"), songs.selectedThrough(7, setOf("s2", "s8")))
+        assertEquals(setOf("s1", "s2", "s3"), songs.selectedThrough(1, setOf("s3")))
+        assertEquals(setOf("s4"), songs.selectedThrough(4, emptySet()))
+    }
+
+    @Test
+    fun navigator_keeps_entries_and_their_scroll_positions_across_back_and_forward() {
+        val navigator = Navigator(Screen.Library())
+        val library = navigator.currentEntry.value
+        navigator.push(Screen.Search)
+        val search = navigator.currentEntry.value
+        navigator.push(Screen.AlbumSongs("a"))
+        navigator.pop()
+        assertTrue(navigator.currentEntry.value === search)
+        navigator.pop()
+        assertTrue(navigator.currentEntry.value === library)
+        navigator.forward()
+        assertTrue(navigator.currentEntry.value === search)
+        // Replacing keeps the visit, e.g. the library recording what its pane shows
+        navigator.replace(Screen.Settings)
+        assertEquals(search.id, navigator.currentEntry.value.id)
+        assertTrue(navigator.currentEntry.value.scrollPositions === search.scrollPositions)
+        assertEquals(Screen.Settings, navigator.currentScreen.value)
+        // A new visit of an equal screen starts at the top
+        navigator.push(Screen.Search)
+        assertTrue(navigator.currentEntry.value.id != search.id)
     }
 }

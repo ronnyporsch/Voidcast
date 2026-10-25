@@ -96,105 +96,111 @@ fun FavoriteSongsList(
     modifier: Modifier = Modifier,
     onSongCtrlClick: (Song) -> Unit = {},
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
+    onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
 ) {
-    LazyColumn(
-        state = state,
-        contentPadding = PaddingValues(bottom = 100.dp),
-        modifier = modifier.onKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-            val currentIndex = songs.indexOfFirst { isSelected(it.id) }
-            when (event.key) {
-                Key.DirectionDown -> if (currentIndex < songs.size - 1) {
-                    onSongClick(songs[currentIndex + 1], currentIndex + 1)
-                    true
-                } else false
-                Key.DirectionUp -> if (currentIndex > 0) {
-                    onSongClick(songs[currentIndex - 1], currentIndex - 1)
-                    true
-                } else false
-                else -> false
-            }
-        },
-    ) {
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .collapsingHeader(headerState)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                FavoritesImage(Modifier.size(200.dp).collapsingHeaderImage(headerState))
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    text = FAVORITE_SONGS_TITLE,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.collapsingHeaderTitle(headerState),
-                )
-
-                Text(
-                    text = "${songs.size} song${if (songs.size != 1) "s" else ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-
-        if (songs.isEmpty()) {
+    RememberScrollPosition(state, "favoriteSongs")
+    Box(modifier) {
+        LazyColumn(
+            state = state,
+            contentPadding = PaddingValues(bottom = 100.dp),
+            modifier = Modifier.fillMaxSize().onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val currentIndex = songs.indexOfFirst { isSelected(it.id) }
+                when (event.key) {
+                    Key.DirectionDown -> if (currentIndex < songs.size - 1) {
+                        onSongClick(songs[currentIndex + 1], currentIndex + 1)
+                        true
+                    } else false
+                    Key.DirectionUp -> if (currentIndex > 0) {
+                        onSongClick(songs[currentIndex - 1], currentIndex - 1)
+                        true
+                    } else false
+                    else -> false
+                }
+            },
+        ) {
             item {
-                Text(
-                    text = "Mark songs with the heart to find them here",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                )
-            }
-        } else {
-            item {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        .collapsingHeader(headerState)
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Button(
-                        onClick = onPlayAll,
-                        modifier = Modifier.weight(1f).height(44.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
-                        shape = RoundedCornerShape(0.dp),
-                    ) {
-                        Text("▶  Play", fontWeight = FontWeight.Bold)
-                    }
+                    FavoritesImage(Modifier.size(200.dp).collapsingHeaderImage(headerState))
 
-                    OutlinedButton(
-                        onClick = onShuffle,
-                        modifier = Modifier.weight(1f).height(44.dp),
-                        shape = RoundedCornerShape(0.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
-                    ) {
-                        Text("⇆  Shuffle", fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        text = FAVORITE_SONGS_TITLE,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.collapsingHeaderTitle(headerState),
+                    )
+
+                    Text(
+                        text = "${songs.size} song${if (songs.size != 1) "s" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 
-            itemsIndexed(songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
-                SongRow(
-                    song = song,
-                    index = index,
-                    onSongClick = { onSongClick(song, index) },
-                    onSongDoubleClick = { onSongDoubleClick(song, index) },
-                    onSongCtrlClick = { onSongCtrlClick(song) },
-                    contextMenuSongs = { contextMenuSongs(songs, song) },
-                    isSelected = isSelected(song.id),
-                    isPlaying = isPlaying(song.id),
-                    onArtistClick = onArtistClick,
-                    onAlbumClick = onAlbumClick,
-                    showAlbum = true,
-                    showFavorite = true,
-                )
+            if (songs.isEmpty()) {
+                item {
+                    Text(
+                        text = "Mark songs with the heart to find them here",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    )
+                }
+            } else {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = onPlayAll,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
+                            shape = RoundedCornerShape(0.dp),
+                        ) {
+                            Text("▶  Play", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onShuffle,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                        ) {
+                            Text("⇆  Shuffle", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                itemsIndexed(songs, key = { index, song -> "${song.id}::$index" }) { index, song ->
+                    SongRow(
+                        song = song,
+                        index = index,
+                        onSongClick = { onSongClick(song, index) },
+                        onSongDoubleClick = { onSongDoubleClick(song, index) },
+                        onSongCtrlClick = { onSongCtrlClick(song) },
+                        onSongShiftClick = { onSongShiftClick(song, index) },
+                        contextMenuSongs = { contextMenuSongs(songs, song) },
+                        isSelected = isSelected(song.id),
+                        isPlaying = isPlaying(song.id),
+                        onArtistClick = onArtistClick,
+                        onAlbumClick = onAlbumClick,
+                        showAlbum = true,
+                        showFavorite = true,
+                    )
+                }
             }
         }
+        VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
     }
 }

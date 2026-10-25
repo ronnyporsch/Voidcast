@@ -13,6 +13,8 @@ data class SettingsState(
     val crossfadeDurationSeconds: Int = 5,
     /** Describes the YouTube Music support of the connected Jellyfin server's Voidcast plugin, if any. */
     val serverYouTubeInfo: String? = null,
+    /** The connected Jellyfin server has no Voidcast plugin, so YouTube Music is unavailable. */
+    val pluginMissing: Boolean = false,
     val isReconnecting: Boolean = false,
     val reconnectSuccess: Boolean = false,
     val isLoggingOut: Boolean = false,
