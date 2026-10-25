@@ -49,8 +49,8 @@ class OfflineLibrary(songs: List<Song>) {
         }
         .sortedBy { it.name.lowercase() }
 
-    fun albumsOfGenre(name: String): List<Album> =
-        albums.filter { album -> album.songs.any { it.genre.equals(name, ignoreCase = true) } }
+    fun songsOfGenre(name: String): List<Song> =
+        songs.filter { it.genre.equals(name, ignoreCase = true) }
 
     fun artist(name: String): Artist? = artists.firstOrNull { it.name.equals(name, ignoreCase = true) }
 

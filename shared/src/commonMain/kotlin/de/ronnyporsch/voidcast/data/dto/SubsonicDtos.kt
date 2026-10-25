@@ -25,6 +25,7 @@ data class SubsonicResponseBody(
     val starred2: Starred2Dto? = null,
     val albumList2: AlbumList2Dto? = null,
     val genres: GenresDto? = null,
+    val songsByGenre: SongsByGenreDto? = null,
 )
 
 @Serializable
@@ -172,6 +173,11 @@ data class Starred2Dto(
 @Serializable
 data class AlbumList2Dto(
     val album: List<AlbumDto> = emptyList(),
+)
+
+@Serializable
+data class SongsByGenreDto(
+    val song: List<SongDto> = emptyList(),
 )
 
 @Serializable

@@ -165,6 +165,16 @@ class SubsonicApiService {
         }.body()
     }
 
+    /** A page of the songs of [genre]. */
+    suspend fun getSongsByGenre(genre: String, count: Int = 500, offset: Int = 0): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getSongsByGenre.view") {
+            addAuthParams()
+            parameter("genre", genre)
+            parameter("count", count)
+            parameter("offset", offset)
+        }.body()
+    }
+
     suspend fun getGenres(): SubsonicResponse {
         return client.get("${baseUrl()}/rest/getGenres.view") {
             addAuthParams()

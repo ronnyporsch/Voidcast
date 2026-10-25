@@ -257,6 +257,14 @@ class LibraryViewModel(
             is LibraryEvent.OpenGenreScreen ->
                 emitEffect(LibraryEffect.NavigateToGenre(event.genre))
             is LibraryEvent.GenreClicked -> selectGenre(event.genre)
+            is LibraryEvent.PlayAllGenreSongs -> {
+                val songs = currentState.selectedGenreSongs
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
+            }
+            is LibraryEvent.ShuffleAllGenreSongs -> {
+                val songs = currentState.selectedGenreSongs
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+            }
             is LibraryEvent.PlaySongs ->
                 if (event.songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(event.songs, event.startIndex))
             is LibraryEvent.SongArtistClicked -> {
@@ -299,8 +307,8 @@ class LibraryViewModel(
             copy(
                 activeDetailView = LibraryDetailView.Genres,
                 selectedGenre = genre,
-                selectedGenreAlbums = emptyList(),
-                selectedGenreAlbumsLoading = true,
+                selectedGenreSongs = emptyList(),
+                selectedGenreSongsLoading = true,
                 selectedArtistId = null,
                 selectedArtist = null,
                 selectedAlbumId = null,
@@ -311,9 +319,9 @@ class LibraryViewModel(
             )
         }
         launch {
-            val albums = repository.getGenreAlbums(genre).getOrDefault(emptyList())
+            val songs = repository.getGenreSongs(genre).getOrDefault(emptyList())
             if (currentState.selectedGenre?.id == genre.id) {
-                setState { copy(selectedGenreAlbums = albums, selectedGenreAlbumsLoading = false) }
+                setState { copy(selectedGenreSongs = songs, selectedGenreSongsLoading = false) }
             }
         }
     }

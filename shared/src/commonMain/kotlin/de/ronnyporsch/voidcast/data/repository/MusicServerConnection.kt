@@ -177,7 +177,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun getAlbums() = active.getAlbums()
         override suspend fun getAllSongs() = active.getAllSongs()
         override suspend fun getGenres() = active.getGenres()
-        override suspend fun getGenreAlbums(genre: Genre) = active.getGenreAlbums(genre)
+        override suspend fun getGenreSongs(genre: Genre) = active.getGenreSongs(genre)
         override suspend fun getPlaylists() = active.getPlaylists()
         override suspend fun getPlaylist(playlistId: String) = active.getPlaylist(playlistId)
         override suspend fun createPlaylist(name: String, songIds: List<String>) = active.createPlaylist(name, songIds)

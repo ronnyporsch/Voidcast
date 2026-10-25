@@ -217,7 +217,7 @@ fun App() {
                 LibraryEffect.NavigateToFavoriteSongs ->
                     navigator.push(Screen.FavoriteSongs)
                 is LibraryEffect.NavigateToGenre ->
-                    navigator.push(Screen.GenreAlbums(effect.genre))
+                    navigator.push(Screen.GenreSongs(effect.genre))
                 is LibraryEffect.PlaySongs ->
                     playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
             }
@@ -380,7 +380,7 @@ fun App() {
                         // These screens draw their own back button in their header
                         val hasOwnBackButton = currentScreen is Screen.ArtistAlbums || currentScreen is Screen.AlbumSongs ||
                             currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings ||
-                            currentScreen is Screen.FavoriteSongs || currentScreen is Screen.GenreAlbums
+                            currentScreen is Screen.FavoriteSongs || currentScreen is Screen.GenreSongs
                         if (navigator.canGoBack() && !hasOwnBackButton) {
                             IconButton(onClick = { navigator.pop() }) {
                                 Icon(
@@ -595,12 +595,15 @@ fun App() {
                         )
                     }
 
-                    is Screen.GenreAlbums -> {
-                        GenreAlbumsScreen(
+                    is Screen.GenreSongs -> {
+                        GenreSongsScreen(
                             genre = screen.genre,
                             repository = repository,
                             onBack = { navigator.pop() },
-                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it.id)) },
+                            onPlay = { songs, startIndex, shuffle -> playSongs(playerViewModel, songs, startIndex, shuffle) },
+                            onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                            currentSongId = playerState.playback.currentSong?.id,
                         )
                     }
 

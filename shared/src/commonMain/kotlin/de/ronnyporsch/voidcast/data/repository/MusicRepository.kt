@@ -34,8 +34,8 @@ interface MusicRepository {
     /** Every song of the library. */
     suspend fun getAllSongs(): Result<List<Song>>
     suspend fun getGenres(): Result<List<Genre>>
-    /** The albums of [genre], without their songs. */
-    suspend fun getGenreAlbums(genre: Genre): Result<List<Album>>
+    /** The songs of [genre]. */
+    suspend fun getGenreSongs(genre: Genre): Result<List<Song>>
     suspend fun getPlaylists(): Result<List<Playlist>>
     suspend fun getPlaylist(playlistId: String): Result<Playlist>
     suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): Result<Playlist>
@@ -164,8 +164,16 @@ class MusicRepositoryImpl(
             .map { Genre(id = it.value, name = it.value, albumCount = it.albumCount, songCount = it.songCount) }
     }
 
-    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> = runCatching {
-        albumList { offset -> api.getAlbumList2("byGenre", genre = genre.name, offset = offset) }
+    override suspend fun getGenreSongs(genre: Genre): Result<List<Song>> = runCatching {
+        val songs = mutableListOf<Song>()
+        while (true) {
+            val body = api.getSongsByGenre(genre.name, offset = songs.size).subsonicResponse
+            if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading songs")
+            val page = body.songsByGenre?.song.orEmpty()
+            songs += page.map { it.toDomain() }
+            if (page.size < PAGE_SIZE) break
+        }
+        songs
     }
 
     /** All pages of getAlbumList2. */

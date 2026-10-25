@@ -585,7 +585,7 @@ private fun LibraryDetailPane(
     val albumDetailState = rememberLazyListState()
     val playlistDetailState = rememberLazyListState()
     val favoriteSongsState = rememberLazyListState()
-    val genreDetailState = rememberLazyGridState()
+    val genreDetailState = rememberLazyListState()
     when (state.activeDetailView) {
         LibraryDetailView.Artists -> ArtistDetailPane(
             artist = state.selectedArtist,
@@ -663,13 +663,23 @@ private fun LibraryDetailPane(
             if (genre != null) {
                 val headerState = rememberCollapsingHeaderState(genreDetailState)
                 Box(Modifier.fillMaxSize()) {
-                    GenreAlbumsGrid(
+                    GenreSongsList(
                         genre = genre,
-                        albums = state.selectedGenreAlbums,
-                        isLoading = state.selectedGenreAlbumsLoading,
-                        onAlbumClick = { viewModel.onEvent(LibraryEvent.OpenAlbumScreen(it)) },
+                        songs = state.selectedGenreSongs,
+                        isLoading = state.selectedGenreSongsLoading,
                         state = genreDetailState,
                         headerState = headerState,
+                        onSongClick = { song, index -> viewModel.onEvent(LibraryEvent.SongClicked(song, index)) },
+                        onSongDoubleClick = { song, index -> viewModel.onEvent(LibraryEvent.SongDoubleClicked(song, index)) },
+                        isSelected = { it in state.selectedSongIds },
+                        isPlaying = { it == currentSongId },
+                        onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
+                        onAlbumClick = { albumId -> viewModel.onEvent(LibraryEvent.SongAlbumClicked(albumId)) },
+                        onPlayAll = { viewModel.onEvent(LibraryEvent.PlayAllGenreSongs) },
+                        onShuffle = { viewModel.onEvent(LibraryEvent.ShuffleAllGenreSongs) },
+                        onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
+                        onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
+                        contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
                     )
                     CollapsedHeaderOverlay(
                         state = headerState,

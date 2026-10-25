@@ -15,7 +15,7 @@ sealed class Screen {
     data class AlbumSongs(val albumId: String) : Screen()
     data class PlaylistSongs(val playlistId: String) : Screen()
     data object FavoriteSongs : Screen()
-    data class GenreAlbums(val genre: Genre) : Screen()
+    data class GenreSongs(val genre: Genre) : Screen()
     data object Player : Screen()
     data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()

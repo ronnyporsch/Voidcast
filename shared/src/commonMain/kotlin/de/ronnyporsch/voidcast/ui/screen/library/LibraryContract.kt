@@ -39,8 +39,8 @@ data class LibraryState(
     /** Categories of the sidebar being loaded. */
     val loadingCategories: Set<LibraryCategory> = emptySet(),
     val selectedGenre: Genre? = null,
-    val selectedGenreAlbums: List<Album> = emptyList(),
-    val selectedGenreAlbumsLoading: Boolean = false,
+    val selectedGenreSongs: List<Song> = emptyList(),
+    val selectedGenreSongsLoading: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),
@@ -79,7 +79,7 @@ val LibraryState.detailSongs: List<Song>
         LibraryDetailView.Playlists -> selectedPlaylist?.songs.orEmpty()
         LibraryDetailView.Artists -> selectedArtistSongs
         LibraryDetailView.FavoriteSongs -> favoriteSongs
-        LibraryDetailView.Genres -> emptyList()
+        LibraryDetailView.Genres -> selectedGenreSongs
     }
 
 sealed class LibraryEvent {
@@ -128,6 +128,8 @@ sealed class LibraryEvent {
     data object ShuffleAllFavoriteSongs : LibraryEvent()
     data class SongAlbumClicked(val albumId: String) : LibraryEvent()
     data class GenreClicked(val genre: Genre) : LibraryEvent()
+    data object PlayAllGenreSongs : LibraryEvent()
+    data object ShuffleAllGenreSongs : LibraryEvent()
     /** Plays songs of the sidebar, e.g. all songs of the library from the one at [startIndex] on. */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int) : LibraryEvent()
 }

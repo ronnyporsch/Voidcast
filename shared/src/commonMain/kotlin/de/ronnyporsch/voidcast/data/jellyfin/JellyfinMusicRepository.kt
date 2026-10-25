@@ -61,8 +61,8 @@ class JellyfinMusicRepository(
             .items.map { Genre(id = it.id, name = it.name, albumCount = it.albumCount ?: 0, songCount = it.songCount ?: 0) }
     }
 
-    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> = runCatching {
-        albums("genreIds" to genre.id, "sortBy" to "SortName")
+    override suspend fun getGenreSongs(genre: Genre): Result<List<Song>> = runCatching {
+        songs("genreIds" to genre.id, "sortBy" to "SortName")
     }
 
     override suspend fun getPlaylists(): Result<List<Playlist>> = runCatching {
