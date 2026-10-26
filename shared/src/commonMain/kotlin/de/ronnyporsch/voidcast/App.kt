@@ -57,6 +57,8 @@ import de.ronnyporsch.voidcast.ui.screen.settings.*
 import de.ronnyporsch.voidcast.ui.theme.VoidcastTheme
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
+import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import de.ronnyporsch.voidcast.ui.components.LocalFavorites
 import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
@@ -193,13 +195,8 @@ fun App() {
                     navigator.replaceAll(Screen.Login)
                     snackbarHostState.showSnackbar("Login failed: ${status.message}", withDismissAction = true)
                 }
-                is AutoLoginStatus.Retrying -> {
-                    // Meanwhile show the playlists stored on the device
-                    libraryViewModel.onEvent(LibraryEvent.ConnectionFailed)
-                    launch {
-                        snackbarHostState.showSnackbar("${status.message}. Retrying…", duration = SnackbarDuration.Short)
-                    }
-                }
+                // Meanwhile show the playlists stored on the device; the top bar tells why
+                is AutoLoginStatus.Retrying -> libraryViewModel.onEvent(LibraryEvent.ConnectionFailed)
                 AutoLoginStatus.None, AutoLoginStatus.Connecting, AutoLoginStatus.Connected -> {}
             }
         }
@@ -264,6 +261,31 @@ fun App() {
     }
 
     val selectionBarHost = remember { SelectionBarHost() }
+    val autoLoginStatus by session.autoLoginStatus.collectAsState()
+
+    // Pulling down a screen tries to reach the server again, or once connected reloads what the screen shows
+    var screenGeneration by remember { mutableIntStateOf(0) }
+    val refresh: suspend () -> Unit = {
+        val status = session.autoLoginStatus.value
+        when {
+            status is AutoLoginStatus.Retrying -> {
+                session.retryConnection()
+                session.autoLoginStatus.first { it != status }
+            }
+            status == AutoLoginStatus.Connecting -> session.autoLoginStatus.first { it != status }
+            else -> when (navigator.currentScreen.value) {
+                is Screen.Library -> coroutineScope {
+                    launch { connection.favorites.reload() }
+                    libraryViewModel.onEvent(LibraryEvent.Refresh)
+                    libraryViewModel.state.first { !it.isLoading }
+                }
+                Screen.FavoriteSongs -> connection.favorites.reload()
+                Screen.Search -> searchViewModel.onEvent(SearchEvent.Search)
+                // Their view models load everything again when created
+                else -> screenGeneration++
+            }
+        }
+    }
 
     VoidcastTheme {
         CompositionLocalProvider(
@@ -415,6 +437,9 @@ fun App() {
                         )
                         // While something plays, the mini player has it
                         if (!hasSong) DevicesButton(playerState, playerViewModel::onEvent)
+                        (autoLoginStatus as? AutoLoginStatus.Retrying)?.let { status ->
+                            ServerUnreachableButton(status.message, onRetry = session::retryConnection)
+                        }
                     }
                 }
             },
@@ -483,10 +508,28 @@ fun App() {
                             .fillMaxHeight(),
                     )
                 }
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            // Only touch screens: a mouse wheel scrolled up at the top would pull too
+            val canRefresh = isMobile && currentScreen !is Screen.Login && currentScreen !is Screen.Player &&
+                currentScreen !is Screen.Queue
+            var refreshing by remember { mutableStateOf(false) }
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    refreshing = true
+                    scope.launch {
+                        try {
+                            refresh()
+                        } finally {
+                            refreshing = false
+                        }
+                    }
+                },
+                enabled = canRefresh,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            ) {
                 // Each visit of a screen starts afresh, apart from how far it was scrolled when going back or forward to it
                 CompositionLocalProvider(LocalScrollPositions provides currentEntry.scrollPositions) {
-                key(currentEntry.id) {
+                key(currentEntry.id, screenGeneration) {
                 when (val screen = currentScreen) {
                     is Screen.Login -> {
                         val vm = remember { LoginViewModel(connection, settingsHolder.settings.value) }

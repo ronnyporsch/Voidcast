@@ -15,7 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * What lives as long as the process instead of the UI: the server connection and the player. On Android this keeps
@@ -53,6 +54,9 @@ class AppSession private constructor() {
     private val _autoLoginStatus = MutableStateFlow(if (autoLogin) AutoLoginStatus.Connecting else AutoLoginStatus.None)
     val autoLoginStatus: StateFlow<AutoLoginStatus> = _autoLoginStatus.asStateFlow()
 
+    /** Cuts the wait for the next auto-login attempt short. */
+    private val retryRequests = Channel<Unit>(Channel.CONFLATED)
+
     // Media notification on Android, media keys via MPRIS on Linux
     private val systemMediaControls = createSystemMediaControls(
         playback = playerViewModel.state.map { it.playback },
@@ -76,6 +80,8 @@ class AppSession private constructor() {
         var retryDelayMs = 2_000L
         var attempt = 0
         while (true) {
+            // An attempt is about to start anyway
+            retryRequests.tryReceive()
             try {
                 connection.connect(
                     saved.serverType,
@@ -96,10 +102,15 @@ class AppSession private constructor() {
                     "Can't reach ${saved.serverUrl}: ${e.message ?: e::class.simpleName}",
                     ++attempt,
                 )
-                delay(retryDelayMs)
+                withTimeoutOrNull(retryDelayMs) { retryRequests.receive() }
                 retryDelayMs = (retryDelayMs * 2).coerceAtMost(60_000L)
             }
         }
+    }
+
+    /** While the server isn't reachable ([AutoLoginStatus.Retrying]), tries again right away. */
+    fun retryConnection() {
+        retryRequests.trySend(Unit)
     }
 
     /** Stops playback for good, e.g. when the desktop app's window gets closed. */
