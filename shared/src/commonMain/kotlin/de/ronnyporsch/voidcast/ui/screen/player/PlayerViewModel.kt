@@ -47,6 +47,9 @@ class PlayerViewModel(
 
     private class PendingStart(val positionMs: Long, val paused: Boolean)
 
+    /** The songs last played, in their own order; turning shuffle off goes back to it. */
+    private var unshuffledSongs: List<Song> = emptyList()
+
     /** Song whose lyrics are in [PlayerState.lyrics], unless they failed to load. */
     private var lyricsSongId: String? = null
 
@@ -407,7 +410,7 @@ class PlayerViewModel(
                 val position = (playback.positionMs + command.deltaMs).coerceIn(0, playback.durationMs.coerceAtLeast(0))
                 onEvent(PlayerEvent.SeekTo(position))
             }
-            is RemoteCommand.SetShuffle -> setState { copy(playback = playback.copy(shuffle = command.shuffle)) }
+            is RemoteCommand.SetShuffle -> if (command.shuffle != currentState.playback.shuffle) toggleShuffle()
             is RemoteCommand.SetRepeat -> setState { copy(playback = playback.copy(repeatMode = command.repeatMode)) }
             is RemoteCommand.AddToQueue -> addToQueue(command.songs)
             is RemoteCommand.MoveInQueue -> moveInQueue(command.from, command.to)
@@ -420,6 +423,8 @@ class PlayerViewModel(
     /** Continues [playback] here, at its song and position. */
     private fun load(playback: PlaybackState, paused: Boolean) {
         val index = playback.currentIndex.takeIf { it in playback.queue.indices } ?: return
+        // A shuffled queue's own order isn't known here
+        unshuffledSongs = playback.queue
         hasAutoAdvanced = false
         hasPreparedNext = false
         hasCrossfadeStarted = false
@@ -490,6 +495,7 @@ class PlayerViewModel(
 
     private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?, start: PendingStart? = null) {
         val targetShuffle = shuffle ?: currentState.playback.shuffle
+        unshuffledSongs = songs
         val queue: List<Song>
         val index: Int
 
@@ -766,10 +772,38 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * Reorders the queue: on, the songs other than the current and the queued ones follow them in random order; off,
+     * they go back to the order they were played in, around the current song.
+     */
     private fun toggleShuffle() {
-        setState {
-            copy(playback = playback.copy(shuffle = !playback.shuffle))
+        val playback = currentState.playback
+        val shuffle = !playback.shuffle
+        val current = playback.currentIndex
+        if (current !in playback.queue.indices) {
+            setState { copy(playback = playback.copy(shuffle = shuffle)) }
+            return
         }
+        val fixed = playback.queue.subList(current, current + 1 + playback.queuedCount)
+        val others = playback.queue.filterIndexed { i, _ -> i < current || i > current + playback.queuedCount }
+        val queue: List<Song>
+        val index: Int
+        if (shuffle) {
+            queue = fixed + others.shuffled()
+            index = 0
+        } else {
+            // Songs not among them, e.g. added to the queue, come last
+            val order = unshuffledSongs.withIndex().reversed().associate { (i, song) -> song.id to i }
+            val sorted = others.sortedBy { order[it.id] ?: Int.MAX_VALUE }
+            val currentOrder = order[playback.currentSong?.id] ?: -1
+            val before = sorted.takeWhile { (order[it.id] ?: Int.MAX_VALUE) < currentOrder }
+            queue = before + fixed + sorted.drop(before.size)
+            index = before.size
+        }
+        setState {
+            copy(playback = playback.copy(queue = queue, currentIndex = index, shuffle = shuffle))
+        }
+        onUpcomingChanged()
     }
 
     private fun toggleRepeat() {
