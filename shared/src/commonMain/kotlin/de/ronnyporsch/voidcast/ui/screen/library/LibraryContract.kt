@@ -91,6 +91,8 @@ sealed class LibraryEvent {
     data object ConnectionFailed : LibraryEvent()
     data class DownloadPlaylist(val playlist: Playlist) : LibraryEvent()
     data class RemovePlaylistDownload(val playlist: Playlist) : LibraryEvent()
+    /** Expands or collapses a playlist folder, see [PlaylistSidebarEntry.Folder]. */
+    data class PlaylistFolderToggled(val folder: String) : LibraryEvent()
     /** Open the item on its own screen instead of the detail pane (mobile, albums of the artist pane). */
     data class OpenArtistScreen(val artist: Artist) : LibraryEvent()
     data class OpenAlbumScreen(val album: Album) : LibraryEvent()
@@ -134,6 +136,45 @@ sealed class LibraryEvent {
     data object ShuffleAllGenreSongs : LibraryEvent()
     /** Plays songs of the sidebar, e.g. all songs of the library from the one at [startIndex] on. */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int) : LibraryEvent()
+}
+
+/**
+ * A row of the playlists sidebar. Playlists named like "Folder.Name" are grouped into a folder "Folder", where they
+ * are shown as "Name".
+ */
+sealed interface PlaylistSidebarEntry {
+    data class Folder(val name: String, val playlists: List<Playlist>, val isExpanded: Boolean) : PlaylistSidebarEntry
+
+    /** [folder] is the folder the playlist is shown in, [name] its name without the folder. */
+    data class Item(val playlist: Playlist, val name: String, val folder: String? = null) : PlaylistSidebarEntry
+}
+
+/** The folder and the rest of a name like "Folder.Name", split at the first dot; null without a folder. */
+fun Playlist.folderAndName(): Pair<String, String>? {
+    val dot = name.indexOf('.')
+    if (dot == -1) return null
+    val folder = name.substring(0, dot).trim()
+    val rest = name.substring(dot + 1).trim()
+    return if (folder.isEmpty() || rest.isEmpty()) null else folder to rest
+}
+
+/**
+ * The sidebar rows of these playlists, keeping their order: each folder (see [PlaylistSidebarEntry]) where its first
+ * playlist is, followed by its playlists if it is in [expandedFolders].
+ */
+fun List<Playlist>.toSidebarEntries(expandedFolders: Set<String>): List<PlaylistSidebarEntry> {
+    val folders = mapNotNull { playlist -> playlist.folderAndName()?.let { it.first to playlist } }
+        .groupBy({ it.first }, { it.second })
+    val shownFolders = mutableSetOf<String>()
+    return flatMap { playlist ->
+        val (folder, _) = playlist.folderAndName() ?: return@flatMap listOf(PlaylistSidebarEntry.Item(playlist, playlist.name))
+        if (!shownFolders.add(folder)) return@flatMap emptyList()
+        val playlists = folders.getValue(folder)
+        val isExpanded = folder in expandedFolders
+        listOf(PlaylistSidebarEntry.Folder(folder, playlists, isExpanded)) + if (!isExpanded) emptyList() else playlists.map {
+            PlaylistSidebarEntry.Item(it, it.folderAndName()?.second ?: it.name, folder)
+        }
+    }
 }
 
 sealed class LibraryEffect {

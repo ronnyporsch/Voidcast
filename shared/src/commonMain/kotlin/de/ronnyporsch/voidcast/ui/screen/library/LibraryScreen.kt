@@ -41,6 +41,10 @@ import de.ronnyporsch.voidcast.ui.screen.favorites.FavoritesImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
@@ -341,9 +345,13 @@ private fun LibrarySidebar(
                     modifier = Modifier.fillMaxSize(),
                 )
                 LibraryCategory.Playlists -> {
-                    val playlists = remember(state.playlists, order) { state.playlists.sortedBy(order) }
+                    val expandedFolders = state.view.expandedPlaylistFolders
+                    val entries = remember(state.playlists, order, expandedFolders) {
+                        state.playlists.sortedBy(order).toSidebarEntries(expandedFolders)
+                    }
                     PlaylistSidebar(
-                        playlists = playlists,
+                        entries = entries,
+                        onFolderClick = { viewModel.onEvent(LibraryEvent.PlaylistFolderToggled(it.name)) },
                         showAlphabet = order.sort == LibrarySort.Alphabetical,
                         selectedPlaylistId = state.selectedPlaylistId,
                         onPlaylistClick = {
@@ -1170,7 +1178,8 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false) {
 
 @Composable
 private fun PlaylistSidebar(
-    playlists: List<Playlist>,
+    entries: List<PlaylistSidebarEntry>,
+    onFolderClick: (PlaylistSidebarEntry.Folder) -> Unit,
     showAlphabet: Boolean,
     selectedPlaylistId: String?,
     onPlaylistClick: (Playlist) -> Unit,
@@ -1186,13 +1195,29 @@ private fun PlaylistSidebar(
     val playlistEditor = LocalPlaylistEditor.current
 
     SidebarList(
-        items = playlists,
-        key = { _, playlist -> playlist.id },
-        name = { it.name },
+        items = entries,
+        key = { _, entry ->
+            when (entry) {
+                is PlaylistSidebarEntry.Folder -> "folder:${entry.name}"
+                is PlaylistSidebarEntry.Item -> entry.playlist.id
+            }
+        },
+        // The letters lead to the folders, not into them
+        name = { entry ->
+            when (entry) {
+                is PlaylistSidebarEntry.Folder -> entry.name
+                is PlaylistSidebarEntry.Item -> entry.folder ?: entry.name
+            }
+        },
         showAlphabet = showAlphabet,
         state = state,
         emptyText = "No playlists",
-    ) { _, playlist ->
+    ) { _, entry ->
+        if (entry is PlaylistSidebarEntry.Folder) {
+            PlaylistFolderRow(entry, onClick = { onFolderClick(entry) })
+            return@SidebarList
+        }
+        val (playlist, name, folder) = entry as PlaylistSidebarEntry.Item
         val isSelected = playlist.id == selectedPlaylistId
         val dropTarget = rememberSongDropTarget { songs -> playlistEditor?.addToPlaylist(playlist, songs) }
 
@@ -1213,7 +1238,7 @@ private fun PlaylistSidebar(
                     onClick = { onPlaylistClick(playlist) },
                     onDoubleClick = onPlaylistDoubleClick?.let { { it(playlist) } },
                 )
-                .padding(10.dp),
+                .padding(start = if (folder != null) 30.dp else 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CoverArtImage(
@@ -1227,7 +1252,7 @@ private fun PlaylistSidebar(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = playlist.name,
+                    text = name,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1248,6 +1273,49 @@ private fun PlaylistSidebar(
                 )
             }
         }
+    }
+}
+
+/** A folder of the playlists sidebar; a click expands or collapses it. */
+@Composable
+private fun PlaylistFolderRow(folder: PlaylistSidebarEntry.Folder, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Icon(
+                if (folder.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                contentDescription = null,
+                tint = SpotifyLightGray,
+                modifier = Modifier.size(32.dp),
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = folder.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${folder.playlists.size} playlist${if (folder.playlists.size != 1) "s" else ""}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Icon(
+            if (folder.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (folder.isExpanded) "Collapse" else "Expand",
+            tint = SpotifyLightGray,
+        )
     }
 }
 

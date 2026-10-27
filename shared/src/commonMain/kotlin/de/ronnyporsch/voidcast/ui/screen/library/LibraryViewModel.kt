@@ -97,6 +97,11 @@ class LibraryViewModel(
             is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
             is LibraryEvent.DownloadPlaylist -> downloads?.download(event.playlist)
             is LibraryEvent.RemovePlaylistDownload -> downloads?.remove(event.playlist.id)
+            is LibraryEvent.PlaylistFolderToggled -> {
+                val view = currentState.view
+                val expanded = view.expandedPlaylistFolders
+                setView(view.copy(expandedPlaylistFolders = if (event.folder in expanded) expanded - event.folder else expanded + event.folder))
+            }
             is LibraryEvent.Show -> if (currentState.selection?.key != event.selection.key) {
                 when (val selection = event.selection) {
                     is LibrarySelection.Artist -> onEvent(LibraryEvent.ArtistClicked(selection.artist))

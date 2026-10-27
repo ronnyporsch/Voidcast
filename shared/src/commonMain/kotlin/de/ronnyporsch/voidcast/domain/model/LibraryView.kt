@@ -43,6 +43,8 @@ data class LibraryViewSettings(
     val category: LibraryCategory = LibraryCategory.Playlists,
     /** Categories missing here are sorted A to Z. */
     val orders: Map<LibraryCategory, LibraryOrder> = emptyMap(),
+    /** Playlist folders (the part before the dot of names like "Folder.Name") showing their playlists; the others are collapsed. */
+    val expandedPlaylistFolders: Set<String> = emptySet(),
 ) {
     fun orderOf(category: LibraryCategory): LibraryOrder = orders[category] ?: LibraryOrder()
 }

@@ -20,7 +20,10 @@ import de.ronnyporsch.voidcast.domain.model.formatDurationMs
 import de.ronnyporsch.voidcast.ui.components.TouchSelection
 import de.ronnyporsch.voidcast.ui.components.filtered
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
+import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.ui.navigation.Navigator
+import de.ronnyporsch.voidcast.ui.screen.library.PlaylistSidebarEntry
+import de.ronnyporsch.voidcast.ui.screen.library.toSidebarEntries
 import de.ronnyporsch.voidcast.ui.navigation.Screen
 import de.ronnyporsch.voidcast.util.md5
 import kotlin.test.Test
@@ -298,5 +301,25 @@ class SharedCommonTest {
         selection.startDrag(3)
         selection.dragTo(2)
         assertEquals(setOf("s0"), selection.selectedIds)
+    }
+
+    @Test
+    fun playlists_are_grouped_into_folders_by_the_first_dot() {
+        val playlists = listOf("Chill", "Rock.80s", "Party", "Rock.Classics.Best", ".hidden", "Vol.").map { Playlist(id = it, name = it) }
+        val describe = { entry: PlaylistSidebarEntry ->
+            when (entry) {
+                is PlaylistSidebarEntry.Folder -> "[${entry.name}: ${entry.playlists.size}]"
+                is PlaylistSidebarEntry.Item -> listOfNotNull(entry.folder, entry.name).joinToString("/")
+            }
+        }
+
+        assertEquals(
+            listOf("Chill", "[Rock: 2]", "Party", ".hidden", "Vol."),
+            playlists.toSidebarEntries(expandedFolders = emptySet()).map(describe),
+        )
+        assertEquals(
+            listOf("Chill", "[Rock: 2]", "Rock/80s", "Rock/Classics.Best", "Party", ".hidden", "Vol."),
+            playlists.toSidebarEntries(expandedFolders = setOf("Rock")).map(describe),
+        )
     }
 }
