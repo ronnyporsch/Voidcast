@@ -223,8 +223,8 @@ fun AlbumDetailScreen(
                                 showFavorite = true,
                                 trailingContent = if (state.isYouTube && state.canDownload) {
                                     {
-                                        YouTubeDownloadButton(state.downloads[song.id]) {
-                                            viewModel.onEvent(AlbumDetailEvent.DownloadSong(song))
+                                        YouTubeDownloadButton(song, state.downloads[song.id]) { edited ->
+                                            viewModel.onEvent(AlbumDetailEvent.DownloadSong(edited))
                                         }
                                     }
                                 } else null,

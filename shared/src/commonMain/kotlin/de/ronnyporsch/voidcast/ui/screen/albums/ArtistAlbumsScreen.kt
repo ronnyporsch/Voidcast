@@ -262,8 +262,8 @@ fun ArtistAlbumsScreen(
                                     showFavorite = true,
                                     trailingContent = if (state.isYouTube && state.canDownload) {
                                         {
-                                            YouTubeDownloadButton(state.downloads[song.id]) {
-                                                viewModel.onEvent(ArtistAlbumsEvent.DownloadSong(song))
+                                            YouTubeDownloadButton(song, state.downloads[song.id]) { edited ->
+                                                viewModel.onEvent(ArtistAlbumsEvent.DownloadSong(edited))
                                             }
                                         }
                                     } else null,

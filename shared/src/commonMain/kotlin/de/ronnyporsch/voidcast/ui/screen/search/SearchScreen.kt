@@ -255,7 +255,7 @@ fun SearchScreen(
                                     audioFormat = state.youTubeFormats[song.id],
                                     typeLabel = if (song.isVideo) "Video" else "Song",
                                     trailingContent = if (state.youTubeDownloadAvailable) {
-                                        { YouTubeDownloadButton(download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(song)) } }
+                                        { YouTubeDownloadButton(song, download) { viewModel.onEvent(SearchEvent.DownloadYouTubeSong(it)) } }
                                     } else null,
                                 )
                                 YouTubeDownloadMessage(download)
