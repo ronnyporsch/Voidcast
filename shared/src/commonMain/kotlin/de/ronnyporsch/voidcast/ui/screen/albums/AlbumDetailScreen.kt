@@ -33,6 +33,8 @@ import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
+import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
+import de.ronnyporsch.voidcast.ui.components.PlaylistDownloadButton
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadMessage
 import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
 import de.ronnyporsch.voidcast.ui.components.rememberTouchSelection
@@ -198,6 +200,19 @@ fun AlbumDetailScreen(
                                     downloads = state.downloads,
                                     onClick = { viewModel.onEvent(AlbumDetailEvent.DownloadAll) },
                                     modifier = Modifier.weight(1f).height(44.dp),
+                                )
+                            }
+
+                            // Android: keeps the album on the device for offline playback
+                            val offlineDownloads = LocalSongDownloads.current
+                            if (offlineDownloads != null && !state.isYouTube) {
+                                val albumDownloads by offlineDownloads.albumStatus.collectAsState()
+                                PlaylistDownloadButton(
+                                    playlistName = album.name,
+                                    status = albumDownloads[album.id],
+                                    onDownload = { offlineDownloads.downloadAlbum(album) },
+                                    onRemove = { offlineDownloads.removeAlbum(album.id) },
+                                    kind = "album",
                                 )
                             }
 

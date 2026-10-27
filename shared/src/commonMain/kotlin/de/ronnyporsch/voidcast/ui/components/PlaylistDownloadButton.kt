@@ -15,7 +15,7 @@ import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 
 /**
- * Shows whether a playlist is downloaded ([status] null: it isn't). Clicking it starts the download, or asks whether
+ * Shows whether a playlist (or album, see [kind]) is downloaded ([status] null: it isn't). Clicking it starts the download, or asks whether
  * to remove the downloaded files.
  */
 @Composable
@@ -25,6 +25,8 @@ fun PlaylistDownloadButton(
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    /** What is downloaded, for the texts. */
+    kind: String = "playlist",
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
@@ -76,7 +78,7 @@ fun PlaylistDownloadButton(
                             append("${status.downloadedSongs} of ${status.totalSongs} songs of \"$playlistName\" are downloaded. ")
                         }
                         append("The downloaded songs of \"$playlistName\" will be deleted from this device. ")
-                        append("The playlist stays on the server.")
+                        append("The $kind stays on the server.")
                     }
                 )
             },
