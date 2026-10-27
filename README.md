@@ -10,15 +10,12 @@ cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in t
 
 - Listen to music from your Jellyfin library and YouTube Music all in one place.
 - Download songs from YouTube and add them to your Jellyfin playlists, fully tagged and in the best available quality.
-  An overview shows the downloads of the current session and their progress.
 - Manage playlists and favorites.
 - Browse the library by playlists, artists, albums, songs, genres or favorites, sorted alphabetically, by release date or by date added, either way round.
 - Select several songs or albums: with Ctrl- and Shift-clicks on the desktop, on Android by long pressing and moving the finger across them, like in a photo gallery.
-- Keyboard shortcuts on the desktop and in the browser: Ctrl+K to search, Ctrl+F to search in a playlist,
-  Ctrl+Left/Right for the previous/next song (Cmd on macOS).
 - Synced lyrics.
 - Gapless playback and crossfade
-- Offline listening on Android: download playlists, albums or single songs, with an overview of everything on the device.
+- Offline listening on Android.
 - Remote control of other devices.
 - YouTube music videos
 - basic support for Navidrome and other Subsonic servers (YouTube integration and remote control require Jellyfin instead).
