@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
-private val dataDir: File by lazy {
+internal val dataDir: File by lazy {
     val base = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
         ?: (System.getProperty("user.home") + "/.local/share")
     File(base, "voidcast").apply { mkdirs() }
