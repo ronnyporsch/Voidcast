@@ -46,6 +46,7 @@ import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.LocalMusicRepository
 import de.ronnyporsch.voidcast.ui.navigation.Navigator
 import de.ronnyporsch.voidcast.ui.navigation.QueueTab
+import de.ronnyporsch.voidcast.ui.navigation.DownloadsTab
 import de.ronnyporsch.voidcast.ui.navigation.Screen
 import de.ronnyporsch.voidcast.ui.screen.albums.*
 import de.ronnyporsch.voidcast.ui.screen.library.*
@@ -437,8 +438,14 @@ fun App() {
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
-                        DownloadsButton(youTube, isOpen = currentScreen is Screen.Downloads) {
-                            if (currentScreen is Screen.Downloads) navigator.pop() else navigator.push(Screen.Downloads)
+                        val deviceDownloads = connection.downloads.takeIf { it.isSupported }
+                        DownloadsButton(youTube, deviceDownloads, isOpen = currentScreen is Screen.Downloads) {
+                            if (currentScreen is Screen.Downloads) {
+                                navigator.pop()
+                            } else {
+                                val youTubeDownloads = youTube.requestedSongs.value.isNotEmpty() || deviceDownloads == null
+                                navigator.push(Screen.Downloads(if (youTubeDownloads) DownloadsTab.YouTube else DownloadsTab.Device))
+                            }
                         }
                         // While something plays, the mini player has it
                         if (!hasSong) DevicesButton(playerState, playerViewModel::onEvent)
@@ -690,9 +697,13 @@ fun App() {
                     is Screen.Downloads -> {
                         DownloadsScreen(
                             youTube = youTube,
+                            deviceDownloads = connection.downloads.takeIf { it.isSupported },
+                            tab = screen.tab,
+                            onTabSelected = { navigator.replace(Screen.Downloads(it)) },
                             onPlay = { songs, startIndex -> playSongs(playerViewModel, songs, startIndex, null) },
                             onArtistClick = { id, name -> navigator.push(Screen.ArtistAlbums(id, name)) },
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                            onPlaylistClick = { navigator.push(Screen.PlaylistSongs(it)) },
                             currentSongId = playerState.playback.currentSong?.id,
                         )
                     }

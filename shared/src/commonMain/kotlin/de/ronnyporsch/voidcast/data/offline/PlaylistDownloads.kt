@@ -20,7 +20,32 @@ private data class DownloadedPlaylist(val server: String, val playlist: Playlist
 private data class DownloadedSong(val server: String, val song: Song)
 
 @Serializable
-private data class DownloadedAlbum(val server: String, val albumId: String, val name: String, val songs: List<Song>)
+private data class DownloadedAlbum(
+    val server: String,
+    val albumId: String,
+    val name: String,
+    val songs: List<Song>,
+    val artist: String = "",
+    val coverArtId: String? = null,
+) {
+    fun toAlbum() = Album(
+        id = albumId,
+        name = name,
+        artist = artist,
+        coverArtId = coverArtId ?: songs.firstNotNullOfOrNull { it.coverArtId },
+        songCount = songs.size,
+        duration = songs.sumOf { it.duration },
+        songs = songs,
+    )
+}
+
+/** What is downloaded for the current server, for an overview. */
+data class OfflineContent(
+    val playlists: List<Playlist> = emptyList(),
+    val albums: List<Album> = emptyList(),
+    /** All songs whose files are on the device, also those of [playlists] and [albums]. */
+    val songs: List<Song> = emptyList(),
+)
 
 /** How far the songs of a downloaded playlist or album are downloaded. */
 data class PlaylistDownloadStatus(
@@ -77,6 +102,10 @@ class PlaylistDownloads(
     val downloadingSongIds: StateFlow<Set<String>> = _downloadingSongIds.asStateFlow()
     private val transferring = mutableSetOf<String>()
 
+    private val _content = MutableStateFlow(OfflineContent())
+    /** The downloaded playlists, albums and songs of the current server. */
+    val content: StateFlow<OfflineContent> = _content.asStateFlow()
+
     private val _singleSongIds = MutableStateFlow<Set<String>>(emptySet())
     /** The songs of the current server that got downloaded on their own, whether their files are there yet or not. */
     val singleSongIds: StateFlow<Set<String>> = _singleSongIds.asStateFlow()
@@ -124,7 +153,7 @@ class PlaylistDownloads(
         scope.launch {
             val server = serverKey()
             if (albumEntry(server, album.id) == null) {
-                saveAlbums(loadAlbums() + DownloadedAlbum(server, album.id, album.name, album.songs))
+                saveAlbums(loadAlbums() + DownloadedAlbum(server, album.id, album.name, album.songs, album.artist, album.coverArtId))
             }
             syncAlbum(server, album.id)
         }
@@ -267,7 +296,7 @@ class PlaylistDownloads(
             repository.getAlbum(albumId).onSuccess { fresh ->
                 val entry = albumEntry(server, albumId) ?: return@launch
                 if (serverKey() != server) return@launch
-                saveAlbums(loadAlbums().map { if (it == entry) entry.copy(name = fresh.name, songs = fresh.songs) else it })
+                saveAlbums(loadAlbums().map { if (it == entry) entry.copy(name = fresh.name, songs = fresh.songs, artist = fresh.artist, coverArtId = fresh.coverArtId) else it })
                 deleteUnused(entry.songs.map { it.id } - fresh.songs.mapTo(mutableSetOf()) { it.id })
             }
             publish()
@@ -360,6 +389,13 @@ class PlaylistDownloads(
                     isRunning = jobs[key(server, entry.playlist.id)]?.isActive == true,
                 )
             }
+        _content.value = OfflineContent(
+            playlists = entries.map { it.playlist },
+            albums = albums.map { it.toAlbum() },
+            songs = (singleSongs.map { it.song } + entries.flatMap { it.playlist.songs } + albums.flatMap { it.songs })
+                .distinctBy { it.id }
+                .filter { files.uriOf(it.id) != null },
+        )
         _albumStatus.value = albums.associate { entry ->
             val songs = entry.songs.distinctBy { it.id }
             entry.albumId to PlaylistDownloadStatus(

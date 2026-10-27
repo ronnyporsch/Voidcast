@@ -19,14 +19,20 @@ sealed class Screen {
     data object Player : Screen()
     data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()
-    /** The YouTube Music downloads of this session. */
-    data object Downloads : Screen()
+    data class Downloads(val tab: DownloadsTab) : Screen()
     data object Settings : Screen()
 }
 
 enum class QueueTab(val title: String) {
     Queue("Queue"),
     RecentlyPlayed("Recently played"),
+}
+
+enum class DownloadsTab(val title: String) {
+    /** The songs downloaded into the server's library in this session. */
+    YouTube("YouTube Music"),
+    /** Android: what is downloaded for offline playback. */
+    Device("On this device"),
 }
 
 /**
