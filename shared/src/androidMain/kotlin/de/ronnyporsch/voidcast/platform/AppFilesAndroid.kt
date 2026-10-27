@@ -3,6 +3,8 @@ package de.ronnyporsch.voidcast.platform
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
@@ -13,17 +15,22 @@ actual suspend fun readAppFile(name: String): String? = withContext(Dispatchers.
     File(AppContextHolder.context.filesDir, name).takeIf { it.isFile }?.readText()
 }
 
-actual suspend fun writeAppFile(name: String, content: String?) = withContext(Dispatchers.IO) {
-    val file = File(AppContextHolder.context.filesDir, name)
-    if (content == null) {
-        file.delete()
-    } else {
-        // Write a temporary file first, so a crash mid-write doesn't leave a truncated file behind
-        val temp = File(file.parentFile, "$name.tmp")
-        temp.writeText(content)
-        if (!temp.renameTo(file)) throw IOException("Can't write $file")
+// Writes of the same file would share its temporary file, so one could rename the other's away and fail
+private val writeMutex = Mutex()
+
+actual suspend fun writeAppFile(name: String, content: String?) = writeMutex.withLock {
+    withContext(Dispatchers.IO) {
+        val file = File(AppContextHolder.context.filesDir, name)
+        if (content == null) {
+            file.delete()
+        } else {
+            // Write a temporary file first, so a crash mid-write doesn't leave a truncated file behind
+            val temp = File(file.parentFile, "$name.tmp")
+            temp.writeText(content)
+            if (!temp.renameTo(file)) throw IOException("Can't write $file")
+        }
+        Unit
     }
-    Unit
 }
 
 actual fun createSongFileStore(): SongFileStore? = AndroidSongFileStore
@@ -71,7 +78,6 @@ private object AndroidSongFileStore : SongFileStore {
         } finally {
             part.delete()
         }
-        Unit
     }
 
     override suspend fun delete(songId: String) = withContext(Dispatchers.IO) {

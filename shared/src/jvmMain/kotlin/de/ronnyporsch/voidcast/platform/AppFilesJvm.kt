@@ -1,6 +1,8 @@
 package de.ronnyporsch.voidcast.platform
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -15,16 +17,21 @@ actual suspend fun readAppFile(name: String): String? = withContext(Dispatchers.
     File(dataDir, name).takeIf { it.isFile }?.readText()
 }
 
-actual suspend fun writeAppFile(name: String, content: String?) = withContext(Dispatchers.IO) {
-    val file = File(dataDir, name)
-    if (content == null) {
-        file.delete()
-    } else {
-        val temp = File(dataDir, "$name.tmp")
-        temp.writeText(content)
-        if (!temp.renameTo(file)) throw IOException("Can't write $file")
+// Writes of the same file would share its temporary file, so one could rename the other's away and fail
+private val writeMutex = Mutex()
+
+actual suspend fun writeAppFile(name: String, content: String?) = writeMutex.withLock {
+    withContext(Dispatchers.IO) {
+        val file = File(dataDir, name)
+        if (content == null) {
+            file.delete()
+        } else {
+            val temp = File(dataDir, "$name.tmp")
+            temp.writeText(content)
+            if (!temp.renameTo(file)) throw IOException("Can't write $file")
+        }
+        Unit
     }
-    Unit
 }
 
 actual fun createSongFileStore(): SongFileStore? = null
