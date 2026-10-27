@@ -10,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -152,19 +151,19 @@ fun SettingsScreen(
                     )
                 }
 
-                Button(
+                OutlinedButton(
                     onClick = { viewModel.onEvent(SettingsEvent.Reconnect) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(0.dp)),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
+                        .height(44.dp),
+                    shape = RoundedCornerShape(0.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentColor),
                     enabled = !state.isReconnecting,
                 ) {
                     if (state.isReconnecting) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = AccentColor,
                             strokeWidth = 2.dp,
                         )
                     } else {
