@@ -5,7 +5,9 @@ import de.ronnyporsch.voidcast.data.repository.SearchResults
 import de.ronnyporsch.voidcast.domain.model.*
 import de.ronnyporsch.voidcast.getPlatform
 import io.ktor.http.HttpStatusCode
+import de.ronnyporsch.voidcast.ui.components.matches
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 class JellyfinMusicRepository(
@@ -138,8 +140,44 @@ class JellyfinMusicRepository(
             }
             val albums = async { albums("searchTerm" to query, "limit" to 10, "sortBy" to "SortName") }
             val songs = async { songs("searchTerm" to query, "limit" to 20, "sortBy" to "SortName") }
-            SearchResults(artists = artists.await(), albums = albums.await(), songs = songs.await())
+            val wordSongs = async { searchSongsByWords(query) }
+            val exact = songs.await()
+            val exactIds = exact.mapTo(mutableSetOf()) { it.id }
+            SearchResults(
+                artists = artists.await(),
+                albums = albums.await(),
+                songs = exact + wordSongs.await().filterNot { it.id in exactIds },
+            )
         }
+    }
+
+    /**
+     * Songs matching every word of a [query] like "artist title" somewhere in their title, artist or album (see
+     * [matches]); Jellyfin's search term only matches the whole query against the title.
+     */
+    private suspend fun searchSongsByWords(query: String): List<Song> = coroutineScope {
+        val words = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        if (words.size < 2) return@coroutineScope emptyList()
+        // Each matching song has the longest word in its title or an artist that any word finds
+        val longest = words.maxBy { it.length }
+        val byTitle = async { songs("searchTerm" to longest, "limit" to 200, "sortBy" to "SortName") }
+        val artists = words.map { word ->
+            async {
+                api.getArtists(mapOf("searchTerm" to word, "limit" to 5, "enableUserData" to false)).items
+            }
+        }.awaitAll().flatten().distinctBy { it.id }.take(5)
+        val byArtist = artists.map { artist ->
+            async {
+                // The search term narrows the artist's songs down by the longest word not in the artist's name
+                val term = words.filterNot { artist.name.contains(it, ignoreCase = true) }.maxByOrNull { it.length }
+                if (term == null) emptyList()
+                else songs("artistIds" to artist.id, "searchTerm" to term, "limit" to 200, "sortBy" to "SortName")
+            }
+        }
+        (byTitle.await() + byArtist.awaitAll().flatten())
+            .distinctBy { it.id }
+            .filter { it.matches(query) }
+            .take(50)
     }
 
     override suspend fun startScan(): Result<Boolean> = runCatching { api.refreshLibrary() }
