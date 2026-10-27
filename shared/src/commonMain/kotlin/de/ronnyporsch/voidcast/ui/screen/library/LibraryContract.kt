@@ -120,6 +120,8 @@ sealed class LibraryEvent {
     data class SongSelectionToggled(val song: Song) : LibraryEvent()
     /** Shift-click: adds the songs from the one at [index] to the nearest selected one to the selection. */
     data class SongRangeSelected(val index: Int) : LibraryEvent()
+    /** Replaces the selection, e.g. a Shift-click within the songs matching a search. */
+    data class SongsSelected(val ids: Set<String>) : LibraryEvent()
     data class SongArtistClicked(val artistName: String) : LibraryEvent()
     /** Shows the favorite songs in the detail pane. */
     data object FavoriteSongsClicked : LibraryEvent()

@@ -18,6 +18,7 @@ import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatDuration
 import de.ronnyporsch.voidcast.domain.model.formatDurationMs
 import de.ronnyporsch.voidcast.ui.components.TouchSelection
+import de.ronnyporsch.voidcast.ui.components.filtered
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.navigation.Navigator
 import de.ronnyporsch.voidcast.ui.navigation.Screen
@@ -203,6 +204,19 @@ class SharedCommonTest {
         assertEquals(setOf("s2", "s7", "s8"), songs.selectedThrough(7, setOf("s2", "s8")))
         assertEquals(setOf("s1", "s2", "s3"), songs.selectedThrough(1, setOf("s3")))
         assertEquals(setOf("s4"), songs.selectedThrough(4, emptySet()))
+    }
+
+    @Test
+    fun filtered_keeps_the_matching_songs_with_their_positions() {
+        val songs = listOf(
+            Song(id = "a", title = "Bohemian Rhapsody", artist = "Queen", album = "A Night at the Opera"),
+            Song(id = "b", title = "Under Pressure", artist = "Queen & David Bowie"),
+            Song(id = "c", title = "Heroes", artist = "David Bowie", album = "Heroes"),
+        )
+        assertEquals(listOf(0, 1, 2), songs.filtered("  ").map { it.index })
+        assertEquals(listOf(1, 2), songs.filtered("bowie").map { it.index })
+        assertEquals(listOf(0), songs.filtered("opera queen").map { it.index })
+        assertEquals(emptyList(), songs.filtered("abba").map { it.index })
     }
 
     @Test

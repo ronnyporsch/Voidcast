@@ -710,7 +710,7 @@ private fun LibraryDetailPane(
             state = playlistDetailState,
             modifier = modifier,
             onSongCtrlClick = { viewModel.onEvent(LibraryEvent.SongSelectionToggled(it)) },
-            onSongShiftClick = { _, index -> viewModel.onEvent(LibraryEvent.SongRangeSelected(index)) },
+            onSongShiftClick = { songs, index -> viewModel.onEvent(LibraryEvent.SongsSelected(songs.selectedThrough(index, state.selectedSongIds))) },
             contextMenuSongs = { songs, song -> songs.contextMenuSongs(song, state.selectedSongIds) },
         )
     }
@@ -1268,12 +1268,14 @@ private fun PlaylistDetailPane(
     state: LazyListState,
     modifier: Modifier = Modifier,
     onSongCtrlClick: (Song) -> Unit = {},
-    onSongShiftClick: (Song, Int) -> Unit = { _, _ -> },
+    /** Gets the songs shown, which the search may limit, and the position of the clicked one among them. */
+    onSongShiftClick: (List<Song>, Int) -> Unit = { _, _ -> },
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     contextMenuIndices: (List<Song>, Int) -> List<Int> = { _, index -> listOf(index) },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     RememberScrollPosition(state, "playlist")
+    var query by remember(playlist?.id) { mutableStateOf("") }
 
     Surface(
         modifier = modifier,
@@ -1299,23 +1301,28 @@ private fun PlaylistDetailPane(
 
             else -> {
                 val headerState = rememberCollapsingHeaderState(state)
+                // The songs matching the search, with their positions in the playlist, which the callbacks get
+                val visible = remember(playlist.songs, query) { playlist.songs.filtered(query) }
+                val visibleSongs = remember(visible) { visible.map { it.value } }
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = state,
                         contentPadding = PaddingValues(bottom = 100.dp),
                         modifier = Modifier.onKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown) {
-                                val currentIndex = playlist.songs.indexOfFirst { isSelected(it.id) }
+                                val currentIndex = visibleSongs.indexOfFirst { isSelected(it.id) }
                                 when (event.key) {
                                     Key.DirectionDown -> {
-                                        if (currentIndex < playlist.songs.size - 1) {
-                                            onSongClick(playlist.songs[currentIndex + 1], currentIndex + 1)
+                                        if (currentIndex < visible.size - 1) {
+                                            val (index, song) = visible[currentIndex + 1]
+                                            onSongClick(song, index)
                                             true
                                         } else false
                                     }
                                     Key.DirectionUp -> {
                                         if (currentIndex > 0) {
-                                            onSongClick(playlist.songs[currentIndex - 1], currentIndex - 1)
+                                            val (index, song) = visible[currentIndex - 1]
+                                            onSongClick(song, index)
                                             true
                                         } else false
                                     }
@@ -1386,7 +1393,27 @@ private fun PlaylistDetailPane(
                             }
                         }
 
-                        itemsIndexed(playlist.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                        item {
+                            SongFilterField(
+                                query = query,
+                                onQueryChange = { query = it },
+                                placeholder = "Search in playlist",
+                            )
+                        }
+
+                        if (visible.isEmpty() && playlist.songs.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "No songs match \"${query.trim()}\"",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                )
+                            }
+                        }
+
+                        // Selections and context menus only act on the songs shown, so hidden ones aren't affected unnoticed
+                        itemsIndexed(visible, key = { _, (index, song) -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { visibleIndex, (index, song) ->
                             SongRow(
                                 song = song,
                                 index = index,
@@ -1394,9 +1421,9 @@ private fun PlaylistDetailPane(
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
                                 onRemoveClick = { onRemoveClick(listOf(index)) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
-                                onSongShiftClick = { onSongShiftClick(song, index) },
-                                contextMenuSongs = { contextMenuSongs(playlist.songs, song) },
-                                onRemoveFromPlaylist = { onRemoveClick(contextMenuIndices(playlist.songs, index)) },
+                                onSongShiftClick = { onSongShiftClick(visibleSongs, visibleIndex) },
+                                contextMenuSongs = { contextMenuSongs(visibleSongs, song) },
+                                onRemoveFromPlaylist = { onRemoveClick(contextMenuIndices(visibleSongs, visibleIndex).map { visible[it].index }) },
                                 isSelected = isSelected(song.id),
                                 isPlaying = isPlaying(song.id),
                                 onArtistClick = onArtistClick,

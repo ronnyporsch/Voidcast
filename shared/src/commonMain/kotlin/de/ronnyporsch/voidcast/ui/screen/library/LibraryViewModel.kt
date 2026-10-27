@@ -78,6 +78,7 @@ class LibraryViewModel(
         when (event) {
             is LibraryEvent.SongSelectionToggled ->
                 setState { copy(selectedSongIds = selectedSongIds.toggled(event.song.id)) }
+            is LibraryEvent.SongsSelected -> setState { copy(selectedSongIds = event.ids) }
             is LibraryEvent.SongRangeSelected ->
                 setState { copy(selectedSongIds = detailSongs.selectedThrough(event.index, selectedSongIds)) }
             is LibraryEvent.CategorySelected -> {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
@@ -28,6 +29,9 @@ import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
 import de.ronnyporsch.voidcast.ui.components.contextMenuIndices
 import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
+import de.ronnyporsch.voidcast.ui.components.SongFilterField
+import de.ronnyporsch.voidcast.ui.components.filtered
+import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatFileSize
 import de.ronnyporsch.voidcast.domain.model.formatTotalDuration
@@ -47,6 +51,7 @@ fun PlaylistDetailScreen(
     val listState = rememberLazyListState()
     RememberScrollPosition(listState)
     val headerState = rememberCollapsingHeaderState(listState)
+    var query by rememberSaveable { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -66,19 +71,22 @@ fun PlaylistDetailScreen(
             }
         } else {
             val playlist = state.playlist ?: return
+            // The songs matching the search, with their positions in the playlist, which the events refer to
+            val visible = remember(playlist.songs, query) { playlist.songs.filtered(query) }
+            val visibleSongs = remember(visible) { visible.map { it.value } }
             val songKey = { index: Int, song: Song -> "${song.id}::$index" }
             val songSelection = rememberTouchSelection(
-                items = playlist.songs,
+                items = visibleSongs,
                 selectedIds = state.selectedSongIds,
                 onChange = { viewModel.onEvent(PlaylistDetailEvent.SongsSelected(it)) },
                 id = { it.id },
-                key = songKey,
+                key = { index, song -> songKey(visible[index].index, song) },
             )
             TouchSelectionBar(
                 selection = songSelection,
                 songs = { songSelection.selectedItems },
                 onRemoveFromPlaylist = {
-                    viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(playlist.songs.indices.filter { playlist.songs[it].id in state.selectedSongIds }))
+                    viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(visible.filter { it.value.id in state.selectedSongIds }.map { it.index }))
                 },
             )
 
@@ -88,18 +96,19 @@ fun PlaylistDetailScreen(
                     contentPadding = PaddingValues(bottom = 100.dp),
                     modifier = Modifier.touchSelection(songSelection, listState).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
-                            val playlist = state.playlist ?: return@onKeyEvent false
-                            val currentIndex = playlist.songs.indexOfFirst { it.id in state.selectedSongIds }
+                            val currentIndex = visibleSongs.indexOfFirst { it.id in state.selectedSongIds }
                             when (event.key) {
                                 Key.DirectionDown -> {
-                                    if (currentIndex < playlist.songs.size - 1) {
-                                        viewModel.onEvent(PlaylistDetailEvent.SongClicked(playlist.songs[currentIndex + 1], currentIndex + 1))
+                                    if (currentIndex < visible.size - 1) {
+                                        val (index, song) = visible[currentIndex + 1]
+                                        viewModel.onEvent(PlaylistDetailEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
                                 Key.DirectionUp -> {
                                     if (currentIndex > 0) {
-                                        viewModel.onEvent(PlaylistDetailEvent.SongClicked(playlist.songs[currentIndex - 1], currentIndex - 1))
+                                        val (index, song) = visible[currentIndex - 1]
+                                        viewModel.onEvent(PlaylistDetailEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
@@ -176,7 +185,26 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    itemsIndexed(playlist.songs, key = songKey) { index, song ->
+                    item {
+                        SongFilterField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search in playlist",
+                        )
+                    }
+
+                    if (visible.isEmpty() && playlist.songs.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "No songs match \"${query.trim()}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            )
+                        }
+                    }
+
+                    itemsIndexed(visible, key = { _, (index, song) -> songKey(index, song) }) { visibleIndex, (index, song) ->
                         SongRow(
                             song = song,
                             index = index,
@@ -187,10 +215,14 @@ fun PlaylistDetailScreen(
                             longPressSelects = songSelection.isEnabled,
                             onSongDoubleClick = { viewModel.onEvent(PlaylistDetailEvent.SongDoubleClicked(song, index)) },
                             onSongCtrlClick = { viewModel.onEvent(PlaylistDetailEvent.SongSelectionToggled(song)) },
-                            onSongShiftClick = { viewModel.onEvent(PlaylistDetailEvent.SongRangeSelected(index)) },
-                            contextMenuSongs = { playlist.songs.contextMenuSongs(song, state.selectedSongIds) },
+                            // Only through the songs shown, as hidden ones would be acted on unnoticed
+                            onSongShiftClick = {
+                                viewModel.onEvent(PlaylistDetailEvent.SongsSelected(visibleSongs.selectedThrough(visibleIndex, state.selectedSongIds)))
+                            },
+                            contextMenuSongs = { visibleSongs.contextMenuSongs(song, state.selectedSongIds) },
                             onRemoveFromPlaylist = {
-                                viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(playlist.songs.contextMenuIndices(index, state.selectedSongIds)))
+                                val indices = visibleSongs.contextMenuIndices(visibleIndex, state.selectedSongIds).map { visible[it].index }
+                                viewModel.onEvent(PlaylistDetailEvent.RemoveSongs(indices))
                             },
                             isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
