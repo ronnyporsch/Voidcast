@@ -1304,6 +1304,8 @@ private fun PlaylistDetailPane(
                 // The songs matching the search, with their positions in the playlist, which the callbacks get
                 val visible = remember(playlist.songs, query) { playlist.songs.filtered(query) }
                 val visibleSongs = remember(visible) { visible.map { it.value } }
+                // The field is the third item, after the header and the play buttons
+                val filterFocus = rememberSongFilterFocus(state, itemIndex = 2)
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = state,
@@ -1398,6 +1400,7 @@ private fun PlaylistDetailPane(
                                 query = query,
                                 onQueryChange = { query = it },
                                 placeholder = "Search in playlist",
+                                focus = filterFocus,
                             )
                         }
 

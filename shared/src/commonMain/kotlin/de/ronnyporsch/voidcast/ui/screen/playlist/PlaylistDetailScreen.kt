@@ -31,6 +31,7 @@ import de.ronnyporsch.voidcast.ui.components.contextMenuIndices
 import de.ronnyporsch.voidcast.ui.components.TouchSelectionBar
 import de.ronnyporsch.voidcast.ui.components.SongFilterField
 import de.ronnyporsch.voidcast.ui.components.filtered
+import de.ronnyporsch.voidcast.ui.components.rememberSongFilterFocus
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatFileSize
@@ -75,6 +76,8 @@ fun PlaylistDetailScreen(
             val visible = remember(playlist.songs, query) { playlist.songs.filtered(query) }
             val visibleSongs = remember(visible) { visible.map { it.value } }
             val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+            // The field is the third item, after the header and the play buttons
+            val filterFocus = rememberSongFilterFocus(listState, itemIndex = 2)
             val songSelection = rememberTouchSelection(
                 items = visibleSongs,
                 selectedIds = state.selectedSongIds,
@@ -190,6 +193,7 @@ fun PlaylistDetailScreen(
                             query = query,
                             onQueryChange = { query = it },
                             placeholder = "Search in playlist",
+                            focus = filterFocus,
                         )
                     }
 

@@ -8,13 +8,28 @@ private var installed = false
 actual fun installGlobalShortcutListener() {
     if (installed) return
     installed = true
-    // Capture phase, so the browser's own Ctrl+K (focus web search) is suppressed before anything else sees it
+    // Capture phase, so the browser's own Ctrl+K (focus web search) and Ctrl+F (find) are suppressed before anything
+    // else sees them
     document.addEventListener("keydown", { event ->
         event as KeyboardEvent
-        if ((event.ctrlKey || event.metaKey) && event.key.lowercase() == "k") {
+        if (!event.ctrlKey && !event.metaKey) return@addEventListener
+        val handled = when (event.key.lowercase()) {
+            "k" -> {
+                GlobalShortcuts.requestSearchFocus()
+                true
+            }
+            "f" -> GlobalShortcuts.requestFilterFocus()
+            // Text fields move the cursor by words with them; a focused one has its input element focused
+            "arrowright", "arrowleft" -> !event.shiftKey && !event.altKey && !isTextInputFocused() &&
+                GlobalShortcuts.requestSkip(next = event.key == "ArrowRight")
+            else -> false
+        }
+        if (handled) {
             event.preventDefault()
             event.stopPropagation()
-            GlobalShortcuts.requestSearchFocus()
         }
     }, true)
 }
+
+private fun isTextInputFocused(): Boolean =
+    document.activeElement?.tagName?.uppercase().let { it == "INPUT" || it == "TEXTAREA" }

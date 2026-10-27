@@ -28,6 +28,7 @@ fun main() = application {
         icon = icon,
         state = rememberWindowState(placement = WindowPlacement.Maximized, width = 1024.dp, height = 768.dp),
         onPreviewKeyEvent = GlobalShortcuts::onKeyEvent,
+        onKeyEvent = GlobalShortcuts::onUnhandledKeyEvent,
     ) {
         App()
     }

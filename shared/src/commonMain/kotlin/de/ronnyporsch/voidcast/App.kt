@@ -241,6 +241,11 @@ fun App() {
         }
     }
 
+    LaunchedEffect(playerViewModel) {
+        installGlobalShortcutListener()
+        GlobalShortcuts.skip.collect { next -> playerViewModel.onEvent(if (next) PlayerEvent.Next else PlayerEvent.Previous) }
+    }
+
     LaunchedEffect(searchViewModel) {
         searchViewModel.effects.collectLatest { effect ->
             when (effect) {
