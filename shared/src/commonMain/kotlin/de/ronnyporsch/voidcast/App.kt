@@ -56,6 +56,8 @@ import de.ronnyporsch.voidcast.ui.screen.search.*
 import de.ronnyporsch.voidcast.ui.screen.settings.*
 import de.ronnyporsch.voidcast.ui.theme.VoidcastTheme
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsScreen
+import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsButton
+import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsScreen
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -435,6 +437,9 @@ fun App() {
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
+                        DownloadsButton(youTube, isOpen = currentScreen is Screen.Downloads) {
+                            if (currentScreen is Screen.Downloads) navigator.pop() else navigator.push(Screen.Downloads)
+                        }
                         // While something plays, the mini player has it
                         if (!hasSong) DevicesButton(playerState, playerViewModel::onEvent)
                         (autoLoginStatus as? AutoLoginStatus.Retrying)?.let { status ->
@@ -679,6 +684,16 @@ fun App() {
                             viewModel = searchViewModel,
                             onBack = { navigator.pop() },
                             currentSongId = playerState.playback.currentSong?.id
+                        )
+                    }
+
+                    is Screen.Downloads -> {
+                        DownloadsScreen(
+                            youTube = youTube,
+                            onPlay = { songs, startIndex -> playSongs(playerViewModel, songs, startIndex, null) },
+                            onArtistClick = { id, name -> navigator.push(Screen.ArtistAlbums(id, name)) },
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                            currentSongId = playerState.playback.currentSong?.id,
                         )
                     }
 

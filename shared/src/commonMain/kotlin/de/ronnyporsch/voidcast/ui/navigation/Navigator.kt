@@ -19,6 +19,8 @@ sealed class Screen {
     data object Player : Screen()
     data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()
+    /** The YouTube Music downloads of this session. */
+    data object Downloads : Screen()
     data object Settings : Screen()
 }
 

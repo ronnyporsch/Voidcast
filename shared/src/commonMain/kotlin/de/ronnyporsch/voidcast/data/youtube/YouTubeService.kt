@@ -83,6 +83,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** Downloads requested in this session, by song id; they keep running when the requesting screen is left. */
     val downloads: StateFlow<Map<String, DownloadStatus>> = _downloads.asStateFlow()
 
+    private val _requestedSongs = MutableStateFlow<List<Song>>(emptyList())
+    /** The songs downloaded (or being downloaded) in this session, latest request first; [downloads] has their status. */
+    val requestedSongs: StateFlow<List<Song>> = _requestedSongs.asStateFlow()
+
     private val _libraryFormats = MutableStateFlow<Map<String, AudioStreamInfo>>(emptyMap())
     /** Codec and bitrate of the downloaded files of songs in the library ([downloads] says which), by song id. */
     val libraryFormats: StateFlow<Map<String, AudioStreamInfo>> = _libraryFormats.asStateFlow()
@@ -184,6 +188,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             for (song in songs) {
                 val status = _downloads.value[song.id]
                 if (status == DownloadStatus.InProgress || status is DownloadStatus.Done || status == DownloadStatus.InLibrary) continue
+                addRequested(song)
                 setStatus(song.id, DownloadStatus.InProgress)
                 try {
                     val job = connection.jellyfinApi.requestDownload(song.toDto())
@@ -213,7 +218,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
         onProgress: suspend (PlaylistAdditionDto) -> Unit = {},
     ): PlaylistAdditionDto {
         var addition = connection.jellyfinApi.addYouTubeToPlaylist(playlistId, songs.map { it.toDto() })
-        track(addition.jobs)
+        track(addition.jobs, songs)
         onStarted(addition)
         var failures = 0
         while (!addition.finished) {
@@ -232,11 +237,14 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return addition
     }
 
-    /** Shows the progress of download [jobs] the server started on its own. */
-    private fun track(jobs: List<DownloadJobDto>) {
+    /** Shows the progress of download [jobs] the server started on its own for some of [songs]. */
+    private fun track(jobs: List<DownloadJobDto>, songs: List<Song>) {
         if (jobs.isEmpty()) return
         scope.launch {
-            for (job in jobs) update(job.id, YOUTUBE_SONG_ID_PREFIX + job.videoId, job.state, job.message, job.path)
+            for (job in jobs) {
+                songs.firstOrNull { it.youTubeVideoId == job.videoId }?.let(::addRequested)
+                update(job.id, YOUTUBE_SONG_ID_PREFIX + job.videoId, job.state, job.message, job.path)
+            }
             startPolling()
         }
     }
@@ -285,6 +293,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
                 songId.youTubeId?.let { videoId -> scope.launch { downloadedTracks(listOf(videoId)) } }
             }
         }
+    }
+
+    private fun addRequested(song: Song) {
+        _requestedSongs.value = listOf(song) + _requestedSongs.value.filterNot { it.id == song.id }
     }
 
     private fun setStatus(songId: String, status: DownloadStatus) {
