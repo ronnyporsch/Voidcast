@@ -1,11 +1,14 @@
 package de.ronnyporsch.voidcast.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
@@ -16,6 +19,7 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -34,7 +38,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -42,13 +51,15 @@ import kotlin.math.min
 /**
  * Adds songs to playlists from the song context menu (and drag and drop), on any screen. Reports the outcome to
  * [onMessage]. YouTube Music songs get downloaded into the library by the server, see [YouTubeService.addToPlaylist];
- * [onPlaylistChanged] tells about the playlists it changed.
+ * [onPlaylistChanged] tells about the playlists it changed. [onOpenPlaylist] shows a playlist, e.g. one that
+ * [playlistsContaining] found.
  */
 class PlaylistEditor(
     private val repository: MusicRepository,
     private val scope: CoroutineScope,
     private val youTube: YouTubeService? = null,
     private val onPlaylistChanged: suspend (playlistId: String) -> Unit = {},
+    val onOpenPlaylist: (playlistId: String) -> Unit = {},
     private val onMessage: suspend (String) -> Unit,
 ) {
     /** Whether YouTube Music songs can be added to playlists. */
@@ -59,6 +70,23 @@ class PlaylistEditor(
 
     fun refreshPlaylists() {
         scope.launch { repository.getPlaylists().onSuccess { _playlists.value = it } }
+    }
+
+    /** The playlists [song] is in; the servers can't tell, so this loads every playlist. */
+    suspend fun playlistsContaining(song: Song): Result<List<Playlist>> = runCatching {
+        val playlists = repository.getPlaylists().getOrThrow()
+        _playlists.value = playlists
+        // Not all at once, with lots of playlists that would be a lot of requests in parallel
+        val limit = Semaphore(8)
+        coroutineScope {
+            playlists.map { playlist ->
+                async {
+                    limit.withPermit {
+                        playlist.takeIf { repository.getPlaylist(it.id).getOrNull()?.songs.orEmpty().any { it.id == song.id } }
+                    }
+                }
+            }.awaitAll().filterNotNull()
+        }
     }
 
     /** Adds [songs] that aren't in the playlist yet; a playlist never contains a song twice. */
@@ -197,6 +225,9 @@ fun SongContextMenu(
     // YouTube Music results aren't in the library; the server downloads them first where it can
     val canAddToPlaylist = editor != null && (editor.canAddYouTube || songs.none { it.isYouTube })
     var showPlaylists by remember { mutableStateOf(showPlaylistsFirst) }
+    // The playlists the song is in, see PlaylistEditor.playlistsContaining
+    var showContainingPlaylists by remember { mutableStateOf(false) }
+    var containingPlaylists by remember { mutableStateOf<Result<List<Playlist>>?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     // The menu forgets the songs when it closes, but the dialog outlives it
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
@@ -209,8 +240,18 @@ fun SongContextMenu(
     val singleDownloadIds by (songDownloads?.singleSongIds ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
 
     LaunchedEffect(expanded) {
-        if (!expanded) showPlaylists = showPlaylistsFirst
+        if (!expanded) {
+            showPlaylists = showPlaylistsFirst
+            showContainingPlaylists = false
+        }
         else if (showPlaylistsFirst) editor?.refreshPlaylists()
+    }
+    val containingSong = songs.singleOrNull()?.takeIf { !it.isYouTube }
+    LaunchedEffect(showContainingPlaylists, containingSong) {
+        containingPlaylists = null
+        if (showContainingPlaylists && editor != null && containingSong != null) {
+            containingPlaylists = editor.playlistsContaining(containingSong)
+        }
     }
     fun finish() {
         onDismiss()
@@ -230,7 +271,36 @@ fun SongContextMenu(
             )
             HorizontalDivider()
         }
-        if (!showPlaylists) {
+        if (showContainingPlaylists && editor != null) {
+            DropdownMenuItem(
+                text = { Text("Back") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
+                onClick = { showContainingPlaylists = false },
+            )
+            HorizontalDivider()
+            val result = containingPlaylists
+            val found = result?.getOrNull()
+            when {
+                result == null -> Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(24.dp), color = AccentColor, strokeWidth = 2.dp)
+                }
+                found == null || found.isEmpty() -> Text(
+                    if (found == null) "Couldn't load the playlists" else "Not in any playlist",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+                else -> found.forEach { playlist ->
+                    DropdownMenuItem(
+                        text = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        onClick = {
+                            editor.onOpenPlaylist(playlist.id)
+                            onDismiss()
+                        },
+                    )
+                }
+            }
+        } else if (!showPlaylists) {
             if (addToQueue != null) {
                 DropdownMenuItem(
                     text = { Text("Add to queue") },
@@ -266,6 +336,13 @@ fun SongContextMenu(
                         editor?.refreshPlaylists()
                         showPlaylists = true
                     },
+                )
+            }
+            if (editor != null && containingSong != null) {
+                DropdownMenuItem(
+                    text = { Text("Playlists with this song") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
+                    onClick = { showContainingPlaylists = true },
                 )
             }
             if (songDownloads != null) {

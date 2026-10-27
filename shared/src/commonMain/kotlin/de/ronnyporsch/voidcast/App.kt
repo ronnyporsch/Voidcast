@@ -115,7 +115,13 @@ fun App() {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val playlistEditor = remember {
-        PlaylistEditor(repository, scope, youTube, onPlaylistChanged = repository::changed) { message ->
+        PlaylistEditor(
+            repository,
+            scope,
+            youTube,
+            onPlaylistChanged = repository::changed,
+            onOpenPlaylist = { navigator.push(Screen.PlaylistSongs(it)) },
+        ) { message ->
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
         }
     }
