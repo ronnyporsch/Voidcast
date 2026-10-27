@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
+import de.ronnyporsch.voidcast.domain.model.formatDurationMs
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
@@ -267,6 +268,14 @@ fun MiniPlayer(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     PlayingOnText(state, Modifier.weight(1f, fill = false).padding(end = 4.dp))
+                    val durationMs = playback.durationMs.takeIf { it > 0 } ?: (song.duration * 1000L)
+                    Text(
+                        text = "${playback.positionMs.formatDurationMs()} / ${durationMs.formatDurationMs()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SpotifyLightGray,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                     DevicesButton(state, viewModel::onEvent, Modifier.size(32.dp))
                     QueueButtons(openQueueTab, onQueueClick, Modifier.size(32.dp))
                 }
