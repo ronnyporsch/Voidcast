@@ -101,6 +101,9 @@ class JellyfinApiService {
 
     suspend fun getItem(itemId: String): BaseItemDto = get("Items/$itemId", mapOf("userId" to userId))
 
+    /** The libraries (and other top-level folders) the user can see. */
+    suspend fun getUserViews(): ItemsResultDto = get("UserViews", mapOf("userId" to userId))
+
     suspend fun getAlbumArtists(params: Map<String, Any?> = emptyMap()): ItemsResultDto =
         get("Artists/AlbumArtists", params + ("userId" to userId))
 
@@ -195,6 +198,16 @@ class JellyfinApiService {
         val s = requireSession()
         return URLBuilder("${s.serverUrl}/Audio/$itemId/stream").apply {
             parameters.append("static", "true")
+            parameters.append("ApiKey", s.accessToken)
+        }.buildString()
+    }
+
+    /** The original file of a video item (e.g. a music video), with picture and sound, without transcoding. */
+    fun getVideoStreamUrl(itemId: String): String {
+        val s = requireSession()
+        return URLBuilder("${s.serverUrl}/Videos/$itemId/stream").apply {
+            parameters.append("static", "true")
+            parameters.append("MediaSourceId", itemId)
             parameters.append("ApiKey", s.accessToken)
         }.buildString()
     }

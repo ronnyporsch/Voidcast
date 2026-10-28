@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,6 +61,8 @@ import de.ronnyporsch.voidcast.ui.theme.VoidcastTheme
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsButton
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsScreen
+import de.ronnyporsch.voidcast.ui.screen.videos.MusicVideosScreen
+import de.ronnyporsch.voidcast.domain.model.ServerType
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -531,7 +534,14 @@ fun App() {
                         if (selectionBar != null) {
                             SelectionActionBar(selectionBar)
                         } else {
-                            BottomNavigationBar(currentScreen, navigator)
+                            // Only Jellyfin libraries have music videos
+                            val serverType by connection.serverType.collectAsState()
+                            val savedServerType = settingsHolder.settings.collectAsState().value.serverType
+                            BottomNavigationBar(
+                                currentScreen,
+                                navigator,
+                                showVideos = (serverType ?: savedServerType) == ServerType.Jellyfin,
+                            )
                         }
                     }
                 }
@@ -753,6 +763,21 @@ fun App() {
                         )
                     }
 
+                    is Screen.MusicVideos -> {
+                        MusicVideosScreen(
+                            repository = repository,
+                            libraryId = screen.libraryId,
+                            onLibrarySelected = { navigator.replace(Screen.MusicVideos(it)) },
+                            onPlay = { videos, startIndex, shuffle ->
+                                playSongs(playerViewModel, videos, startIndex, shuffle)
+                                // Where the picture shows
+                                navigator.push(Screen.Player)
+                            },
+                            onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
+                            currentSongId = playerState.playback.currentSong?.id,
+                        )
+                    }
+
                     is Screen.Settings -> {
                         val vm = remember { SettingsViewModel(connection, settingsHolder) }
                         LaunchedEffect(vm) {
@@ -819,7 +844,7 @@ private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, start
 }
 
 @Composable
-private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
+private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -845,6 +870,30 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
                 indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
             ),
         )
+
+        if (showVideos) {
+            NavigationBarItem(
+                selected = currentScreen is Screen.MusicVideos,
+                onClick = {
+                    if (currentScreen !is Screen.MusicVideos) {
+                        navigator.push(Screen.MusicVideos())
+                    }
+                },
+                icon = {
+                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = if (currentScreen is Screen.MusicVideos) AccentColor else SpotifyLightGray)
+                },
+                label = {
+                    Text(
+                        "Videos",
+                        color = if (currentScreen is Screen.MusicVideos) AccentColor else SpotifyLightGray,
+                        fontWeight = if (currentScreen is Screen.MusicVideos) FontWeight.Bold else FontWeight.Normal,
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            )
+        }
 
         NavigationBarItem(
             selected = currentScreen is Screen.Settings,

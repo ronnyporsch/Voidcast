@@ -44,6 +44,7 @@ import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.ui.navigation.QueueTab
 import de.ronnyporsch.voidcast.domain.model.formatDurationMs
+import de.ronnyporsch.voidcast.domain.model.isYouTube
 import de.ronnyporsch.voidcast.ui.components.AudioFormatText
 import de.ronnyporsch.voidcast.ui.components.VideoFormatText
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
@@ -108,7 +109,8 @@ fun PlayerScreen(
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (state.isVideo) {
+                // Videos of the library play their original file
+                if (state.isVideo && song?.isYouTube == true) {
                     VideoQualityButton(
                         quality = state.videoQuality,
                         heights = state.videoHeights,
@@ -314,7 +316,7 @@ fun PlayerScreen(
             )
 
             if (state.isVideo) {
-                // In the lyrics' slot: YouTube videos have none
+                // In the lyrics' slot: videos have none
                 TooltipIconButton(
                     onClick = onToggleVideoFullscreen,
                     icon = Icons.Default.Fullscreen,

@@ -40,6 +40,8 @@ data class BaseItemDto(
     @SerialName("Name") val name: String = "",
     @SerialName("Type") val type: String = "",
     @SerialName("MediaType") val mediaType: String? = null,
+    /** Of libraries, e.g. "music" or "musicvideos". */
+    @SerialName("CollectionType") val collectionType: String? = null,
     @SerialName("Overview") val overview: String? = null,
     @SerialName("Album") val album: String? = null,
     @SerialName("AlbumId") val albumId: String? = null,
@@ -80,6 +82,11 @@ data class MediaStreamDto(
     @SerialName("Codec") val codec: String? = null,
     /** In bit/s. */
     @SerialName("BitRate") val bitRate: Int? = null,
+    /** Of video streams, in pixels. */
+    @SerialName("Width") val width: Int? = null,
+    @SerialName("Height") val height: Int? = null,
+    /** Frames per second of video streams. */
+    @SerialName("RealFrameRate") val realFrameRate: Float? = null,
 )
 
 @Serializable

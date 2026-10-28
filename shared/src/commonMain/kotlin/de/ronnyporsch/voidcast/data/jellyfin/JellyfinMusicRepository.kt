@@ -227,6 +227,47 @@ class JellyfinMusicRepository(
         api.setFavorite(id, favorite)
     }
 
+    override suspend fun getMusicVideoLibraries(): Result<List<VideoLibrary>> = runCatching {
+        api.getUserViews().items
+            .filter { it.collectionType == "musicvideos" }
+            .map { VideoLibrary(id = it.id, name = it.name) }
+    }
+
+    override suspend fun getMusicVideos(libraryId: String?): Result<List<Song>> = runCatching {
+        api.getItems(
+            mapOf(
+                "includeItemTypes" to "MusicVideo",
+                "recursive" to true,
+                "parentId" to libraryId,
+                "sortBy" to "SortName",
+                "fields" to "Genres,DateCreated",
+                "enableUserData" to false,
+            )
+        ).items.map { it.toSong() }
+    }
+
+    // The original file: unlike a transcode it can be seeked in, and the players decode the usual video formats
+    override fun getVideoUrl(song: Song, maxHeight: Int): String? =
+        if (song.isVideo) api.getVideoStreamUrl(song.id) else null
+
+    // Single items come with their media streams
+    override suspend fun getVideoFormat(song: Song, maxHeight: Int): Result<VideoFormat?> = runCatching {
+        if (!song.isVideo) return@runCatching null
+        val streams = api.getItem(song.id).mediaStreams
+        val video = streams.firstOrNull { it.type == "Video" } ?: return@runCatching null
+        val audio = streams.firstOrNull { it.type == "Audio" }
+        VideoFormat(
+            VideoStreamInfo(
+                codec = video.codec?.let(::videoCodecDisplayName),
+                bitRate = video.bitRate?.let { (it + 500) / 1000 },
+                width = video.width,
+                height = video.height,
+                frameRate = video.realFrameRate?.let { (it + 0.5f).toInt() },
+            ),
+            AudioStreamInfo(audio?.codec?.let(::codecDisplayName), audio?.bitRate?.let { (it + 500) / 1000 }),
+        )
+    }
+
     override fun getStreamUrl(songId: String): String = api.getStreamUrl(songId, getPlatform().audioContainers)
 
     override fun getDownloadUrl(songId: String): String = api.getOriginalAudioUrl(songId)
@@ -267,6 +308,13 @@ private val WITH_FORMAT = "fields" to "Genres,DateCreated,MediaStreams"
 
 /** Like [WITH_FORMAT], plus the media sources for the file sizes. */
 private val WITH_FORMAT_AND_SIZE = "fields" to "Genres,DateCreated,MediaStreams,MediaSources"
+
+/** Like the plugin names the codecs of YouTube videos, e.g. "h264" -> "H.264". */
+private fun videoCodecDisplayName(codec: String): String = when (val lower = codec.lowercase()) {
+    "h264", "avc" -> "H.264"
+    "hevc", "h265" -> "H.265"
+    else -> lower.uppercase()
+}
 
 private fun LyricDto.toLyrics(): Lyrics? =
     lyrics.takeIf { it.isNotEmpty() }?.let { lines ->
@@ -321,6 +369,7 @@ internal fun BaseItemDto.toSong() = Song(
     bitRate = mediaStreams.firstOrNull { it.type == "Audio" }?.bitRate?.let { (it + 500) / 1000 },
     codec = mediaStreams.firstOrNull { it.type == "Audio" }?.codec?.let(::codecDisplayName),
     size = mediaSources.firstOrNull()?.size,
+    isVideo = type == "MusicVideo",
     dateAdded = dateCreated,
 )
 

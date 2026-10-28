@@ -64,6 +64,15 @@ interface MusicRepository {
     suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit>
     fun getStreamUrl(songId: String): String
 
+    /** The server's libraries of music videos; empty if it has none. */
+    suspend fun getMusicVideoLibraries(): Result<List<VideoLibrary>> = Result.success(emptyList())
+
+    /**
+     * The music videos of [libraryId] (as songs with [Song.isVideo]), or of all libraries if null; empty if the
+     * server has none.
+     */
+    suspend fun getMusicVideos(libraryId: String? = null): Result<List<Song>> = Result.success(emptyList())
+
     /** URL of the song's video with sound in the highest resolution up to [maxHeight]; null if it has none. */
     fun getVideoUrl(song: Song, maxHeight: Int): String? = null
 

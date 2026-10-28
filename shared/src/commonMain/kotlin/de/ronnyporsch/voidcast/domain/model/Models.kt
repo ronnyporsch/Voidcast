@@ -62,7 +62,7 @@ data class Song(
     val codec: String? = null,
     /** File size in bytes; null if the server doesn't tell. */
     val size: Long? = null,
-    /** A YouTube (music) video, which can be played with picture. */
+    /** A (music) video from YouTube or the library, which can be played with picture. */
     val isVideo: Boolean = false,
     /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
     val dateAdded: String? = null,
@@ -102,6 +102,12 @@ data class Playlist(
     val songs: List<Song> = emptyList(),
     /** When it got created, as an ISO 8601 timestamp; null if the server doesn't tell. */
     val dateAdded: String? = null,
+)
+
+/** A library of the server with music videos, see [de.ronnyporsch.voidcast.data.repository.MusicRepository.getMusicVideos]. */
+data class VideoLibrary(
+    val id: String,
+    val name: String,
 )
 
 /** A genre of the library; on Subsonic servers its [id] is its name. */

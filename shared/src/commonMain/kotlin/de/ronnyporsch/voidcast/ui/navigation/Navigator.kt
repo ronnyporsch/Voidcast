@@ -20,6 +20,8 @@ sealed class Screen {
     data class Queue(val tab: QueueTab) : Screen()
     data object Search : Screen()
     data class Downloads(val tab: DownloadsTab) : Screen()
+    /** The music videos of a Jellyfin server; [libraryId] is the library whose tab is shown, null for the first. */
+    data class MusicVideos(val libraryId: String? = null) : Screen()
     data object Settings : Screen()
 }
 

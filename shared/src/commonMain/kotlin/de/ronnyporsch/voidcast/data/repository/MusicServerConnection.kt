@@ -192,9 +192,12 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun search(query: String) = active.search(query)
         override suspend fun startScan() = active.startScan()
 
-        // YouTube Music tracks aren't library items, the server has no lyrics for them
+        override suspend fun getMusicVideoLibraries() = active.getMusicVideoLibraries()
+        override suspend fun getMusicVideos(libraryId: String?) = active.getMusicVideos(libraryId)
+
+        // YouTube Music tracks aren't library items, the server has no lyrics for them; nor for videos
         override suspend fun getLyrics(song: Song) =
-            if (song.isYouTube) Result.success(null) else active.getLyrics(song)
+            if (song.isYouTube || song.isVideo) Result.success(null) else active.getLyrics(song)
 
         override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> {
             val videoId = song.youTubeVideoId ?: return active.getAudioFormat(song)
@@ -224,11 +227,13 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         }
 
         override fun getVideoUrl(song: Song, maxHeight: Int): String? {
+            if (!song.isYouTube) return active.getVideoUrl(song, maxHeight)
             val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true } ?: return null
             return jellyfinApi.getYouTubeVideoUrl(videoId, maxHeight)
         }
 
         override suspend fun getVideoFormat(song: Song, maxHeight: Int): Result<VideoFormat?> {
+            if (!song.isYouTube) return active.getVideoFormat(song, maxHeight)
             val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true }
                 ?: return Result.success(null)
             return runCatching {
@@ -242,6 +247,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         }
 
         override suspend fun getVideoHeights(song: Song): Result<List<Int>> {
+            if (!song.isYouTube) return active.getVideoHeights(song)
             val videoId = song.youTubeVideoId?.takeIf { song.isVideo && plugin.value?.videoAvailable == true }
                 ?: return Result.success(emptyList())
             return runCatching { jellyfinApi.getYouTubeVideoHeights(videoId) }
