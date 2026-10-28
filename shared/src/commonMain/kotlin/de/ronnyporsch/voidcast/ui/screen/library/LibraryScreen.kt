@@ -1374,7 +1374,7 @@ private fun PlaylistDetailPane(
     var query by remember(playlist?.id) { mutableStateOf("") }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.playlistDropTarget(playlist),
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(0.dp),
     ) {

@@ -662,7 +662,7 @@ fun App() {
 
                     is Screen.PlaylistSongs -> {
                         val vm = remember(screen.playlistId) {
-                            PlaylistDetailViewModel(screen.playlistId, repository)
+                            PlaylistDetailViewModel(screen.playlistId, repository, repository.playlistChanges)
                         }
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
+import de.ronnyporsch.voidcast.ui.components.playlistDropTarget
 import de.ronnyporsch.voidcast.ui.components.CollapsingTopBar
 import de.ronnyporsch.voidcast.ui.components.collapsingHeader
 import de.ronnyporsch.voidcast.ui.components.collapsingHeaderImage
@@ -57,7 +58,8 @@ fun PlaylistDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .playlistDropTarget(state.playlist),
     ) {
         CollapsingTopBar(
             onBack = onBack,

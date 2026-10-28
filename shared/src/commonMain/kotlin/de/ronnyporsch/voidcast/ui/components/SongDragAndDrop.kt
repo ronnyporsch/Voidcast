@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
+import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 
@@ -49,7 +51,7 @@ class SongDragAndDrop {
 
     internal fun moveTo(position: Offset) {
         this.position = position
-        hoveredTarget = targets.lastOrNull { position in it.bounds }
+        hoveredTarget = targets.lastOrNull { position in it.bounds && it.accepts(songs) }
     }
 
     internal fun drop() {
@@ -77,6 +79,7 @@ class SongDragAndDrop {
 class SongDropTarget internal constructor(private val dragAndDrop: SongDragAndDrop) {
     internal var bounds = Rect.Zero
     internal var onDrop: (List<Song>) -> Unit = {}
+    internal var accepts: (List<Song>) -> Boolean = { true }
 
     /** Songs are being dragged, so this target could take them. */
     val isActive: Boolean get() = dragAndDrop.isDragging
@@ -86,12 +89,16 @@ class SongDropTarget internal constructor(private val dragAndDrop: SongDragAndDr
 /** Null where songs can't be dragged (mobile, where touch drags scroll instead). */
 val LocalSongDragAndDrop = staticCompositionLocalOf<SongDragAndDrop?> { null }
 
-/** A drop target that gets [onDrop] called with the songs dropped on it, null where nothing can be dragged. */
+/**
+ * A drop target that gets [onDrop] called with the songs dropped on it, null where nothing can be dragged. Songs it
+ * doesn't [accept][accepts] pass over it as if it wasn't there.
+ */
 @Composable
-fun rememberSongDropTarget(onDrop: (List<Song>) -> Unit): SongDropTarget? {
+fun rememberSongDropTarget(accepts: (List<Song>) -> Boolean = { true }, onDrop: (List<Song>) -> Unit): SongDropTarget? {
     val dragAndDrop = LocalSongDragAndDrop.current ?: return null
     val target = remember(dragAndDrop) { SongDropTarget(dragAndDrop) }
     target.onDrop = onDrop
+    target.accepts = accepts
     DisposableEffect(target) {
         dragAndDrop.register(target)
         onDispose { dragAndDrop.unregister(target) }
@@ -102,6 +109,22 @@ fun rememberSongDropTarget(onDrop: (List<Song>) -> Unit): SongDropTarget? {
 /** Marks the area of [target]. Clipped by scrolling containers, so hidden parts don't take drops. */
 fun Modifier.songDropTarget(target: SongDropTarget?): Modifier =
     if (target == null) this else onGloballyPositioned { target.bounds = it.boundsInWindow() }
+
+/**
+ * Songs dragged onto the area, e.g. from the sidebar, get added to [playlist] (see [PlaylistEditor.addToPlaylist]);
+ * it gets a frame while they are over it. Songs that are all in the playlist already, e.g. dragged out of it, pass.
+ */
+@Composable
+fun Modifier.playlistDropTarget(playlist: Playlist?): Modifier {
+    val editor = LocalPlaylistEditor.current
+    if (playlist == null || editor == null) return this
+    val songIds = remember(playlist.songs) { playlist.songs.mapTo(mutableSetOf()) { it.id } }
+    val target = rememberSongDropTarget(
+        accepts = { songs -> songs.any { it.id !in songIds } },
+        onDrop = { songs -> editor.addToPlaylist(playlist, songs) },
+    ) ?: return this
+    return songDropTarget(target).border(2.dp, if (target.isHovered) AccentColor else Color.Transparent)
+}
 
 private class CoordinatesHolder {
     var coordinates: LayoutCoordinates? = null

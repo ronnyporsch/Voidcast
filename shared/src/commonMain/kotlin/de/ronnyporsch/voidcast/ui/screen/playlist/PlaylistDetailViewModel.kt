@@ -4,14 +4,21 @@ import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.ui.components.toggled
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 class PlaylistDetailViewModel(
     private val playlistId: String,
     private val repository: MusicRepository,
+    /** Ids of playlists that got changed, e.g. by songs dropped onto this one. */
+    playlistChanges: Flow<String> = emptyFlow(),
 ) : MviStore<PlaylistDetailState, PlaylistDetailEvent, PlaylistDetailEffect>(PlaylistDetailState()) {
 
     init {
         loadPlaylist()
+        launch {
+            playlistChanges.collect { if (it == playlistId) loadPlaylist(showLoading = false) }
+        }
     }
 
     override fun onEvent(event: PlaylistDetailEvent) {
