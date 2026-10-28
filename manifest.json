@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.4.0.0",
+        "changelog": "YouTube downloads: album and genre can be set, intro and outro cut off; the tags can also be edited when adding to a playlist\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.4.0/voidcast_1.4.0.0.zip",
+        "checksum": "094b3dadb17cda78a53a8402cb57e89a",
+        "timestamp": "2026-10-28T18:36:24Z"
+      },
+      {
         "version": "1.2.1.0",
         "changelog": "Plugin: Fixed YouTube album parsing",
         "targetAbi": "12.2.0.0",
