@@ -36,7 +36,9 @@ import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
+import de.ronnyporsch.voidcast.ui.theme.SpotifyWhite
 
 /**
  * Downloads a YouTube Music song into the server's library and shows the progress. Asks for the tags and the part to
@@ -148,58 +150,58 @@ fun YouTubeDownloadDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
-                OutlinedTextField(
+                TagField(
                     value = songTitle,
                     onValueChange = { songTitle = it },
-                    label = { Text("Title") },
+                    label = "Title",
                     singleLine = true,
                     isError = songTitle.isBlank(),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TagField(
                     value = artist,
                     onValueChange = { artist = it },
-                    label = { Text("Artist") },
+                    label = "Artist",
                     supportingText = { Text("The credit as displayed, e.g. \"Daft Punk feat. Pharrell Williams\"") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TagField(
                     value = artists,
                     onValueChange = { artists = it },
-                    label = { Text("Artists") },
+                    label = "Artists",
                     supportingText = { Text("Each artist on its own line") },
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TagField(
                     value = album,
                     onValueChange = { album = it },
-                    label = { Text("Album") },
+                    label = "Album",
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TagField(
                     value = genre,
                     onValueChange = { genre = it },
-                    label = { Text("Genre") },
+                    label = "Genre",
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    TagField(
                         value = start,
                         onValueChange = { start = it },
-                        label = { Text("Start") },
+                        label = "Start",
                         supportingText = { Text("Cuts off an intro") },
                         singleLine = true,
                         isError = !startValid,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    TagField(
                         value = end,
                         onValueChange = { end = it },
-                        label = { Text("End") },
+                        label = "End",
                         supportingText = { Text("Cuts off an outro") },
                         singleLine = true,
                         isError = !endValid,
@@ -246,6 +248,34 @@ fun PendingYouTubeAdditionDialog(editor: PlaylistEditor) {
         },
         onKeepRest = if (isLast) null else ({ editor.finishYouTube(pending, requests.toList()) }),
         onDismiss = { editor.finishYouTube(pending, null) },
+    )
+}
+
+/**
+ * Text field of [YouTubeDownloadDialog]. The dialog's text style is grey, which would color the input; the input is
+ * white and the label, which stands in for a placeholder while the field is empty, grey.
+ */
+@Composable
+private fun TagField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    supportingText: @Composable (() -> Unit)? = null,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    isError: Boolean = false,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, color = SearchPlaceholderGray) },
+        supportingText = supportingText,
+        singleLine = singleLine,
+        minLines = minLines,
+        isError = isError,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = SpotifyWhite),
+        modifier = modifier,
     )
 }
 
