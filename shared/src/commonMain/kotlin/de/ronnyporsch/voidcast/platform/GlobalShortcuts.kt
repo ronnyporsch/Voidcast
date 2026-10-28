@@ -46,6 +46,10 @@ object GlobalShortcuts {
     /** Pauses or resumes playback. */
     val playPause: SharedFlow<Unit> = _playPause.asSharedFlow()
 
+    private val _toggleVideoFullscreen = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Enters or leaves fullscreen for the video playing; only collected while one is. */
+    val toggleVideoFullscreen: SharedFlow<Unit> = _toggleVideoFullscreen.asSharedFlow()
+
     /**
      * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS), F5 and Ctrl+R reload what is
      * shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
@@ -67,7 +71,7 @@ object GlobalShortcuts {
 
     /**
      * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS), Right/Left seek 5 s forward/back, Space pauses
-     * or resumes. Only for key events nothing else handled, as text fields move the cursor with them and type spaces.
+     * or resumes, F enters or leaves fullscreen for a video. Only for key events nothing else handled, as text fields move the cursor with them and type spaces.
      */
     fun onUnhandledKeyEvent(event: KeyEvent): Boolean {
         // Text fields only take the typed character, not the key press, so react to the former
@@ -75,6 +79,11 @@ object GlobalShortcuts {
             !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed
         ) {
             return requestPlayPause()
+        }
+        if (event.type == KeyEventType.Unknown && (event.utf16CodePoint == 'f'.code || event.utf16CodePoint == 'F'.code) &&
+            !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed
+        ) {
+            return requestToggleVideoFullscreen()
         }
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isShiftPressed || event.isAltPressed) return false
@@ -118,6 +127,13 @@ object GlobalShortcuts {
 
     fun requestPlayPause(): Boolean {
         _playPause.tryEmit(Unit)
+        return true
+    }
+
+    /** Returns false if no video is playing, so F does what it does otherwise. */
+    fun requestToggleVideoFullscreen(): Boolean {
+        if (_toggleVideoFullscreen.subscriptionCount.value == 0) return false
+        _toggleVideoFullscreen.tryEmit(Unit)
         return true
     }
 }

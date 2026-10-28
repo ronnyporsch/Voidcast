@@ -387,6 +387,11 @@ fun App() {
         LaunchedEffect(showVideoFullscreen) {
             if (!showVideoFullscreen && videoFullscreen) setVideoFullscreen(false)
         }
+        // F toggles it, but only while a video is playing
+        val videoPlaying = playerState.isVideo && hasSong
+        LaunchedEffect(videoPlaying) {
+            if (videoPlaying) GlobalShortcuts.toggleVideoFullscreen.collect { setVideoFullscreen(!videoFullscreen) }
+        }
         // Phones: a video on the player screen goes fullscreen in landscape orientation, like in YouTube's app
         val windowSize = LocalWindowInfo.current.containerSize
         val isLandscape = windowSize.width > windowSize.height
@@ -555,7 +560,7 @@ fun App() {
                     .fillMaxSize()
                     .padding(padding)
                     .onKeyEvent { event ->
-                        if (isMobile && onSeekKey(event, playerViewModel)) return@onKeyEvent true
+                        if (isMobile && (onSeekKey(event, playerViewModel) || onFullscreenKey(event))) return@onKeyEvent true
                         if (event.type == KeyEventType.KeyUp) {
                             when (event.key) {
                                 Key.MediaPlayPause -> {
@@ -821,7 +826,7 @@ fun App() {
                     .focusRequester(focusRequester)
                     .focusable()
                     .onKeyEvent { event ->
-                        if (isMobile && onSeekKey(event, playerViewModel)) return@onKeyEvent true
+                        if (isMobile && (onSeekKey(event, playerViewModel) || onFullscreenKey(event))) return@onKeyEvent true
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                             setVideoFullscreen(false)
                             true
@@ -860,6 +865,12 @@ private fun onSeekKey(event: KeyEvent, playerViewModel: PlayerViewModel): Boolea
     }
     playerViewModel.onEvent(seekStep(forward))
     return true
+}
+
+/** Android (e.g. a keyboard or remote): F enters or leaves fullscreen for a video, see [onSeekKey]. */
+private fun onFullscreenKey(event: KeyEvent): Boolean {
+    if (event.type != KeyEventType.KeyDown || event.isCtrlPressed || event.isMetaPressed || event.isAltPressed) return false
+    return event.key == Key.F && GlobalShortcuts.requestToggleVideoFullscreen()
 }
 
 private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, startIndex: Int, shuffle: Boolean?) {

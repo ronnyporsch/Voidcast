@@ -28,6 +28,14 @@ actual fun installGlobalShortcutListener() {
             event.stopPropagation()
             return@addEventListener
         }
+        // F enters or leaves fullscreen for a video, unless it's typed into a text field
+        if (event.key.lowercase() == "f" && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextInputFocused()) {
+            if (event.repeat || GlobalShortcuts.requestToggleVideoFullscreen()) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            return@addEventListener
+        }
         if (!event.ctrlKey && !event.metaKey) return@addEventListener
         val handled = when (event.key.lowercase()) {
             "k" -> {
