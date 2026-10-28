@@ -2,6 +2,7 @@ package de.ronnyporsch.voidcast.platform
 
 import de.ronnyporsch.voidcast.domain.model.AppSettings
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
+import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import java.util.prefs.Preferences
 
@@ -16,6 +17,8 @@ actual fun saveSettings(settings: AppSettings) {
     prefs.putBoolean("gaplessEnabled", settings.playback.gaplessEnabled)
     prefs.putBoolean("crossfadeEnabled", settings.playback.crossfadeEnabled)
     prefs.putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
+    prefs.putBoolean("shuffle", settings.playback.shuffle)
+    prefs.put("repeatMode", settings.playback.repeatMode.name)
     prefs.put("jellyfinDeviceId", settings.jellyfinDeviceId)
     prefs.put("libraryView", settings.libraryView.encode())
     prefs.flush()
@@ -34,6 +37,8 @@ actual fun loadSettings(): AppSettings? {
             gaplessEnabled = prefs.getBoolean("gaplessEnabled", false),
             crossfadeEnabled = prefs.getBoolean("crossfadeEnabled", false),
             crossfadeDurationSeconds = prefs.getInt("crossfadeDurationSeconds", 5),
+            shuffle = prefs.getBoolean("shuffle", false),
+            repeatMode = RepeatMode.entries.firstOrNull { it.name == prefs.get("repeatMode", "") } ?: RepeatMode.Off,
         ),
         jellyfinDeviceId = prefs.get("jellyfinDeviceId", "") ?: "",
         libraryView = decodeLibraryView(prefs.get("libraryView", null)),

@@ -14,6 +14,9 @@ data class PlaybackSettings(
     val crossfadeDurationSeconds: Int = 5,
     /** Highest video resolution (height in pixels) to stream, e.g. 1080 for 1080p. */
     val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
+    /** The player's shuffle and repeat mode, kept across app restarts. */
+    val shuffle: Boolean = false,
+    val repeatMode: RepeatMode = RepeatMode.Off,
 )
 
 const val DEFAULT_VIDEO_QUALITY = 1080

@@ -2,6 +2,7 @@ package de.ronnyporsch.voidcast.platform
 
 import de.ronnyporsch.voidcast.domain.model.AppSettings
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
+import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import kotlinx.browser.window
 
@@ -15,6 +16,8 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("gaplessEnabled", settings.playback.gaplessEnabled.toString())
     storage.setItem("crossfadeEnabled", settings.playback.crossfadeEnabled.toString())
     storage.setItem("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds.toString())
+    storage.setItem("shuffle", settings.playback.shuffle.toString())
+    storage.setItem("repeatMode", settings.playback.repeatMode.name)
     storage.setItem("jellyfinDeviceId", settings.jellyfinDeviceId)
     storage.setItem("libraryView", settings.libraryView.encode())
 }
@@ -33,6 +36,8 @@ actual fun loadSettings(): AppSettings? {
             gaplessEnabled = storage.getItem("gaplessEnabled")?.toBooleanStrictOrNull() ?: false,
             crossfadeEnabled = storage.getItem("crossfadeEnabled")?.toBooleanStrictOrNull() ?: false,
             crossfadeDurationSeconds = storage.getItem("crossfadeDurationSeconds")?.toIntOrNull() ?: 5,
+            shuffle = storage.getItem("shuffle")?.toBooleanStrictOrNull() ?: false,
+            repeatMode = RepeatMode.entries.firstOrNull { it.name == storage.getItem("repeatMode") } ?: RepeatMode.Off,
         ),
         jellyfinDeviceId = storage.getItem("jellyfinDeviceId") ?: "",
         libraryView = decodeLibraryView(storage.getItem("libraryView")),

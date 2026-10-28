@@ -31,7 +31,11 @@ class PlayerViewModel(
     private val history: PlayHistory,
     /** Null where there is no remote control, e.g. in tests. */
     private val remote: RemoteControl? = null,
-) : MviStore<PlayerState, PlayerEvent, PlayerEffect>(PlayerState()) {
+) : MviStore<PlayerState, PlayerEvent, PlayerEffect>(
+    PlayerState(
+        playback = settingsHolder.settings.value.playback.let { PlaybackState(shuffle = it.shuffle, repeatMode = it.repeatMode) },
+    )
+) {
 
     private var hasAutoAdvanced = false
     private var hasPreparedNext = false
@@ -199,6 +203,15 @@ class PlayerViewModel(
                 .distinctUntilChanged { old, new -> old?.id == new?.id }
                 // Songs played on other devices are in their history
                 .collect { song -> if (song != null && remoteSessionId == null) history.add(song) }
+        }
+        launch {
+            // Remembered for the next app start; a remote device's modes are its own
+            state.map { it.playback.shuffle to it.playback.repeatMode }.distinctUntilChanged().collect { (shuffle, repeatMode) ->
+                val saved = settingsHolder.settings.value.playback
+                if (remoteSessionId == null && (saved.shuffle != shuffle || saved.repeatMode != repeatMode)) {
+                    settingsHolder.update { copy(playback = playback.copy(shuffle = shuffle, repeatMode = repeatMode)) }
+                }
+            }
         }
         launch {
             settingsHolder.settings.collectLatest { settings ->

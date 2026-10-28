@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.screen.settings
 
+import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import androidx.lifecycle.viewModelScope
 import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.repository.MusicServerConnection
@@ -60,15 +61,15 @@ class SettingsViewModel(
                 setState { copy(allowUntrustedCertificate = event.allow, error = null) }
             is SettingsEvent.GaplessToggled -> {
                 setState { copy(gaplessEnabled = event.enabled) }
-                updatePlaybackSettings()
+                updatePlaybackSettings { copy(gaplessEnabled = event.enabled) }
             }
             is SettingsEvent.CrossfadeToggled -> {
                 setState { copy(crossfadeEnabled = event.enabled) }
-                updatePlaybackSettings()
+                updatePlaybackSettings { copy(crossfadeEnabled = event.enabled) }
             }
             is SettingsEvent.CrossfadeDurationChanged -> {
                 setState { copy(crossfadeDurationSeconds = event.seconds) }
-                updatePlaybackSettings()
+                updatePlaybackSettings { copy(crossfadeDurationSeconds = event.seconds) }
             }
             is SettingsEvent.Reconnect -> reconnect()
             is SettingsEvent.Logout -> logout()
@@ -84,17 +85,9 @@ class SettingsViewModel(
         }
     }
 
-    private fun updatePlaybackSettings() {
-        val state = currentState
-        settingsHolder.update {
-            copy(
-                playback = playback.copy(
-                    gaplessEnabled = state.gaplessEnabled,
-                    crossfadeEnabled = state.crossfadeEnabled,
-                    crossfadeDurationSeconds = state.crossfadeDurationSeconds,
-                )
-            )
-        }
+    // Only the changed setting: the others may have changed elsewhere since, e.g. crossfade in the player
+    private fun updatePlaybackSettings(transform: PlaybackSettings.() -> PlaybackSettings) {
+        settingsHolder.update { copy(playback = playback.transform()) }
     }
 
     private fun reconnect() {

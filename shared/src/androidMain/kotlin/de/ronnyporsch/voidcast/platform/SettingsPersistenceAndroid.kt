@@ -3,6 +3,7 @@ package de.ronnyporsch.voidcast.platform
 import android.content.Context
 import de.ronnyporsch.voidcast.domain.model.AppSettings
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
+import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.ServerType
 
 private val prefs by lazy {
@@ -19,6 +20,8 @@ actual fun saveSettings(settings: AppSettings) {
         .putBoolean("gaplessEnabled", settings.playback.gaplessEnabled)
         .putBoolean("crossfadeEnabled", settings.playback.crossfadeEnabled)
         .putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
+        .putBoolean("shuffle", settings.playback.shuffle)
+        .putString("repeatMode", settings.playback.repeatMode.name)
         .putString("jellyfinDeviceId", settings.jellyfinDeviceId)
         .putString("libraryView", settings.libraryView.encode())
         .apply()
@@ -38,6 +41,8 @@ actual fun loadSettings(): AppSettings? {
             gaplessEnabled = p.getBoolean("gaplessEnabled", false),
             crossfadeEnabled = p.getBoolean("crossfadeEnabled", false),
             crossfadeDurationSeconds = p.getInt("crossfadeDurationSeconds", 5),
+            shuffle = p.getBoolean("shuffle", false),
+            repeatMode = RepeatMode.entries.firstOrNull { it.name == p.getString("repeatMode", "") } ?: RepeatMode.Off,
         ),
         jellyfinDeviceId = p.getString("jellyfinDeviceId", "") ?: "",
         libraryView = decodeLibraryView(p.getString("libraryView", null)),
