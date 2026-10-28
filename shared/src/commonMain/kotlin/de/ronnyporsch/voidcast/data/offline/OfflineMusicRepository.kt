@@ -107,6 +107,10 @@ class OfflineMusicRepository(
 
     override fun getStreamUrl(songId: String): String = files?.uriOf(songId) ?: server.getStreamUrl(songId)
 
+    // Downloaded covers also show while the server can't be reached
+    override fun getCoverArtUrl(coverArtId: String, size: Int): String =
+        files?.coverUriOf(coverArtId) ?: server.getCoverArtUrl(coverArtId, size)
+
     private suspend fun library() = OfflineLibrary(downloads.downloadedSongs())
 
     /** Tells about a change of a playlist made without this repository, e.g. by the server. */

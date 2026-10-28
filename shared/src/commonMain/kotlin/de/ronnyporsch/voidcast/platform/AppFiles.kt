@@ -15,6 +15,14 @@ interface SongFileStore {
     suspend fun download(songId: String, url: String)
 
     suspend fun delete(songId: String)
+
+    /** URI of the downloaded cover art with [coverArtId], or null if it isn't downloaded. */
+    fun coverUriOf(coverArtId: String): String?
+
+    /** Downloads [url] as the cover art with [coverArtId]. Throws if that fails. */
+    suspend fun downloadCover(coverArtId: String, url: String)
+
+    suspend fun deleteCover(coverArtId: String)
 }
 
 /** Null where songs can't be downloaded. */

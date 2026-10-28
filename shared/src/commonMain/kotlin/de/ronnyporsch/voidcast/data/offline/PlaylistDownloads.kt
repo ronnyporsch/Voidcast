@@ -59,7 +59,7 @@ data class PlaylistDownloadStatus(
 
 /**
  * Playlists, albums and songs the user downloaded for offline playback. Their songs are downloaded in original quality
- * into [files]; playlists and albums are kept in sync with the server: songs added to them get downloaded, removed ones
+ * into [files], along with their cover art; playlists and albums are kept in sync with the server: songs added to them get downloaded, removed ones
  * deleted. A song's file stays as long as a downloaded playlist or album contains it or it got downloaded on its own.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -142,7 +142,7 @@ class PlaylistDownloads(
             jobs.remove(key(server, playlistId))?.cancelAndJoin()
             val entry = entry(server, playlistId) ?: return@launch
             save(load() - entry)
-            deleteUnused(entry.playlist.songs.map { it.id })
+            deleteUnused(entry.playlist.songs, listOf(entry.playlist.coverArtId))
             publish()
         }
     }
@@ -166,7 +166,7 @@ class PlaylistDownloads(
             jobs.remove(albumKey(server, albumId))?.cancelAndJoin()
             val entry = albumEntry(server, albumId) ?: return@launch
             saveAlbums(loadAlbums() - entry)
-            deleteUnused(entry.songs.map { it.id })
+            deleteUnused(entry.songs, listOf(entry.coverArtId))
             publish()
         }
     }
@@ -193,7 +193,7 @@ class PlaylistDownloads(
             // A running download of one of them must not write its file after the deletion
             jobs.remove(songsKey(server))?.cancelAndJoin()
             saveSongs(loadSongs() - removed.toSet())
-            deleteUnused(removed.map { it.song.id })
+            deleteUnused(removed.map { it.song })
             syncSongs(server)
         }
     }
@@ -272,10 +272,13 @@ class PlaylistDownloads(
                 val entry = entry(server, playlistId) ?: return@launch
                 if (serverKey() != server) return@launch
                 save(load().map { if (it == entry) entry.copy(playlist = fresh) else it })
-                deleteUnused(entry.playlist.songs.map { it.id } - fresh.songs.mapTo(mutableSetOf()) { it.id })
+                val freshIds = fresh.songs.mapTo(mutableSetOf()) { it.id }
+                deleteUnused(entry.playlist.songs.filterNot { it.id in freshIds }, listOf(entry.playlist.coverArtId))
             }
             publish()
-            downloadMissing(files, server, entry(server, playlistId)?.playlist?.songs.orEmpty())
+            val playlist = entry(server, playlistId)?.playlist
+            downloadCovers(files, listOf(playlist?.coverArtId))
+            downloadMissing(files, server, playlist?.songs.orEmpty())
         }.also { job ->
             job.invokeOnCompletion {
                 scope.launch {
@@ -297,10 +300,13 @@ class PlaylistDownloads(
                 val entry = albumEntry(server, albumId) ?: return@launch
                 if (serverKey() != server) return@launch
                 saveAlbums(loadAlbums().map { if (it == entry) entry.copy(name = fresh.name, songs = fresh.songs, artist = fresh.artist, coverArtId = fresh.coverArtId) else it })
-                deleteUnused(entry.songs.map { it.id } - fresh.songs.mapTo(mutableSetOf()) { it.id })
+                val freshIds = fresh.songs.mapTo(mutableSetOf()) { it.id }
+                deleteUnused(entry.songs.filterNot { it.id in freshIds }, listOf(entry.coverArtId))
             }
             publish()
-            downloadMissing(files, server, albumEntry(server, albumId)?.songs.orEmpty())
+            val album = albumEntry(server, albumId)
+            downloadCovers(files, listOf(album?.coverArtId))
+            downloadMissing(files, server, album?.songs.orEmpty())
         }.also { job ->
             job.invokeOnCompletion {
                 scope.launch {
@@ -336,6 +342,8 @@ class PlaylistDownloads(
     }
 
     private suspend fun downloadMissing(files: SongFileStore, server: String, songs: List<Song>) {
+        // Also for songs downloaded before covers were kept
+        downloadCovers(files, songs.map { it.coverArtId })
         for (song in songs.distinctBy { it.id }) {
             if (files.uriOf(song.id) != null) continue
             if (serverKey() != server) break
@@ -354,13 +362,34 @@ class PlaylistDownloads(
         }
     }
 
-    /** Deletes the files of [songIds] that no downloaded playlist or album nor a single download (of any server) needs anymore. */
-    private suspend fun deleteUnused(songIds: Collection<String>) {
+    /** Downloads the missing ones of [coverArtIds]; a cover that can't be downloaded doesn't hold up the songs. */
+    private suspend fun downloadCovers(files: SongFileStore, coverArtIds: List<String?>) {
+        for (coverArtId in coverArtIds.filterNotNull().distinct()) {
+            if (files.coverUriOf(coverArtId) != null) continue
+            try {
+                files.downloadCover(coverArtId, repository.getCoverArtUrl(coverArtId, COVER_SIZE))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // E.g. offline; the next sync tries again
+            }
+        }
+    }
+
+    /**
+     * Deletes the files of [songs] and the covers of them and [coverArtIds] that no downloaded playlist or album nor
+     * a single download (of any server) needs anymore.
+     */
+    private suspend fun deleteUnused(songs: Collection<Song>, coverArtIds: Collection<String?> = emptyList()) {
         val files = files ?: return
-        val used = load().flatMapTo(mutableSetOf()) { entry -> entry.playlist.songs.map { it.id } }
-        loadAlbums().flatMapTo(used) { entry -> entry.songs.map { it.id } }
-        loadSongs().mapTo(used) { it.song.id }
-        songIds.filterNot { it in used }.forEach { files.delete(it) }
+        val usedSongs = load().flatMap { it.playlist.songs } + loadAlbums().flatMap { it.songs } + loadSongs().map { it.song }
+        val usedIds = usedSongs.mapTo(mutableSetOf()) { it.id }
+        songs.map { it.id }.distinct().filterNot { it in usedIds }.forEach { files.delete(it) }
+        val usedCovers = (usedSongs.map { it.coverArtId } + load().map { it.playlist.coverArtId } + loadAlbums().map { it.coverArtId })
+            .filterNotNullTo(mutableSetOf())
+        (songs.map { it.coverArtId } + coverArtIds).filterNotNull().distinct()
+            .filterNot { it in usedCovers }
+            .forEach { files.deleteCover(it) }
     }
 
     private suspend fun publish() {
@@ -458,5 +487,7 @@ class PlaylistDownloads(
         const val SONGS_FILE_NAME = "downloaded-songs.json"
         const val ALBUMS_FILE_NAME = "downloaded-albums.json"
         const val SYNC_INTERVAL = 15 * 60 * 1000L
+        /** Of the downloaded covers; large enough for the media notification, see AppSession. */
+        const val COVER_SIZE = 512
     }
 }
