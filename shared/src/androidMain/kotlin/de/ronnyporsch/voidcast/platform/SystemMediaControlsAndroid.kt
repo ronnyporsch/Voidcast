@@ -14,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.MediaController
@@ -77,11 +78,12 @@ class PlaybackService : MediaLibraryService() {
         val sessionActivity = PendingIntent.getActivity(
             this, 0, launchIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        // Cover art goes through the app's HTTP client, so it works with an allowed untrusted certificate
+        // Cover art goes through the app's HTTP client, so it works with an allowed untrusted certificate;
+        // downloaded covers are local files, which the default data source reads itself
         val bitmapLoader = CacheBitmapLoader(
             DataSourceBitmapLoader(
                 DataSourceBitmapLoader.DEFAULT_EXECUTOR_SERVICE.get(),
-                OkHttpDataSource.Factory(sharedOkHttpClient),
+                DefaultDataSource.Factory(this, OkHttpDataSource.Factory(sharedOkHttpClient)),
             )
         )
         val library = MediaLibraryCallback(app.connection).also { library = it }
