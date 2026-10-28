@@ -17,7 +17,7 @@ cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in t
 - Gapless playback and crossfade
 - Offline listening on Android.
 - Remote control of other devices.
-- YouTube music videos
+- Music videos (from YouTube and Jellyfin).
 - basic support for Navidrome and other Subsonic servers (YouTube integration and remote control require Jellyfin instead).
 
 ## Requirements
