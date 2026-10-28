@@ -31,13 +31,21 @@ object GlobalShortcuts {
     /** Skips to the next song (true) or the previous one (false). */
     val skip: SharedFlow<Boolean> = _skip.asSharedFlow()
 
+    private val _refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Reloads what the screen (and the sidebar) shows. */
+    val refresh: SharedFlow<Unit> = _refresh.asSharedFlow()
+
     private val _playPause = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Pauses or resumes playback. */
     val playPause: SharedFlow<Unit> = _playPause.asSharedFlow()
 
-    /** Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS). */
+    /**
+     * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS), F5 and Ctrl+R reload what is
+     * shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
+     */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.type != KeyEventType.KeyDown) return false
+        if (event.key == Key.F5 && !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed) return requestRefresh()
         if (!event.isCtrlPressed && !event.isMetaPressed) return false
         return when (event.key) {
             Key.K -> {
@@ -45,6 +53,7 @@ object GlobalShortcuts {
                 true
             }
             Key.F -> requestFilterFocus()
+            Key.R -> requestRefresh()
             else -> false
         }
     }
@@ -82,6 +91,11 @@ object GlobalShortcuts {
 
     fun requestSkip(next: Boolean): Boolean {
         _skip.tryEmit(next)
+        return true
+    }
+
+    fun requestRefresh(): Boolean {
+        _refresh.tryEmit(Unit)
         return true
     }
 

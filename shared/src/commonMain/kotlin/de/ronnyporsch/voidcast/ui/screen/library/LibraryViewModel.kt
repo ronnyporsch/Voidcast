@@ -93,7 +93,11 @@ class LibraryViewModel(
                 // Show the start of the reordered list
                 launch { sidebarStates.getValue(view.category).scrollToItem(0) }
             }
-            is LibraryEvent.Refresh -> loadAll()
+            is LibraryEvent.Refresh -> {
+                loadAll()
+                // Desktop: what the detail pane shows may have changed on the server too
+                if (!getPlatform().isMobile) currentState.selection?.let(::show)
+            }
             is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
             is LibraryEvent.DownloadPlaylist -> downloads?.download(event.playlist)
             is LibraryEvent.RemovePlaylistDownload -> downloads?.remove(event.playlist.id)
@@ -102,15 +106,7 @@ class LibraryViewModel(
                 val expanded = view.expandedPlaylistFolders
                 setView(view.copy(expandedPlaylistFolders = if (event.folder in expanded) expanded - event.folder else expanded + event.folder))
             }
-            is LibraryEvent.Show -> if (currentState.selection?.key != event.selection.key) {
-                when (val selection = event.selection) {
-                    is LibrarySelection.Artist -> onEvent(LibraryEvent.ArtistClicked(selection.artist))
-                    is LibrarySelection.Album -> onEvent(LibraryEvent.AlbumClicked(selection.album))
-                    is LibrarySelection.Playlist -> selectPlaylist(selection.playlistId)
-                    LibrarySelection.FavoriteSongs -> onEvent(LibraryEvent.FavoriteSongsClicked)
-                    is LibrarySelection.Genre -> onEvent(LibraryEvent.GenreClicked(selection.genre))
-                }
-            }
+            is LibraryEvent.Show -> if (currentState.selection?.key != event.selection.key) show(event.selection)
             is LibraryEvent.ArtistClicked -> {
                 setState {
                     copy(
@@ -374,6 +370,17 @@ class LibraryViewModel(
             }
             ensureDefaultSelection()
             loadTabData(currentState.category)
+        }
+    }
+
+    /** Shows [selection] in the detail pane, loading it afresh. */
+    private fun show(selection: LibrarySelection) {
+        when (selection) {
+            is LibrarySelection.Artist -> onEvent(LibraryEvent.ArtistClicked(selection.artist))
+            is LibrarySelection.Album -> onEvent(LibraryEvent.AlbumClicked(selection.album))
+            is LibrarySelection.Playlist -> selectPlaylist(selection.playlistId)
+            LibrarySelection.FavoriteSongs -> onEvent(LibraryEvent.FavoriteSongsClicked)
+            is LibrarySelection.Genre -> onEvent(LibraryEvent.GenreClicked(selection.genre))
         }
     }
 

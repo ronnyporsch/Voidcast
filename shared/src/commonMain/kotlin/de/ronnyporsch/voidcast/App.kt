@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -65,6 +66,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import de.ronnyporsch.voidcast.ui.components.LocalFavorites
 import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.PendingYouTubeAdditionDialog
+import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
 import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
@@ -281,17 +283,23 @@ fun App() {
     val selectionBarHost = remember { SelectionBarHost() }
     val autoLoginStatus by session.autoLoginStatus.collectAsState()
 
-    // Pulling down a screen tries to reach the server again, or once connected reloads what the screen shows
+    // Pulling down a screen (mobile) or the refresh button (desktop) tries to reach the server again, or once
+    // connected reloads what the screen shows
     var screenGeneration by remember { mutableIntStateOf(0) }
     val refresh: suspend () -> Unit = {
         val status = session.autoLoginStatus.value
+        val screen = navigator.currentScreen.value
+        // Desktop: the sidebar next to the screen shows the library as well
+        if (screen !is Screen.Library && !getPlatform().isMobile && status is AutoLoginStatus.Connected) {
+            libraryViewModel.onEvent(LibraryEvent.Refresh)
+        }
         when {
             status is AutoLoginStatus.Retrying -> {
                 session.retryConnection()
                 session.autoLoginStatus.first { it != status }
             }
             status == AutoLoginStatus.Connecting -> session.autoLoginStatus.first { it != status }
-            else -> when (navigator.currentScreen.value) {
+            else -> when (screen) {
                 is Screen.Library -> coroutineScope {
                     launch { connection.favorites.reload() }
                     libraryViewModel.onEvent(LibraryEvent.Refresh)
@@ -302,6 +310,26 @@ fun App() {
                 // Their view models load everything again when created
                 else -> screenGeneration++
             }
+        }
+    }
+
+    var refreshing by remember { mutableStateOf(false) }
+    val startRefresh = {
+        if (!refreshing) {
+            refreshing = true
+            scope.launch {
+                try {
+                    refresh()
+                } finally {
+                    refreshing = false
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        GlobalShortcuts.refresh.collect {
+            val screen = navigator.currentScreen.value
+            if (screen !is Screen.Login && screen !is Screen.Player) startRefresh()
         }
     }
 
@@ -454,6 +482,16 @@ fun App() {
                             ),
                             shape = RoundedCornerShape(8.dp),
                         )
+                        // Touch screens pull the screen down instead
+                        if (!isMobile) {
+                            TooltipIconButton(
+                                onClick = startRefresh,
+                                icon = Icons.Default.Refresh,
+                                contentDescription = "Refresh (F5)",
+                                tint = SpotifyLightGray,
+                                enabled = !refreshing,
+                            )
+                        }
                         val deviceDownloads = connection.downloads.takeIf { it.isSupported }
                         DownloadsButton(youTube, deviceDownloads, isOpen = currentScreen is Screen.Downloads) {
                             if (currentScreen is Screen.Downloads) {
@@ -539,19 +577,9 @@ fun App() {
             // Only touch screens: a mouse wheel scrolled up at the top would pull too
             val canRefresh = isMobile && currentScreen !is Screen.Login && currentScreen !is Screen.Player &&
                 currentScreen !is Screen.Queue
-            var refreshing by remember { mutableStateOf(false) }
             PullToRefreshBox(
                 isRefreshing = refreshing,
-                onRefresh = {
-                    refreshing = true
-                    scope.launch {
-                        try {
-                            refresh()
-                        } finally {
-                            refreshing = false
-                        }
-                    }
-                },
+                onRefresh = startRefresh,
                 enabled = canRefresh,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             ) {
