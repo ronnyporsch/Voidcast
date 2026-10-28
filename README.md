@@ -13,12 +13,12 @@ cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in t
 - Manage playlists and favorites.
 - Browse the library by playlists, artists, albums, songs, genres or favorites, sorted alphabetically, by release date or by date added, either way round.
 - Select several songs or albums: with Ctrl- and Shift-clicks on the desktop, on Android by long pressing and moving the finger across them, like in a photo gallery.
-- Synced lyrics.
+- Support for Synced lyrics.
 - Gapless playback and crossfade
 - Offline listening on Android.
 - Remote control of other devices.
 - Music videos (from YouTube and Jellyfin).
-- basic support for Navidrome and other Subsonic servers (YouTube integration and remote control require Jellyfin instead).
+- Basic support for Navidrome and other Subsonic servers (YouTube integration and remote control require Jellyfin instead).
 
 ## Requirements
 
