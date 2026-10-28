@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
 import de.ronnyporsch.voidcast.domain.model.AudioStreamInfo
+import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Song
@@ -32,7 +33,7 @@ sealed class AlbumDetailEvent {
     data object ShuffleAll : AlbumDetailEvent()
     data class ArtistClicked(val artistName: String) : AlbumDetailEvent()
     /** Downloads a YouTube Music song into the library. */
-    data class DownloadSong(val song: Song) : AlbumDetailEvent()
+    data class DownloadSong(val request: YouTubeDownloadRequest) : AlbumDetailEvent()
     /** Downloads all songs of a YouTube Music album into the library. */
     data object DownloadAll : AlbumDetailEvent()
 }

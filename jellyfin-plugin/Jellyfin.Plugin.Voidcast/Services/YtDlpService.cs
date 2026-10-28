@@ -213,15 +213,29 @@ public partial class YtDlpService
     /// <summary>
     /// Downloads the best audio stream of <paramref name="videoId"/> into <paramref name="directory"/> as
     /// <c>audio.&lt;ext&gt;</c>, remuxed into an audio container without re-encoding (e.g. webm -> opus),
-    /// or converted when <paramref name="audioFormat"/> is given. Returns the file.
+    /// or converted when <paramref name="audioFormat"/> is given. Only the part from <paramref name="startTime"/> to
+    /// <paramref name="endTime"/> (in seconds) gets downloaded if either is given. Returns the file.
     /// </summary>
-    public async Task<string> DownloadAudioAsync(string videoId, string directory, string? audioFormat, CancellationToken cancellationToken)
+    public async Task<string> DownloadAudioAsync(
+        string videoId,
+        string directory,
+        string? audioFormat,
+        CancellationToken cancellationToken,
+        int? startTime = null,
+        int? endTime = null)
     {
         RequireValidId(videoId);
         List<string> args = ["--no-playlist", "--quiet", "--no-warnings", .. BestAudio, "-x"];
         if (audioFormat != null)
         {
             args.AddRange(["--audio-format", audioFormat, "--audio-quality", "0"]);
+        }
+
+        if (startTime != null || endTime != null)
+        {
+            var start = (startTime ?? 0).ToString(CultureInfo.InvariantCulture);
+            var end = endTime?.ToString(CultureInfo.InvariantCulture) ?? "inf";
+            args.AddRange(["--download-sections", $"*{start}-{end}"]);
         }
 
         args.AddRange(["-o", Path.Combine(directory, "audio.%(ext)s"), YouTubeMusicClient.WatchUrl(videoId)]);

@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.search
 
 import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
@@ -47,7 +48,7 @@ sealed class SearchEvent {
     data class SongRangeSelected(val index: Int) : SearchEvent()
     data class YouTubeSongClicked(val song: Song, val index: Int) : SearchEvent()
     data class YouTubeSongDoubleClicked(val song: Song, val index: Int) : SearchEvent()
-    data class DownloadYouTubeSong(val song: Song) : SearchEvent()
+    data class DownloadYouTubeSong(val request: YouTubeDownloadRequest) : SearchEvent()
 }
 
 sealed class SearchEffect {

@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.data.jellyfin.PlaylistAdditionDto
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
+import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.data.youtube.YouTubeService
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.Playlist
@@ -64,6 +66,10 @@ class PlaylistEditor(
 ) {
     /** Whether YouTube Music songs can be added to playlists. */
     val canAddYouTube: Boolean get() = youTube?.currentCapabilities?.addToPlaylists == true
+
+    private val _pendingYouTube = MutableStateFlow<List<PendingYouTubeAddition>>(emptyList())
+    /** YouTube Music songs to add to playlists once the user checked their tags, see [PendingYouTubeAdditionDialog]. */
+    val pendingYouTube: StateFlow<List<PendingYouTubeAddition>> = _pendingYouTube.asStateFlow()
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
@@ -124,14 +130,39 @@ class PlaylistEditor(
         }
     }
 
-    /** YouTube Music [songs] aren't in the library; the server downloads them and adds them once it has them. */
+    /**
+     * YouTube Music [songs] aren't in the library; the server downloads them and adds them once it has them. The user
+     * gets to check the tags of those it has to download first.
+     */
     private fun addYouTube(playlistId: String, playlistName: String, songs: List<Song>) {
         val youTube = youTube?.takeIf { canAddYouTube } ?: return
+        val toTag = songs.filter { youTube.downloads.value[it.id].let { status -> status != DownloadStatus.InLibrary && status !is DownloadStatus.Done } }
+        if (toTag.isEmpty()) {
+            startYouTube(youTube, playlistId, playlistName, songs.map { YouTubeDownloadRequest(it) })
+        } else {
+            _pendingYouTube.value += PendingYouTubeAddition(playlistId, playlistName, songs, toTag.mapTo(mutableSetOf()) { it.id })
+        }
+    }
+
+    /**
+     * Adds the songs of [pending], with the tags the user chose for those in [requests] (the others keep YouTube
+     * Music's); null cancels.
+     */
+    fun finishYouTube(pending: PendingYouTubeAddition, requests: List<YouTubeDownloadRequest>?) {
+        _pendingYouTube.value -= pending
+        val youTube = youTube ?: return
+        if (requests == null) return
+        val byId = requests.associateBy { it.song.id }
+        startYouTube(youTube, pending.playlistId, pending.playlistName, pending.songs.map { byId[it.id] ?: YouTubeDownloadRequest(it) })
+    }
+
+    private fun startYouTube(youTube: YouTubeService, playlistId: String, playlistName: String, requests: List<YouTubeDownloadRequest>) {
+        val songs = requests.map { it.song }
         scope.launch {
             try {
                 val addition = youTube.addToPlaylist(
                     playlistId,
-                    songs,
+                    requests,
                     onStarted = { addition ->
                         // Don't hold up the polling while the message shows
                         if (addition.jobs.isNotEmpty()) {
@@ -164,6 +195,14 @@ class PlaylistEditor(
 
     private fun List<Song>.describe() = singleOrNull()?.let { "\"${it.title}\"" } ?: "$size songs"
 }
+
+/** YouTube Music [songs] to add to a playlist; those in [songIdsToTag] the server has to download first. */
+data class PendingYouTubeAddition(
+    val playlistId: String,
+    val playlistName: String,
+    val songs: List<Song>,
+    val songIdsToTag: Set<String>,
+)
 
 val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
 

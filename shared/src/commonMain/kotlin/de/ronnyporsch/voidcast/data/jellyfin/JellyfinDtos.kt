@@ -152,6 +152,11 @@ data class YouTubeSongDto(
     @SerialName("Duration") val duration: Int = 0,
     /** A (music) video rather than a song with a still cover. */
     @SerialName("IsVideo") val isVideo: Boolean = false,
+    /** Tags a download with it; YouTube Music doesn't tell one. */
+    @SerialName("Genre") val genre: String? = null,
+    /** Where a download starts and ends, in seconds, to cut off an intro or outro; null keeps it. */
+    @SerialName("StartTime") val startTime: Int? = null,
+    @SerialName("EndTime") val endTime: Int? = null,
 )
 
 @Serializable

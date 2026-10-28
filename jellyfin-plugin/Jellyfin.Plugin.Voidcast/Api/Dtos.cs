@@ -18,6 +18,8 @@ public class TrackTags
 
     public string? Album { get; set; }
 
+    public string? Genre { get; set; }
+
     public string? AlbumArtist { get; set; }
 
     public List<string> AlbumArtists { get; set; } = [];
@@ -69,6 +71,15 @@ public class YouTubeSongDto
 
     /// <summary>Gets or sets a value indicating whether this is a (music) video rather than a song with a still cover.</summary>
     public bool IsVideo { get; set; }
+
+    /// <summary>Gets or sets the genre to tag a download with; YouTube Music doesn't tell one.</summary>
+    public string? Genre { get; set; }
+
+    /// <summary>Gets or sets where a download starts in seconds, to cut off an intro; null keeps the start.</summary>
+    public int? StartTime { get; set; }
+
+    /// <summary>Gets or sets where a download ends in seconds, to cut off an outro; null keeps the end.</summary>
+    public int? EndTime { get; set; }
 }
 
 /// <summary>A YouTube Music artist search result.</summary>

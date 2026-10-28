@@ -70,7 +70,7 @@ class SearchViewModel(
             is SearchEvent.SongDoubleClicked -> play(currentState.songs, event.song, event.index)
             is SearchEvent.YouTubeSongClicked -> selectOrPlay(currentState.youTubeSongs, event.song, event.index)
             is SearchEvent.YouTubeSongDoubleClicked -> play(currentState.youTubeSongs, event.song, event.index)
-            is SearchEvent.DownloadYouTubeSong -> youTube.download(event.song)
+            is SearchEvent.DownloadYouTubeSong -> youTube.download(event.request)
         }
     }
 

@@ -124,6 +124,11 @@ public partial class DownloadManager
         {
             throw new ArgumentException("A title is required");
         }
+
+        if (song.StartTime < 0 || song.EndTime <= (song.StartTime ?? 0))
+        {
+            throw new ArgumentException("The end must be after the start");
+        }
     }
 
     /// <summary>
@@ -324,7 +329,7 @@ public partial class DownloadManager
     }
 
     /// <summary>
-    /// Downloads the track in its original codec (no re-encoding), tags it (with details of its album if it can
+    /// Downloads the track (or the part of it the client asked for) in its original codec (no re-encoding), tags it (with details of its album if it can
     /// be looked up) and moves it to
     /// <c>targetDir/Album Artist/YYYY - Album/NN Title.ext</c> (see <see cref="GetRelativePath"/>). Returns the file path.
     /// </summary>
@@ -333,7 +338,8 @@ public partial class DownloadManager
         var workDir = Directory.CreateTempSubdirectory("voidcast-dl").FullName;
         try
         {
-            var audio = await _ytDlp.DownloadAudioAsync(song.VideoId, workDir, null, cancellationToken).ConfigureAwait(false);
+            var audio = await _ytDlp.DownloadAudioAsync(song.VideoId, workDir, null, cancellationToken, song.StartTime, song.EndTime)
+                .ConfigureAwait(false);
             var album = await GetAlbumAsync(song.AlbumId, cancellationToken).ConfigureAwait(false);
             var tags = TrackTagsBuilder.Build(song, album);
             // The YouTube Music search thumbnail is the square album cover; the video thumbnail often isn't

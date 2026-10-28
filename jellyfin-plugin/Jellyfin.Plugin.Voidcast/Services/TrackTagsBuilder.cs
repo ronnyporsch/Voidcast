@@ -23,6 +23,7 @@ internal static class TrackTagsBuilder
             Title = song.Title,
             Artist = song.Artist,
             Artists = artists,
+            Genre = string.IsNullOrWhiteSpace(song.Genre) ? null : song.Genre.Trim(),
             Comment = YouTubeMusicClient.WatchUrl(song.VideoId),
         };
         if (album == null)
@@ -47,7 +48,8 @@ internal static class TrackTagsBuilder
             albumArtists = artists;
         }
 
-        tags.Album = album.Title;
+        // The client may have renamed the album
+        tags.Album = string.IsNullOrWhiteSpace(song.Album) ? album.Title : song.Album;
         tags.AlbumArtist = string.IsNullOrWhiteSpace(album.Artist) ? string.Join(", ", albumArtists) : album.Artist;
         tags.AlbumArtists = albumArtists;
         tags.TrackNumber = track?.TrackNumber;

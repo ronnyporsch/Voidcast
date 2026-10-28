@@ -50,6 +50,13 @@ sealed class DownloadStatus {
     data object InLibrary : DownloadStatus()
 }
 
+/**
+ * A YouTube Music [song] to download into the library, tagged with its (possibly edited) title, artists, album and
+ * genre. Only the part from [startTime] to [endTime] (in seconds) gets downloaded, e.g. without a video's intro; null
+ * keeps the start or end.
+ */
+data class YouTubeDownloadRequest(val song: Song, val startTime: Int? = null, val endTime: Int? = null)
+
 /** A YouTube Music artist page; ids carry [YOUTUBE_SONG_ID_PREFIX]. */
 data class YouTubeArtist(
     val artist: Artist,
@@ -181,17 +188,18 @@ class YouTubeService(private val connection: MusicServerConnection) {
             ?.also { _streamFormats.value += song.id to it }
     }
 
-    /** Downloads [songs] into the server's library; [downloads] reports their progress. */
-    fun download(songs: List<Song>) {
+    /** Downloads the [requests]' songs into the server's library; [downloads] reports their progress. */
+    fun download(requests: List<YouTubeDownloadRequest>) {
         if (!currentCapabilities.canDownload) return
         scope.launch {
-            for (song in songs) {
+            for (request in requests) {
+                val song = request.song
                 val status = _downloads.value[song.id]
                 if (status == DownloadStatus.InProgress || status is DownloadStatus.Done || status == DownloadStatus.InLibrary) continue
                 addRequested(song)
                 setStatus(song.id, DownloadStatus.InProgress)
                 try {
-                    val job = connection.jellyfinApi.requestDownload(song.toDto())
+                    val job = connection.jellyfinApi.requestDownload(request.toDto())
                     update(job.id, song.id, job.state, job.message, job.path)
                 } catch (e: CancellationException) {
                     throw e
@@ -203,22 +211,22 @@ class YouTubeService(private val connection: MusicServerConnection) {
         }
     }
 
-    fun download(song: Song) = download(listOf(song))
+    fun download(request: YouTubeDownloadRequest) = download(listOf(request))
 
     /**
-     * Adds [songs] to the playlist with [playlistId], in their order. The server downloads those that aren't in its
+     * Adds the [requests]' songs to the playlist with [playlistId], in their order. The server downloads those that aren't in its
      * library first ([downloads] reports their progress) and adds them in the background, also if this client goes
      * away. Calls [onStarted] once the server accepted, [onProgress] whenever more songs got added, and returns the
      * outcome once all songs are added or failed.
      */
     suspend fun addToPlaylist(
         playlistId: String,
-        songs: List<Song>,
+        requests: List<YouTubeDownloadRequest>,
         onStarted: suspend (PlaylistAdditionDto) -> Unit = {},
         onProgress: suspend (PlaylistAdditionDto) -> Unit = {},
     ): PlaylistAdditionDto {
-        var addition = connection.jellyfinApi.addYouTubeToPlaylist(playlistId, songs.map { it.toDto() })
-        track(addition.jobs, songs)
+        var addition = connection.jellyfinApi.addYouTubeToPlaylist(playlistId, requests.map { it.toDto() })
+        track(addition.jobs, requests.map { it.song })
         onStarted(addition)
         var failures = 0
         while (!addition.finished) {
@@ -353,14 +361,17 @@ private fun YouTubeAlbumDto.toAlbum(): Album {
     )
 }
 
-private fun Song.toDto() = YouTubeSongDto(
-    videoId = youTubeVideoId ?: throw IllegalArgumentException("Not a YouTube Music song: $id"),
-    title = title,
-    artist = artist,
-    artists = artists.map { YouTubeArtistDto(id = it.id.youTubeId ?: it.id, name = it.name) },
-    album = album,
-    albumId = albumId.youTubeId ?: albumId,
-    thumbnailUrl = coverArtId,
-    duration = duration,
-    isVideo = isVideo,
+private fun YouTubeDownloadRequest.toDto() = YouTubeSongDto(
+    videoId = song.youTubeVideoId ?: throw IllegalArgumentException("Not a YouTube Music song: ${song.id}"),
+    title = song.title,
+    artist = song.artist,
+    artists = song.artists.map { YouTubeArtistDto(id = it.id.youTubeId ?: it.id, name = it.name) },
+    album = song.album,
+    albumId = song.albumId.youTubeId ?: song.albumId,
+    thumbnailUrl = song.coverArtId,
+    duration = song.duration,
+    isVideo = song.isVideo,
+    genre = song.genre?.takeIf { it.isNotBlank() },
+    startTime = startTime,
+    endTime = endTime,
 )

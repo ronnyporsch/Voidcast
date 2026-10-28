@@ -62,7 +62,7 @@ class ArtistAlbumsViewModel(
                 val songs = state.value.songs
                 if (songs.isNotEmpty()) emitEffect(ArtistAlbumsEffect.PlaySongs(songs, 0, shuffle = true))
             }
-            is ArtistAlbumsEvent.DownloadSong -> youTube.download(event.song)
+            is ArtistAlbumsEvent.DownloadSong -> youTube.download(event.request)
         }
     }
 

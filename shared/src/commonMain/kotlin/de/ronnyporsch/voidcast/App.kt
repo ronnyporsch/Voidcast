@@ -64,6 +64,7 @@ import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import de.ronnyporsch.voidcast.ui.components.LocalFavorites
 import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
+import de.ronnyporsch.voidcast.ui.components.PendingYouTubeAdditionDialog
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
 import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
@@ -317,6 +318,7 @@ fun App() {
             LocalSongDownloads provides connection.downloads.takeIf { it.isSupported },
         ) {
         Box(Modifier.fillMaxSize()) {
+        PendingYouTubeAdditionDialog(playlistEditor)
         val currentEntry by navigator.currentEntry.collectAsState()
         val currentScreen = currentEntry.screen
         val playerState by playerViewModel.state.collectAsState()

@@ -15,6 +15,7 @@ internal static class AudioTagger
         tag.Title = tags.Title;
         tag.Performers = string.IsNullOrWhiteSpace(tags.Artist) ? [] : [tags.Artist];
         tag.Album = tags.Album;
+        tag.Genres = tags.Genre != null ? [tags.Genre] : [];
         tag.AlbumArtists = tags.AlbumArtist != null ? [tags.AlbumArtist] : [];
         tag.Track = (uint)(tags.TrackNumber ?? 0);
         tag.TrackCount = (uint)(tags.TotalTracks ?? 0);

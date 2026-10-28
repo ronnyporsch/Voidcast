@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
+import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import androidx.lifecycle.viewModelScope
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.data.youtube.YouTubeService
@@ -67,8 +68,8 @@ class AlbumDetailViewModel(
                     .firstOrNull { it.name == event.artistName && it.id.isYouTubeId }?.id
                 emitEffect(AlbumDetailEffect.NavigateToArtist(event.artistName, artistId))
             }
-            is AlbumDetailEvent.DownloadSong -> youTube.download(event.song)
-            is AlbumDetailEvent.DownloadAll -> currentState.album?.songs?.let(youTube::download)
+            is AlbumDetailEvent.DownloadSong -> youTube.download(event.request)
+            is AlbumDetailEvent.DownloadAll -> currentState.album?.songs?.let { songs -> youTube.download(songs.map(::YouTubeDownloadRequest)) }
         }
     }
 
