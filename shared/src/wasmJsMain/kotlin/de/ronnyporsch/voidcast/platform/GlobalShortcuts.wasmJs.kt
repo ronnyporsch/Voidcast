@@ -12,6 +12,13 @@ actual fun installGlobalShortcutListener() {
     // else sees them
     document.addEventListener("keydown", { event ->
         event as KeyboardEvent
+        // Space pauses or resumes, unless it's typed into a text field; held down it doesn't toggle on and on
+        if (event.key == " " && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextInputFocused()) {
+            if (!event.repeat) GlobalShortcuts.requestPlayPause()
+            event.preventDefault()
+            event.stopPropagation()
+            return@addEventListener
+        }
         if (!event.ctrlKey && !event.metaKey) return@addEventListener
         val handled = when (event.key.lowercase()) {
             "k" -> {

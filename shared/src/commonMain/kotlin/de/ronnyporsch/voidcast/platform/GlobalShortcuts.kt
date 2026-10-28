@@ -9,6 +9,7 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -30,6 +31,10 @@ object GlobalShortcuts {
     /** Skips to the next song (true) or the previous one (false). */
     val skip: SharedFlow<Boolean> = _skip.asSharedFlow()
 
+    private val _playPause = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Pauses or resumes playback. */
+    val playPause: SharedFlow<Unit> = _playPause.asSharedFlow()
+
     /** Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS). */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.type != KeyEventType.KeyDown) return false
@@ -45,10 +50,16 @@ object GlobalShortcuts {
     }
 
     /**
-     * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS). Only for key events nothing else handled, as
-     * text fields move the cursor by words with them.
+     * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS), Space pauses or resumes. Only for key events
+     * nothing else handled, as text fields move the cursor by words with them and type spaces.
      */
     fun onUnhandledKeyEvent(event: KeyEvent): Boolean {
+        // Text fields only take the typed character, not the key press, so react to the former
+        if (event.type == KeyEventType.Unknown && event.utf16CodePoint == ' '.code &&
+            !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed
+        ) {
+            return requestPlayPause()
+        }
         if (event.type != KeyEventType.KeyDown) return false
         if (!event.isCtrlPressed && !event.isMetaPressed || event.isShiftPressed || event.isAltPressed) return false
         return when (event.key) {
@@ -71,6 +82,11 @@ object GlobalShortcuts {
 
     fun requestSkip(next: Boolean): Boolean {
         _skip.tryEmit(next)
+        return true
+    }
+
+    fun requestPlayPause(): Boolean {
+        _playPause.tryEmit(Unit)
         return true
     }
 }
