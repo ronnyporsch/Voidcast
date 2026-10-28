@@ -1,5 +1,10 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.saveable.rememberSaveable
+import de.ronnyporsch.voidcast.ui.components.rememberSongFilterFocus
+import de.ronnyporsch.voidcast.ui.components.filtered
+import de.ronnyporsch.voidcast.ui.components.SongFilterField
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import androidx.compose.foundation.background
@@ -54,6 +59,7 @@ fun AlbumDetailScreen(
     val listState = rememberLazyListState()
     RememberScrollPosition(listState)
     val headerState = rememberCollapsingHeaderState(listState)
+    var query by rememberSaveable { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -73,13 +79,18 @@ fun AlbumDetailScreen(
             }
         } else {
             val album = state.album ?: return
+            // The songs matching the search, with their positions in the album, which the events refer to
+            val visible = remember(album.songs, query) { album.songs.filtered(query) }
+            val visibleSongs = remember(visible) { visible.map { it.value } }
             val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+            // The field is the third item, after the header and the play buttons
+            val filterFocus = rememberSongFilterFocus(listState, itemIndex = 2)
             val songSelection = rememberTouchSelection(
-                items = album.songs,
+                items = visibleSongs,
                 selectedIds = state.selectedSongIds,
                 onChange = { viewModel.onEvent(AlbumDetailEvent.SongsSelected(it)) },
                 id = { it.id },
-                key = songKey,
+                key = { index, song -> songKey(visible[index].index, song) },
             )
             TouchSelectionBar(songSelection, songs = { songSelection.selectedItems })
 
@@ -89,19 +100,20 @@ fun AlbumDetailScreen(
                     contentPadding = PaddingValues(bottom = 100.dp),
                     modifier = Modifier.touchSelection(songSelection, listState).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
-                            val album = state.album ?: return@onKeyEvent false
-                            val currentIndex = album.songs.indexOfFirst { it.id in state.selectedSongIds }
+                            val currentIndex = visibleSongs.indexOfFirst { it.id in state.selectedSongIds }
                             when (event.key) {
                                 Key.DirectionDown -> {
-                                    if (currentIndex < album.songs.size - 1) {
-                                        viewModel.onEvent(AlbumDetailEvent.SongClicked(album.songs[currentIndex + 1], currentIndex + 1))
+                                    if (currentIndex < visible.size - 1) {
+                                        val (index, song) = visible[currentIndex + 1]
+                                        viewModel.onEvent(AlbumDetailEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
 
                                 Key.DirectionUp -> {
                                     if (currentIndex > 0) {
-                                        viewModel.onEvent(AlbumDetailEvent.SongClicked(album.songs[currentIndex - 1], currentIndex - 1))
+                                        val (index, song) = visible[currentIndex - 1]
+                                        viewModel.onEvent(AlbumDetailEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
@@ -222,7 +234,26 @@ fun AlbumDetailScreen(
                         }
                     }
 
-                    itemsIndexed(album.songs, key = songKey) { index, song ->
+                    item {
+                        SongFilterField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search in album",
+                            focus = filterFocus,
+                        )
+                    }
+
+                    if (visible.isEmpty() && query.isNotBlank()) {
+                        item {
+                            Text(
+                                text = "No songs match \"${query.trim()}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+
+                    items(visible, key = { (index, song) -> songKey(index, song) }) { (index, song) ->
                         Column {
                             SongRow(
                                 song = song,
@@ -233,7 +264,7 @@ fun AlbumDetailScreen(
                                 onSongDoubleClick = { viewModel.onEvent(AlbumDetailEvent.SongDoubleClicked(song, index)) },
                                 onSongCtrlClick = { viewModel.onEvent(AlbumDetailEvent.SongSelectionToggled(song)) },
                                 onSongShiftClick = { viewModel.onEvent(AlbumDetailEvent.SongRangeSelected(index)) },
-                                contextMenuSongs = { album.songs.contextMenuSongs(song, state.selectedSongIds) },
+                                contextMenuSongs = { visibleSongs.contextMenuSongs(song, state.selectedSongIds) },
                                 isSelected = song.id in state.selectedSongIds,
                                 isPlaying = currentSongId == song.id,
                                 audioFormat = song.libraryFormat(state.libraryFormats),

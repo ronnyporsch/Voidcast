@@ -256,14 +256,14 @@ private fun LibrarySidebar(
                 onSortSelected = { viewModel.onEvent(LibraryEvent.SortSelected(it)) },
                 onCreatePlaylist = onCreatePlaylist.takeIf { state.category == LibraryCategory.Playlists },
             )
+            val filter = viewModel.sidebarFilters[state.category].orEmpty()
+            SidebarFilter(filter, "Filter ${state.category.title.lowercase()}", onFilterChange)
 
             when (state.category) {
                 LibraryCategory.Artists -> {
-                    val filter = viewModel.sidebarFilters[state.category].orEmpty()
                     val artists = remember(state.artists, order, filter) {
                         state.artists.sortedBy(order).filter { matchesFilter(filter, it.name) }
                     }
-                    SidebarFilter(filter, "Filter artists", onFilterChange)
                     SidebarList(
                         items = artists,
                         key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
@@ -283,11 +283,9 @@ private fun LibrarySidebar(
                     }
                 }
                 LibraryCategory.Albums -> {
-                    val filter = viewModel.sidebarFilters[state.category].orEmpty()
                     val albums = remember(state.albums, order, filter) {
                         state.albums.sortedBy(order).filter { matchesFilter(filter, it.name, it.artist) }
                     }
-                    SidebarFilter(filter, "Filter albums", onFilterChange)
                     SidebarList(
                         items = albums,
                         key = { index, album -> "${album.id}::$index" },
@@ -308,7 +306,7 @@ private fun LibrarySidebar(
                     }
                 }
                 LibraryCategory.Songs -> {
-                    val songs = remember(state.songs, order) { state.songs.sortedBy(order) }
+                    val songs = remember(state.songs, order, filter) { state.songs.sortedBy(order).filter { it.matches(filter) } }
                     SongSidebar(
                         songs = songs,
                         showAlphabet = order.sort == LibrarySort.Alphabetical,
@@ -320,7 +318,9 @@ private fun LibrarySidebar(
                     )
                 }
                 LibraryCategory.Genres -> {
-                    val genres = remember(state.genres) { state.genres.sortedBy { it.name.lowercase() } }
+                    val genres = remember(state.genres, filter) {
+                        state.genres.sortedBy { it.name.lowercase() }.filter { matchesFilter(filter, it.name) }
+                    }
                     SidebarList(
                         items = genres,
                         key = { _, genre -> genre.id },
@@ -328,7 +328,7 @@ private fun LibrarySidebar(
                         showAlphabet = true,
                         state = listState,
                         isLoading = isCategoryLoading,
-                        emptyText = "No genres",
+                        emptyText = if (filter.isBlank()) "No genres" else "No matching genres",
                     ) { _, genre ->
                         GenreListItem(
                             genre = genre,
@@ -340,6 +340,7 @@ private fun LibrarySidebar(
                 LibraryCategory.Favorites -> FavoritesSidebar(
                     state = state,
                     order = order,
+                    filter = filter,
                     onSongsClick = {
                         open(LibrarySelection.FavoriteSongs, LibraryEvent.OpenFavoriteSongsScreen)
                     },
@@ -360,8 +361,10 @@ private fun LibrarySidebar(
                 )
                 LibraryCategory.Playlists -> {
                     val expandedFolders = state.view.expandedPlaylistFolders
-                    val entries = remember(state.playlists, order, expandedFolders) {
-                        state.playlists.sortedBy(order).toSidebarEntries(expandedFolders)
+                    val entries = remember(state.playlists, order, expandedFolders, filter) {
+                        val playlists = state.playlists.sortedBy(order).filter { matchesFilter(filter, it.name) }
+                        // Matches in folders show without opening them
+                        playlists.toSidebarEntries(if (filter.isBlank()) expandedFolders else playlists.mapNotNullTo(mutableSetOf()) { it.folderAndName()?.first })
                     }
                     PlaylistSidebar(
                         entries = entries,
@@ -774,6 +777,8 @@ private fun ArtistDetailPane(
     modifier: Modifier = Modifier,
 ) {
     RememberScrollPosition(state, "artist")
+    // Limits the albums and songs shown
+    var query by remember(artist?.id, artist?.name) { mutableStateOf("") }
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surface,
@@ -790,8 +795,13 @@ private fun ArtistDetailPane(
         } else {
             val headerState = rememberCollapsingHeaderState(state)
             val albumSelection = rememberAlbumSelection()
+            val albums = albums.filter { matchesFilter(query, it.name) }
+            val appearsOnAlbums = appearsOnAlbums.filter { matchesFilter(query, it.name, it.artist) }
             // In the order they are shown, for selecting ranges of them
             val shownAlbums = albums + appearsOnAlbums
+            // The songs matching the search, with their positions among all of them, which the callbacks get
+            val visible = remember(songs, query) { songs.filtered(query) }
+            val visibleSongs = remember(visible) { visible.map { it.value } }
             Box(Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
                     state = state,
@@ -801,17 +811,19 @@ private fun ArtistDetailPane(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
-                            val currentIndex = songs.indexOfFirst { isSelected(it.id) }
+                            val currentIndex = visibleSongs.indexOfFirst { isSelected(it.id) }
                             when (event.key) {
                                 Key.DirectionDown -> {
-                                    if (currentIndex < songs.size - 1) {
-                                        onSongClick(songs[currentIndex + 1], currentIndex + 1)
+                                    if (currentIndex < visible.size - 1) {
+                                        val (index, song) = visible[currentIndex + 1]
+                                        onSongClick(song, index)
                                         true
                                     } else false
                                 }
                                 Key.DirectionUp -> {
                                     if (currentIndex > 0) {
-                                        onSongClick(songs[currentIndex - 1], currentIndex - 1)
+                                        val (index, song) = visible[currentIndex - 1]
+                                        onSongClick(song, index)
                                         true
                                     } else false
                                 }
@@ -827,6 +839,14 @@ private fun ArtistDetailPane(
                             imageUrl = largeImageUrl,
                             biography = biography,
                             headerState = headerState,
+                        )
+                    }
+
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SongFilterField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search in albums and songs",
                         )
                     }
 
@@ -910,11 +930,21 @@ private fun ArtistDetailPane(
                             }
                         }
 
-                        itemsIndexed(
-                            songs,
-                            key = { index, song -> "${song.id}::$index" },
-                            span = { _, _ -> GridItemSpan(maxLineSpan) },
-                        ) { index, song ->
+                        if (visible.isEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Text(
+                                    text = "No songs match \"${query.trim()}\"",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                        }
+
+                        items(
+                            visible,
+                            key = { (index, song) -> "${song.id}::$index" },
+                            span = { GridItemSpan(maxLineSpan) },
+                        ) { (index, song) ->
                             SongRow(
                                 song = song,
                                 index = index,
@@ -922,7 +952,7 @@ private fun ArtistDetailPane(
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
                                 onSongShiftClick = { onSongShiftClick(song, index) },
-                                contextMenuSongs = { contextMenuSongs(songs, song) },
+                                contextMenuSongs = { contextMenuSongs(visibleSongs, song) },
                                 isSelected = isSelected(song.id),
                                 isPlaying = isPlaying(song.id),
                                 onArtistClick = { /* Already in artist view */ },
@@ -969,6 +999,7 @@ private fun AlbumDetailPane(
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     RememberScrollPosition(state, "album")
+    var query by remember(album?.id) { mutableStateOf("") }
 
     Surface(
         modifier = modifier,
@@ -985,23 +1016,30 @@ private fun AlbumDetailPane(
             }
         } else {
             val headerState = rememberCollapsingHeaderState(state)
+            // The songs matching the search, with their positions in the album, which the callbacks get
+            val visible = remember(album.songs, query) { album.songs.filtered(query) }
+            val visibleSongs = remember(visible) { visible.map { it.value } }
+            // The field is the third item, after the header and the play buttons
+            val filterFocus = rememberSongFilterFocus(state, itemIndex = 2)
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = state,
                     contentPadding = PaddingValues(bottom = 100.dp),
                     modifier = Modifier.onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
-                            val currentIndex = album.songs.indexOfFirst { isSelected(it.id) }
+                            val currentIndex = visibleSongs.indexOfFirst { isSelected(it.id) }
                             when (event.key) {
                                 Key.DirectionDown -> {
-                                    if (currentIndex < album.songs.size - 1) {
-                                        onSongClick(album.songs[currentIndex + 1], currentIndex + 1)
+                                    if (currentIndex < visible.size - 1) {
+                                        val (index, song) = visible[currentIndex + 1]
+                                        onSongClick(song, index)
                                         true
                                     } else false
                                 }
                                 Key.DirectionUp -> {
                                     if (currentIndex > 0) {
-                                        onSongClick(album.songs[currentIndex - 1], currentIndex - 1)
+                                        val (index, song) = visible[currentIndex - 1]
+                                        onSongClick(song, index)
                                         true
                                     } else false
                                 }
@@ -1089,7 +1127,26 @@ private fun AlbumDetailPane(
                         }
                     }
 
-                    itemsIndexed(album.songs, key = { index, song -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { index, song ->
+                    item {
+                        SongFilterField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search in album",
+                            focus = filterFocus,
+                        )
+                    }
+
+                    if (visible.isEmpty() && query.isNotBlank()) {
+                        item {
+                            Text(
+                                text = "No songs match \"${query.trim()}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+
+                    items(visible, key = { (index, song) -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { (index, song) ->
                         SongRow(
                             song = song,
                             index = index,
@@ -1098,7 +1155,7 @@ private fun AlbumDetailPane(
                             onSongDoubleClick = { onSongDoubleClick(song, index) },
                             onSongCtrlClick = { onSongCtrlClick(song) },
                             onSongShiftClick = { onSongShiftClick(song, index) },
-                            contextMenuSongs = { contextMenuSongs(album.songs, song) },
+                            contextMenuSongs = { contextMenuSongs(visibleSongs, song) },
                             isSelected = isSelected(song.id),
                             isPlaying = isPlaying(song.id),
                             audioFormat = song.audioFormat,
@@ -1637,6 +1694,8 @@ private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit
 private fun FavoritesSidebar(
     state: LibraryState,
     order: LibraryOrder,
+    /** Limits the artists and albums, see [matchesFilter]. */
+    filter: String,
     onSongsClick: () -> Unit,
     onArtistClick: (Artist) -> Unit,
     onArtistDoubleClick: ((Artist) -> Unit)?,
@@ -1645,8 +1704,12 @@ private fun FavoritesSidebar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val artists = remember(state.favoriteArtists, order) { state.favoriteArtists.sortedBy(order) }
-    val albums = remember(state.favoriteAlbums, order) { state.favoriteAlbums.sortedBy(order) }
+    val artists = remember(state.favoriteArtists, order, filter) {
+        state.favoriteArtists.sortedBy(order).filter { matchesFilter(filter, it.name) }
+    }
+    val albums = remember(state.favoriteAlbums, order, filter) {
+        state.favoriteAlbums.sortedBy(order).filter { matchesFilter(filter, it.name, it.artist) }
+    }
     Box(modifier = modifier.padding(12.dp)) {
         LazyColumn(
             state = listState,

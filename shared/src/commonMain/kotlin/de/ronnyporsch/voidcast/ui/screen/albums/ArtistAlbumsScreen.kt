@@ -1,5 +1,9 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import de.ronnyporsch.voidcast.ui.components.matchesFilter
+import de.ronnyporsch.voidcast.ui.components.filtered
+import de.ronnyporsch.voidcast.ui.components.SongFilterField
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import androidx.compose.foundation.background
@@ -13,6 +17,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,24 +67,31 @@ fun ArtistAlbumsScreen(
     val gridState = rememberLazyGridState()
     RememberScrollPosition(gridState)
     val albumSelection = rememberAlbumSelection()
+    // Limits the albums and songs shown
+    var query by rememberSaveable { mutableStateOf("") }
     // Only YouTube Music knows release types; library albums all go under "Albums"
-    val (albums, singles) = state.albums.partition { it.releaseType == null || it.releaseType == "Album" }
+    val (albums, singles) = state.albums.filter { matchesFilter(query, it.name) }
+        .partition { it.releaseType == null || it.releaseType == "Album" }
+    val appearsOnAlbums = state.appearsOnAlbums.filter { matchesFilter(query, it.name, it.artist) }
     // In the order they are shown, for selecting ranges of them
-    val shownAlbums = albums + singles + state.appearsOnAlbums
+    val shownAlbums = albums + singles + appearsOnAlbums
+    // The songs matching the search, with their positions among all of them, which the events refer to
+    val visible = remember(state.songs, query) { state.songs.filtered(query) }
+    val visibleSongs = remember(visible) { visible.map { it.value } }
     // Mobile: albums and songs are selected by touch, one kind at a time
     val albumTouchSelection = rememberAlbumTouchSelection(shownAlbums, albumSelection) {
         if (it.isNotEmpty() && state.selectedSongIds.isNotEmpty()) viewModel.onEvent(ArtistAlbumsEvent.SongsSelected(emptySet()))
     }
     val songKey = { index: Int, song: Song -> "${song.id}::$index" }
     val songTouchSelection = rememberTouchSelection(
-        items = state.songs,
+        items = visibleSongs,
         selectedIds = state.selectedSongIds,
         onChange = {
             viewModel.onEvent(ArtistAlbumsEvent.SongsSelected(it))
             if (it.isNotEmpty()) albumSelection.clear()
         },
         id = { it.id },
-        key = songKey,
+        key = { index, song -> songKey(visible[index].index, song) },
     )
     AlbumTouchSelectionBar(albumTouchSelection)
     TouchSelectionBar(songTouchSelection, songs = { songTouchSelection.selectedItems })
@@ -114,18 +128,20 @@ fun ArtistAlbumsScreen(
                         .touchSelection(songTouchSelection, gridState)
                         .onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
-                            val currentIndex = state.songs.indexOfFirst { it.id in state.selectedSongIds }
+                            val currentIndex = visibleSongs.indexOfFirst { it.id in state.selectedSongIds }
                             when (event.key) {
                                 Key.DirectionDown -> {
-                                    if (currentIndex < state.songs.size - 1) {
-                                        viewModel.onEvent(ArtistAlbumsEvent.SongClicked(state.songs[currentIndex + 1], currentIndex + 1))
+                                    if (currentIndex < visible.size - 1) {
+                                        val (index, song) = visible[currentIndex + 1]
+                                        viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
 
                                 Key.DirectionUp -> {
                                     if (currentIndex > 0) {
-                                        viewModel.onEvent(ArtistAlbumsEvent.SongClicked(state.songs[currentIndex - 1], currentIndex - 1))
+                                        val (index, song) = visible[currentIndex - 1]
+                                        viewModel.onEvent(ArtistAlbumsEvent.SongClicked(song, index))
                                         true
                                     } else false
                                 }
@@ -142,6 +158,14 @@ fun ArtistAlbumsScreen(
                             imageUrl = state.largeImageUrl,
                             biography = state.biography,
                             headerState = headerState,
+                        )
+                    }
+
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SongFilterField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search in albums and songs",
                         )
                     }
 
@@ -169,7 +193,7 @@ fun ArtistAlbumsScreen(
                         }
                     }
 
-                    if (state.appearsOnAlbums.isNotEmpty()) {
+                    if (appearsOnAlbums.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Text(
                                 text = "Appears on",
@@ -179,7 +203,7 @@ fun ArtistAlbumsScreen(
                             )
                         }
 
-                        items(state.appearsOnAlbums, key = { it.id }) { album ->
+                        items(appearsOnAlbums, key = { it.id }) { album ->
                             SelectableAlbum(
                                 album = album,
                                 albums = shownAlbums,
@@ -238,11 +262,21 @@ fun ArtistAlbumsScreen(
                             }
                         }
 
-                        itemsIndexed(
-                            state.songs,
-                            key = songKey,
-                            span = { _, _ -> GridItemSpan(maxLineSpan) },
-                        ) { index, song ->
+                        if (visible.isEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Text(
+                                    text = "No songs match \"${query.trim()}\"",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                        }
+
+                        items(
+                            visible,
+                            key = { (index, song) -> songKey(index, song) },
+                            span = { GridItemSpan(maxLineSpan) },
+                        ) { (index, song) ->
                             Column {
                                 SongRow(
                                     song = song,
@@ -252,7 +286,7 @@ fun ArtistAlbumsScreen(
                                     onSongDoubleClick = { viewModel.onEvent(ArtistAlbumsEvent.SongDoubleClicked(song, index)) },
                                     onSongCtrlClick = { viewModel.onEvent(ArtistAlbumsEvent.SongSelectionToggled(song)) },
                                     onSongShiftClick = { viewModel.onEvent(ArtistAlbumsEvent.SongRangeSelected(index)) },
-                                    contextMenuSongs = { state.songs.contextMenuSongs(song, state.selectedSongIds) },
+                                    contextMenuSongs = { visibleSongs.contextMenuSongs(song, state.selectedSongIds) },
                                     onArtistClick = { /* Already in artist view */ },
                                     isSelected = song.id in state.selectedSongIds,
                                     isPlaying = currentSongId == song.id,
