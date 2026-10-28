@@ -128,6 +128,7 @@ fun SearchScreen(
                         }
                     }
 
+                    // Artists, albums, songs, then the user's own playlists
                     if (state.artists.isNotEmpty()) {
                         item {
                             Text("Artists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -135,17 +136,6 @@ fun SearchScreen(
                         items(state.artists, key = { "artist-${it.id}" }) { artist ->
                             SearchArtistRow(artist) {
                                 onResultClick(SearchEvent.ArtistClicked(artist))
-                            }
-                        }
-                    }
-
-                    if (state.playlists.isNotEmpty()) {
-                        item {
-                            Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                        }
-                        items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
-                            SearchPlaylistRow(playlist) {
-                                onResultClick(SearchEvent.PlaylistClicked(playlist))
                             }
                         }
                     }
@@ -188,6 +178,17 @@ fun SearchScreen(
                                 isPlaying = currentSongId == song.id,
                                 showAlbum = true
                             )
+                        }
+                    }
+
+                    if (state.playlists.isNotEmpty()) {
+                        item {
+                            Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                        items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
+                            SearchPlaylistRow(playlist) {
+                                onResultClick(SearchEvent.PlaylistClicked(playlist))
+                            }
                         }
                     }
 
