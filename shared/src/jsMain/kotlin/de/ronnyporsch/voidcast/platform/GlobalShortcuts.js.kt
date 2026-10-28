@@ -19,6 +19,15 @@ actual fun installGlobalShortcutListener() {
             event.stopPropagation()
             return@addEventListener
         }
+        // Right/Left seek, unless a text field moves its cursor with them
+        if ((event.key == "ArrowRight" || event.key == "ArrowLeft") && !event.ctrlKey && !event.metaKey &&
+            !event.shiftKey && !event.altKey && !isTextInputFocused()
+        ) {
+            GlobalShortcuts.requestSeek(forward = event.key == "ArrowRight")
+            event.preventDefault()
+            event.stopPropagation()
+            return@addEventListener
+        }
         if (!event.ctrlKey && !event.metaKey) return@addEventListener
         val handled = when (event.key.lowercase()) {
             "k" -> {

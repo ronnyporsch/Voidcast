@@ -269,6 +269,11 @@ class PlayerViewModel(
                 audioPlayer.seekTo(event.positionMs)
                 setState { copy(playback = playback.copy(positionMs = event.positionMs)) }
             }
+            is PlayerEvent.SeekBy -> {
+                val playback = currentState.playback
+                if (playback.currentSong == null || playback.durationMs <= 0) return
+                onEvent(PlayerEvent.SeekTo((playback.positionMs + event.deltaMs).coerceIn(0, playback.durationMs)))
+            }
             is PlayerEvent.SetVideoQuality -> setVideoQuality(event.height)
             is PlayerEvent.SelectDevice -> selectDevice(event.sessionId)
         }
@@ -291,6 +296,7 @@ class PlayerViewModel(
         is PlayerEvent.PlayQueueIndex -> RemoteCommand.PlayQueueIndex(index)
         is PlayerEvent.PlayNow -> RemoteCommand.PlayNow(song)
         is PlayerEvent.SeekTo -> RemoteCommand.SeekTo(positionMs)
+        is PlayerEvent.SeekBy -> RemoteCommand.SeekBy(deltaMs)
         PlayerEvent.ToggleCrossfade, PlayerEvent.ToggleLyrics, PlayerEvent.ShowLyrics,
         is PlayerEvent.SetVideoQuality, is PlayerEvent.SelectDevice -> null
     }
@@ -418,11 +424,7 @@ class PlayerViewModel(
             RemoteCommand.Next -> playNext()
             RemoteCommand.Previous -> playPrevious()
             is RemoteCommand.SeekTo -> onEvent(PlayerEvent.SeekTo(command.positionMs))
-            is RemoteCommand.SeekBy -> {
-                val playback = currentState.playback
-                val position = (playback.positionMs + command.deltaMs).coerceIn(0, playback.durationMs.coerceAtLeast(0))
-                onEvent(PlayerEvent.SeekTo(position))
-            }
+            is RemoteCommand.SeekBy -> onEvent(PlayerEvent.SeekBy(command.deltaMs))
             is RemoteCommand.SetShuffle -> if (command.shuffle != currentState.playback.shuffle) toggleShuffle()
             is RemoteCommand.SetRepeat -> setState { copy(playback = playback.copy(repeatMode = command.repeatMode)) }
             is RemoteCommand.AddToQueue -> addToQueue(command.songs)

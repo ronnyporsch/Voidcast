@@ -261,6 +261,9 @@ fun App() {
     LaunchedEffect(playerViewModel) {
         GlobalShortcuts.playPause.collect { playerViewModel.onEvent(PlayerEvent.PlayPause) }
     }
+    LaunchedEffect(playerViewModel) {
+        GlobalShortcuts.seek.collect { forward -> playerViewModel.onEvent(seekStep(forward)) }
+    }
 
     LaunchedEffect(searchViewModel) {
         searchViewModel.effects.collectLatest { effect ->
@@ -552,6 +555,7 @@ fun App() {
                     .fillMaxSize()
                     .padding(padding)
                     .onKeyEvent { event ->
+                        if (isMobile && onSeekKey(event, playerViewModel)) return@onKeyEvent true
                         if (event.type == KeyEventType.KeyUp) {
                             when (event.key) {
                                 Key.MediaPlayPause -> {
@@ -817,6 +821,7 @@ fun App() {
                     .focusRequester(focusRequester)
                     .focusable()
                     .onKeyEvent { event ->
+                        if (isMobile && onSeekKey(event, playerViewModel)) return@onKeyEvent true
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
                             setVideoFullscreen(false)
                             true
@@ -837,6 +842,24 @@ private fun toggleQueue(navigator: Navigator, tab: QueueTab) {
         screen is Screen.Queue -> navigator.replace(Screen.Queue(tab))
         else -> navigator.push(Screen.Queue(tab))
     }
+}
+
+private fun seekStep(forward: Boolean) =
+    PlayerEvent.SeekBy(if (forward) GlobalShortcuts.SEEK_STEP_MS else -GlobalShortcuts.SEEK_STEP_MS)
+
+/**
+ * Android (e.g. a keyboard or remote): Right/Left seek, see [GlobalShortcuts.onUnhandledKeyEvent], which desktop and
+ * web route their key events through instead.
+ */
+private fun onSeekKey(event: KeyEvent, playerViewModel: PlayerViewModel): Boolean {
+    if (event.type != KeyEventType.KeyDown || event.isCtrlPressed || event.isShiftPressed || event.isAltPressed) return false
+    val forward = when (event.key) {
+        Key.DirectionRight -> true
+        Key.DirectionLeft -> false
+        else -> return false
+    }
+    playerViewModel.onEvent(seekStep(forward))
+    return true
 }
 
 private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, startIndex: Int, shuffle: Boolean?) {

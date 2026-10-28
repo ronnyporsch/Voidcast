@@ -71,6 +71,8 @@ sealed class PlayerEvent {
     /** Plays [song] now without replacing the queue, e.g. from the recently played songs. */
     data class PlayNow(val song: Song) : PlayerEvent()
     data class SeekTo(val positionMs: Long) : PlayerEvent()
+    /** Seeks [deltaMs] forward (or back if negative), within the song. */
+    data class SeekBy(val deltaMs: Long) : PlayerEvent()
     /** Streams videos in the highest resolution up to this height from now on, the current one too. */
     data class SetVideoQuality(val height: Int) : PlayerEvent()
     /**

@@ -31,6 +31,13 @@ object GlobalShortcuts {
     /** Skips to the next song (true) or the previous one (false). */
     val skip: SharedFlow<Boolean> = _skip.asSharedFlow()
 
+    private val _seek = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    /** Seeks [SEEK_STEP_MS] forward (true) or back (false) in the song. */
+    val seek: SharedFlow<Boolean> = _seek.asSharedFlow()
+
+    /** How far Left/Right seek. */
+    const val SEEK_STEP_MS = 5_000L
+
     private val _refresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Reloads what the screen (and the sidebar) shows. */
     val refresh: SharedFlow<Unit> = _refresh.asSharedFlow()
@@ -59,8 +66,8 @@ object GlobalShortcuts {
     }
 
     /**
-     * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS), Space pauses or resumes. Only for key events
-     * nothing else handled, as text fields move the cursor by words with them and type spaces.
+     * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS), Right/Left seek 5 s forward/back, Space pauses
+     * or resumes. Only for key events nothing else handled, as text fields move the cursor with them and type spaces.
      */
     fun onUnhandledKeyEvent(event: KeyEvent): Boolean {
         // Text fields only take the typed character, not the key press, so react to the former
@@ -70,7 +77,12 @@ object GlobalShortcuts {
             return requestPlayPause()
         }
         if (event.type != KeyEventType.KeyDown) return false
-        if (!event.isCtrlPressed && !event.isMetaPressed || event.isShiftPressed || event.isAltPressed) return false
+        if (event.isShiftPressed || event.isAltPressed) return false
+        if (!event.isCtrlPressed && !event.isMetaPressed) return when (event.key) {
+            Key.DirectionRight -> requestSeek(forward = true)
+            Key.DirectionLeft -> requestSeek(forward = false)
+            else -> false
+        }
         return when (event.key) {
             Key.DirectionRight -> requestSkip(next = true)
             Key.DirectionLeft -> requestSkip(next = false)
@@ -91,6 +103,11 @@ object GlobalShortcuts {
 
     fun requestSkip(next: Boolean): Boolean {
         _skip.tryEmit(next)
+        return true
+    }
+
+    fun requestSeek(forward: Boolean): Boolean {
+        _seek.tryEmit(forward)
         return true
     }
 
