@@ -299,6 +299,8 @@ private fun ArtistHeader(
             url = imageUrl,
             artistName = artistName,
             modifier = Modifier.size(180.dp).collapsingHeaderImage(headerState),
+            // The artist image comes in one size
+            enlargedUrl = imageUrl,
         )
 
         Spacer(Modifier.height(16.dp))

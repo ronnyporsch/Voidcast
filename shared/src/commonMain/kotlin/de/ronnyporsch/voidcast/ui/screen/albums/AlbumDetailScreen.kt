@@ -21,6 +21,7 @@ import de.ronnyporsch.voidcast.domain.model.formatFileSize
 import de.ronnyporsch.voidcast.domain.model.formatTotalDuration
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.ClickableArtistText
+import de.ronnyporsch.voidcast.ui.components.ENLARGED_IMAGE_SIZE
 import de.ronnyporsch.voidcast.ui.components.libraryFormat
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
 import de.ronnyporsch.voidcast.ui.components.CollapsingTopBar
@@ -122,6 +123,7 @@ fun AlbumDetailScreen(
                                 url = coverArt.getUrl(album.coverArtId),
                                 modifier = Modifier.size(200.dp).collapsingHeaderImage(headerState),
                                 placeholderFontSize = 60.sp,
+                                enlargedUrl = coverArt.getUrl(album.coverArtId, ENLARGED_IMAGE_SIZE),
                             )
 
                             Spacer(Modifier.height(16.dp))

@@ -1022,6 +1022,7 @@ private fun AlbumDetailPane(
                                 url = coverArt.getUrl(album.coverArtId),
                                 modifier = Modifier.size(200.dp).collapsingHeaderImage(headerState),
                                 placeholderFontSize = 60.sp,
+                                enlargedUrl = coverArt.getUrl(album.coverArtId, ENLARGED_IMAGE_SIZE),
                             )
 
                             Spacer(Modifier.height(16.dp))
@@ -1137,6 +1138,8 @@ private fun ArtistHeader(
             url = imageUrl,
             artistName = artistName,
             modifier = Modifier.size(180.dp).collapsingHeaderImage(headerState),
+            // The artist image comes in one size
+            enlargedUrl = imageUrl,
         )
 
         Spacer(Modifier.height(16.dp))
