@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.components
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
@@ -25,16 +26,16 @@ import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.platform.GlobalShortcuts
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
+
+/** Whether every word of [query] is part of one of [fields], ignoring case; a blank query matches everything. */
+fun matchesFilter(query: String, vararg fields: String): Boolean {
+    val words = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    return words.all { word -> fields.any { it.contains(word, ignoreCase = true) } }
+}
 
 /** Whether [query] is part of the song's title, artist or album, ignoring case; a blank query matches every song. */
-fun Song.matches(query: String): Boolean {
-    val words = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    return words.all { word ->
-        title.contains(word, ignoreCase = true) ||
-            artist.contains(word, ignoreCase = true) ||
-            album.contains(word, ignoreCase = true)
-    }
-}
+fun Song.matches(query: String): Boolean = matchesFilter(query, title, artist, album)
 
 /** The songs matching [query] together with their positions in the whole list, see [matches]. */
 fun List<Song>.filtered(query: String): List<IndexedValue<Song>> =
@@ -60,7 +61,7 @@ fun rememberSongFilterFocus(listState: LazyListState, itemIndex: Int): SongFilte
     return focus
 }
 
-/** Text field to search the songs of a list, e.g. a playlist. */
+/** Text field to search the songs of a list, e.g. a playlist, or another list such as the artists. */
 @Composable
 fun SongFilterField(
     query: String,
@@ -68,6 +69,7 @@ fun SongFilterField(
     placeholder: String,
     modifier: Modifier = Modifier,
     focus: SongFilterFocus? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
 ) {
     // Also once the field got composed after scrolling it into view
     LaunchedEffect(focus?.requested) {
@@ -79,7 +81,7 @@ fun SongFilterField(
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
-        placeholder = { Text(placeholder) },
+        placeholder = { Text(placeholder, color = SearchPlaceholderGray) },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = if (query.isEmpty()) null else {
             {
@@ -96,7 +98,7 @@ fun SongFilterField(
         ),
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(contentPadding)
             .then(if (focus != null) Modifier.focusRequester(focus.requester) else Modifier),
     )
 }

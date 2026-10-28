@@ -85,6 +85,7 @@ import de.ronnyporsch.voidcast.ui.components.LocalSelectionBarHost
 import de.ronnyporsch.voidcast.ui.components.SelectionActionBar
 import de.ronnyporsch.voidcast.ui.components.SelectionBarHost
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
+import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -868,5 +869,3 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator) {
         )
     }
 }
-
-private val SearchPlaceholderGray = Color(0xFF757575)

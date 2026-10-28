@@ -15,6 +15,8 @@ val SpotifyDarkGray = Color(0xFF181818)
 val SpotifySurface = Color(0xFF282828)
 val SpotifyLightGray = Color(0xFFB3B3B3)
 val SpotifyWhite = Color(0xFFFFFFFF)
+/** Placeholder of search and filter fields; set explicitly, as the text styles hardcode white. */
+val SearchPlaceholderGray = Color(0xFF757575)
 
 /** Background of selected songs and albums; tinted, so it shows on every background, the sidebar's included. */
 val SelectionColor = AccentColor.copy(alpha = 0.22f)

@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.library
 
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.foundation.lazy.LazyListState
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
@@ -38,6 +40,9 @@ class LibraryViewModel(
 
     // The sidebar is shown next to other screens too and keeps its scroll position across them
     val sidebarStates: Map<LibraryCategory, LazyListState> = LibraryCategory.entries.associateWith { LazyListState() }
+
+    /** What the sidebar's lists (artists, albums) are filtered by, kept the same way. */
+    val sidebarFilters: SnapshotStateMap<LibraryCategory, String> = mutableStateMapOf()
 
     init {
         if (repository.isConfigured) {

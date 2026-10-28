@@ -236,6 +236,12 @@ private fun LibrarySidebar(
     val order = state.order
     val listState = viewModel.sidebarStates.getValue(state.category)
     val isCategoryLoading = state.category in state.loadingCategories
+    val scope = rememberCoroutineScope()
+    val onFilterChange: (String) -> Unit = { filter ->
+        viewModel.sidebarFilters[state.category] = filter
+        // The matches start at the top
+        scope.launch { listState.scrollToItem(0) }
+    }
     Surface(
         modifier = modifier,
         color = containerColor,
@@ -253,14 +259,18 @@ private fun LibrarySidebar(
 
             when (state.category) {
                 LibraryCategory.Artists -> {
-                    val artists = remember(state.artists, order) { state.artists.sortedBy(order) }
+                    val filter = viewModel.sidebarFilters[state.category].orEmpty()
+                    val artists = remember(state.artists, order, filter) {
+                        state.artists.sortedBy(order).filter { matchesFilter(filter, it.name) }
+                    }
+                    SidebarFilter(filter, "Filter artists", onFilterChange)
                     SidebarList(
                         items = artists,
                         key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
                         name = { it.name },
                         showAlphabet = order.sort == LibrarySort.Alphabetical,
                         state = listState,
-                        emptyText = "No artists",
+                        emptyText = if (filter.isBlank()) "No artists" else "No matching artists",
                     ) { _, artist ->
                         ArtistListItem(
                             artist = artist,
@@ -273,7 +283,11 @@ private fun LibrarySidebar(
                     }
                 }
                 LibraryCategory.Albums -> {
-                    val albums = remember(state.albums, order) { state.albums.sortedBy(order) }
+                    val filter = viewModel.sidebarFilters[state.category].orEmpty()
+                    val albums = remember(state.albums, order, filter) {
+                        state.albums.sortedBy(order).filter { matchesFilter(filter, it.name, it.artist) }
+                    }
+                    SidebarFilter(filter, "Filter albums", onFilterChange)
                     SidebarList(
                         items = albums,
                         key = { index, album -> "${album.id}::$index" },
@@ -281,7 +295,7 @@ private fun LibrarySidebar(
                         showAlphabet = order.sort == LibrarySort.Alphabetical,
                         state = listState,
                         isLoading = isCategoryLoading,
-                        emptyText = "No albums",
+                        emptyText = if (filter.isBlank()) "No albums" else "No matching albums",
                     ) { _, album ->
                         AlbumListItem(
                             album = album,
@@ -369,6 +383,17 @@ private fun LibrarySidebar(
             }
         }
     }
+}
+
+/** Filters the list of the sidebar below it. */
+@Composable
+private fun SidebarFilter(filter: String, placeholder: String, onFilterChange: (String) -> Unit) {
+    SongFilterField(
+        query = filter,
+        onQueryChange = onFilterChange,
+        placeholder = placeholder,
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp),
+    )
 }
 
 /** Picks what the sidebar lists and how it orders it; playlists get a button to create one. */
