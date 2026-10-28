@@ -9,6 +9,7 @@ import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
 import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
+import de.ronnyporsch.voidcast.domain.model.isYouTube
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
@@ -270,6 +271,12 @@ class LibraryViewModel(
             }
             is LibraryEvent.ShuffleAllGenreSongs -> {
                 val songs = currentState.selectedGenreSongs
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+            }
+            is LibraryEvent.ShuffleLibrary -> launch {
+                val songs = currentState.songs.ifEmpty {
+                    repository.getAllSongs().getOrNull()?.also { setState { copy(songs = it) } }.orEmpty()
+                }.filterNot { it.isYouTube }
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
             }
             is LibraryEvent.PlaySongs ->

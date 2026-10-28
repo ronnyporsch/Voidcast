@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
@@ -255,6 +256,7 @@ private fun LibrarySidebar(
                 onCategorySelected = { viewModel.onEvent(LibraryEvent.CategorySelected(it)) },
                 onSortSelected = { viewModel.onEvent(LibraryEvent.SortSelected(it)) },
                 onCreatePlaylist = onCreatePlaylist.takeIf { state.category == LibraryCategory.Playlists },
+                onShuffleLibrary = { viewModel.onEvent(LibraryEvent.ShuffleLibrary) },
             )
             val filter = viewModel.sidebarFilters[state.category].orEmpty()
             SidebarFilter(filter, "Filter ${state.category.title.lowercase()}", onFilterChange)
@@ -399,7 +401,10 @@ private fun SidebarFilter(filter: String, placeholder: String, onFilterChange: (
     )
 }
 
-/** Picks what the sidebar lists and how it orders it; playlists get a button to create one. */
+/**
+ * Picks what the sidebar lists and how it orders it, and shuffles the whole library; playlists get a button to create
+ * one.
+ */
 @Composable
 private fun LibrarySidebarHeader(
     category: LibraryCategory,
@@ -408,6 +413,7 @@ private fun LibrarySidebarHeader(
     onCategorySelected: (LibraryCategory) -> Unit,
     onSortSelected: (LibrarySort) -> Unit,
     onCreatePlaylist: (() -> Unit)?,
+    onShuffleLibrary: () -> Unit,
 ) {
     var categoryMenuOpen by remember { mutableStateOf(false) }
     var sortMenuOpen by remember { mutableStateOf(false) }
@@ -453,6 +459,13 @@ private fun LibrarySidebarHeader(
                 Text("+ New", color = AccentColor, fontWeight = FontWeight.Bold)
             }
         }
+
+        TooltipIconButton(
+            onClick = onShuffleLibrary,
+            icon = Icons.Default.Shuffle,
+            contentDescription = "Shuffle all songs of the library",
+            tint = SpotifyLightGray,
+        )
 
         if (sorts.size > 1) {
             Box {

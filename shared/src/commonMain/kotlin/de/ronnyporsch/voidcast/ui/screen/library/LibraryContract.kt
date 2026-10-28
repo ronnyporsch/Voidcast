@@ -134,6 +134,8 @@ sealed class LibraryEvent {
     data class GenreClicked(val genre: Genre) : LibraryEvent()
     data object PlayAllGenreSongs : LibraryEvent()
     data object ShuffleAllGenreSongs : LibraryEvent()
+    /** Plays all songs of the library (no YouTube Music ones) shuffled. */
+    data object ShuffleLibrary : LibraryEvent()
     /** Plays songs of the sidebar, e.g. all songs of the library from the one at [startIndex] on. */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int) : LibraryEvent()
 }
