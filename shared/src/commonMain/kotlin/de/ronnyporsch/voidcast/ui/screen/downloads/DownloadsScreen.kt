@@ -292,8 +292,11 @@ fun DownloadsButton(youTube: YouTubeService, deviceDownloads: PlaylistDownloads?
     val downloads by youTube.downloads.collectAsState()
     val transferring by (deviceDownloads?.downloadingSongIds ?: remember { MutableStateFlow(emptySet<String>()) })
         .collectAsState()
+    // Between two songs none is transferring, but the next one is queued
+    val queued by (deviceDownloads?.queuedSongIds ?: remember { MutableStateFlow(emptySet<String>()) })
+        .collectAsState()
     if (songs.isEmpty() && deviceDownloads == null) return
-    val running = transferring.isNotEmpty() || songs.any { downloads[it.id] == DownloadStatus.InProgress }
+    val running = transferring.isNotEmpty() || queued.isNotEmpty() || songs.any { downloads[it.id] == DownloadStatus.InProgress }
     TooltipIconButton(
         onClick = onClick,
         icon = if (running) Icons.Default.Downloading else Icons.Default.Download,

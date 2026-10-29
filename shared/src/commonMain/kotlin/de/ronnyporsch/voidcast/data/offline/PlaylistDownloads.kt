@@ -411,11 +411,14 @@ class PlaylistDownloads(
         _status.value = entries
             .associate { entry ->
                 val songs = entry.playlist.songs.distinctBy { it.id }
+                val downloaded = songs.count { files.uriOf(it.id) != null }
+                // Until the songs got fetched only the count is known
+                val total = if (songs.isEmpty()) entry.playlist.songCount else songs.size
                 entry.playlist.id to PlaylistDownloadStatus(
-                    downloadedSongs = songs.count { files.uriOf(it.id) != null },
-                    // Until the songs got fetched only the count is known
-                    totalSongs = if (songs.isEmpty()) entry.playlist.songCount else songs.size,
-                    isRunning = jobs[key(server, entry.playlist.id)]?.isActive == true,
+                    downloadedSongs = downloaded,
+                    totalSongs = total,
+                    // A sync of a playlist whose songs are all there only checks the server, nothing to show for that
+                    isRunning = jobs[key(server, entry.playlist.id)]?.isActive == true && downloaded < total,
                 )
             }
         _content.value = OfflineContent(
@@ -427,10 +430,11 @@ class PlaylistDownloads(
         )
         _albumStatus.value = albums.associate { entry ->
             val songs = entry.songs.distinctBy { it.id }
+            val downloaded = songs.count { files.uriOf(it.id) != null }
             entry.albumId to PlaylistDownloadStatus(
-                downloadedSongs = songs.count { files.uriOf(it.id) != null },
+                downloadedSongs = downloaded,
                 totalSongs = songs.size,
-                isRunning = jobs[albumKey(server, entry.albumId)]?.isActive == true,
+                isRunning = jobs[albumKey(server, entry.albumId)]?.isActive == true && downloaded < songs.size,
             )
         }
     }
