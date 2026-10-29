@@ -161,22 +161,20 @@ fun Playlist.folderAndName(): Pair<String, String>? {
 }
 
 /**
- * The sidebar rows of these playlists, keeping their order: each folder (see [PlaylistSidebarEntry]) where its first
- * playlist is, followed by its playlists if it is in [expandedFolders].
+ * The sidebar rows of these playlists, keeping their order: first the folders (see [PlaylistSidebarEntry]), in the
+ * order of their first playlists, each followed by its playlists if it is in [expandedFolders]; then the playlists
+ * without a folder.
  */
 fun List<Playlist>.toSidebarEntries(expandedFolders: Set<String>): List<PlaylistSidebarEntry> {
     val folders = mapNotNull { playlist -> playlist.folderAndName()?.let { it.first to playlist } }
         .groupBy({ it.first }, { it.second })
-    val shownFolders = mutableSetOf<String>()
-    return flatMap { playlist ->
-        val (folder, _) = playlist.folderAndName() ?: return@flatMap listOf(PlaylistSidebarEntry.Item(playlist, playlist.name))
-        if (!shownFolders.add(folder)) return@flatMap emptyList()
-        val playlists = folders.getValue(folder)
+    val folderEntries = folders.flatMap { (folder, playlists) ->
         val isExpanded = folder in expandedFolders
         listOf(PlaylistSidebarEntry.Folder(folder, playlists, isExpanded)) + if (!isExpanded) emptyList() else playlists.map {
             PlaylistSidebarEntry.Item(it, it.folderAndName()?.second ?: it.name, folder)
         }
     }
+    return folderEntries + filter { it.folderAndName() == null }.map { PlaylistSidebarEntry.Item(it, it.name) }
 }
 
 sealed class LibraryEffect {

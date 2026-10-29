@@ -314,11 +314,11 @@ class SharedCommonTest {
         }
 
         assertEquals(
-            listOf("Chill", "[Rock: 2]", "Party", ".hidden", "Vol."),
+            listOf("[Rock: 2]", "Chill", "Party", ".hidden", "Vol."),
             playlists.toSidebarEntries(expandedFolders = emptySet()).map(describe),
         )
         assertEquals(
-            listOf("Chill", "[Rock: 2]", "Rock/80s", "Rock/Classics.Best", "Party", ".hidden", "Vol."),
+            listOf("[Rock: 2]", "Rock/80s", "Rock/Classics.Best", "Chill", "Party", ".hidden", "Vol."),
             playlists.toSidebarEntries(expandedFolders = setOf("Rock")).map(describe),
         )
     }

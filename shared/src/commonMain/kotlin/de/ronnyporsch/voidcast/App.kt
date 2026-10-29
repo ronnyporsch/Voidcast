@@ -2,6 +2,7 @@ package de.ronnyporsch.voidcast
 
 import androidx.compose.foundation.focusable
 import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
+import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.platform.rememberSystemFullscreen
 import de.ronnyporsch.voidcast.ui.screen.player.VideoPlayerView
 import de.ronnyporsch.voidcast.ui.screen.player.FullscreenVideoControls
@@ -188,7 +189,8 @@ fun App() {
             playlistChanges = repository.playlistChanges,
             downloads = connection.downloads,
             favorites = connection.favorites,
-            initialView = settingsHolder.settings.value.libraryView,
+            // The orders and open folders are kept, but the app always starts on the playlists
+            initialView = settingsHolder.settings.value.libraryView.copy(category = LibraryCategory.Playlists),
             onViewChanged = { view -> settingsHolder.update { copy(libraryView = view) } },
         )
     }
