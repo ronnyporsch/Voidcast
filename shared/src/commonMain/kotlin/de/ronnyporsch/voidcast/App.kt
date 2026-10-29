@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Refresh
@@ -27,6 +29,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.input.key.*
@@ -489,6 +492,14 @@ fun App() {
                             placeholder = { Text("Search artists, albums, songs...", color = SearchPlaceholderGray) },
                             modifier = Modifier.weight(1f).focusRequester(searchFocusRequester),
                             singleLine = true,
+                            // Enter searches again, e.g. to get back to the results after opening one
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                if (searchState.query.isNotBlank()) {
+                                    searchViewModel.onEvent(SearchEvent.Search)
+                                    if (currentScreen !is Screen.Search) navigator.push(Screen.Search)
+                                }
+                            }),
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentColor,
