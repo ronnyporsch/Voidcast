@@ -45,7 +45,7 @@ Without the plugin, Voidcast works as a regular Jellyfin music player.
 cd packaging/arch && makepkg -si
 ```
 
-This adds Voidcast to the application menu and a `voidcast` command. Music videos additionally need `vlc`.
+This adds Voidcast to the application menu and a `voidcast` command.
 
 ### Windows, macOS and other Linux systems
 
@@ -55,7 +55,7 @@ Build an installer on the system it is meant for:
 - Windows: `./gradlew :desktopApp:packageMsi`
 - macOS: `./gradlew :desktopApp:packageDmg`
 
-The installer ends up in `desktopApp/build/compose/`. Music videos on the desktop need [VLC 3](https://www.videolan.org/).
+The installer ends up in `desktopApp/build/compose/`. The Desktop version requires [VLC 3](https://www.videolan.org/) to be installed.
 
 ### Android
 

@@ -9,8 +9,8 @@ class JVMPlatform : Platform {
         host?.takeIf { it.isNotBlank() } ?: System.getProperty("os.name") ?: "Desktop"
     }
     override val isMobile: Boolean = false
-    // javax.sound with the MP3 and FLAC SPIs
-    override val audioContainers: List<String> = listOf("mp3", "flac", "wav", "aiff")
+    // libVLC decodes them all
+    override val audioContainers: List<String> = BROWSER_AUDIO_CONTAINERS + listOf("aiff", "alac", "wma", "ape", "wv", "mka")
 }
 
 actual fun getPlatform(): Platform = JVMPlatform()

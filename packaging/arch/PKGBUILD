@@ -13,9 +13,8 @@ pkgdesc='Music player for Jellyfin with a Youtube Integration'
 arch=('x86_64' 'aarch64')
 url='https://github.com/ronnyporsch/Voidcast'
 license=('custom')
-depends=('java-runtime>=21' 'hicolor-icon-theme')
+depends=('java-runtime>=21' 'hicolor-icon-theme' 'vlc')
 makedepends=('git')
-optdepends=('vlc: YouTube video playback')
 options=('!debug')
 source=("$pkgname::git+file://$_repo"
         'voidcast.desktop'

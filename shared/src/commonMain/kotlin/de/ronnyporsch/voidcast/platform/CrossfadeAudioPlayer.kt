@@ -30,6 +30,8 @@ class CrossfadeAudioPlayer(
     val activePlayer: StateFlow<AudioPlayer> = _activePlayer.asStateFlow()
     private var nextPlayer: AudioPlayer = playerB
     private var nextPreparedUrl: String? = null
+    /** Given to [prepareNext] during a crossfade, while the next player is the incoming one; prepared after it. */
+    private var preparedAfterCrossfadeUrl: String? = null
     @Volatile
     private var isCrossfading = false
     @Volatile
@@ -51,6 +53,10 @@ class CrossfadeAudioPlayer(
     }
 
     fun prepareNext(url: String) {
+        if (isCrossfading) {
+            preparedAfterCrossfadeUrl = url
+            return
+        }
         if (nextPreparedUrl == url) return
         nextPreparedUrl = url
         val player = nextPlayer
@@ -125,18 +131,29 @@ class CrossfadeAudioPlayer(
 
                 delay(50)
             }
+            finishCrossfade()
+        }
+    }
 
-            // Crossfade complete — swap players
-            outPlayer.stop()
-            outPlayer.setVolume(1f)
-            inPlayer.setVolume(1f)
+    /** Swaps the players, the incoming one is the current one from now on. */
+    private fun finishCrossfade() {
+        crossfadeJob?.cancel()
+        val outPlayer = currentPlayer
+        val inPlayer = nextPlayer
+        outPlayer.stop()
+        outPlayer.setVolume(1f)
+        inPlayer.setVolume(1f)
 
-            currentPlayer = inPlayer
-            nextPlayer = outPlayer
-            nextPreparedUrl = null
-            isCrossfading = false
+        currentPlayer = inPlayer
+        nextPlayer = outPlayer
+        nextPreparedUrl = null
+        isCrossfading = false
+        isCrossfadePaused = false
 
-            collectCurrentPlayerState()
+        collectCurrentPlayerState()
+        preparedAfterCrossfadeUrl?.let {
+            preparedAfterCrossfadeUrl = null
+            prepareNext(it)
         }
     }
 
@@ -168,6 +185,7 @@ class CrossfadeAudioPlayer(
         nextPlayer.stop()
         nextPlayer.setVolume(1f)
         nextPreparedUrl = null
+        preparedAfterCrossfadeUrl = null
         currentPlayer.setVolume(1f)
         currentPlayer.play(url)
         collectCurrentPlayerState()
@@ -182,6 +200,7 @@ class CrossfadeAudioPlayer(
         nextPlayer.stop()
         nextPlayer.setVolume(1f)
         nextPreparedUrl = null
+        preparedAfterCrossfadeUrl = null
         currentPlayer.setVolume(1f)
         currentPlayer.playVideo(url, startPositionMs)
         collectCurrentPlayerState()
@@ -205,6 +224,8 @@ class CrossfadeAudioPlayer(
     }
 
     override fun seekTo(positionMs: Long) {
+        // The incoming song is the one shown already, the rest of the outgoing one isn't wanted anymore
+        if (isCrossfading) finishCrossfade()
         currentPlayer.seekTo(positionMs)
     }
 
@@ -216,6 +237,7 @@ class CrossfadeAudioPlayer(
         currentPlayer.setVolume(1f)
         nextPlayer.setVolume(1f)
         nextPreparedUrl = null
+        preparedAfterCrossfadeUrl = null
         _state.value = AudioPlayerState()
     }
 

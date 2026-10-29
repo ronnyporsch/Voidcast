@@ -116,14 +116,15 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.jlayer)
-            implementation(libs.mp3spi)
-            implementation(libs.jflac)
-            // Video playback (YouTube videos) through an installed VLC
+            // Playback of songs and videos through an installed VLC
             implementation(libs.vlcj)
             // MPRIS, so media keys and desktop media widgets on Linux can control playback
             implementation(libs.dbus.java.core)
             implementation(libs.dbus.java.transport.unixsocket)
+        }
+        jvmTest.dependencies {
+            // The native Skia library, which the player's video frames need
+            implementation(compose.desktop.currentOs)
         }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)

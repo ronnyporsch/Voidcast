@@ -59,7 +59,7 @@ Use the run button in the IDE's editor gutter, or these Gradle tasks:
 | `shared/src/commonMain` | Code for all platforms (`data/` server APIs and repositories, `ui/` screens, `mvi/` view model base) |
 | `shared/src/jvmCommonMain` | Code shared by Android and desktop (OkHttp-based HTTP client) |
 | `shared/src/androidMain` | ExoPlayer playback, media session, offline song storage |
-| `shared/src/jvmMain` | Desktop audio (javax.sound with MP3/FLAC decoders), VLC video, MPRIS |
+| `shared/src/jvmMain` | Desktop playback of songs and videos through VLC, MPRIS |
 | `shared/src/jsMain`, `wasmJsMain` | Browser audio/video through HTML media elements |
 | [`androidApp/`](./androidApp), [`desktopApp/`](./desktopApp), [`webApp/`](./webApp) | Thin entry points for each platform |
 | [`jellyfin-plugin/`](./jellyfin-plugin) | The Jellyfin plugin (C#) for YouTube Music |

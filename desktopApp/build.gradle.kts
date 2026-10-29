@@ -39,8 +39,8 @@ compose.desktop {
     }
 }
 
-// The uber jar keeps only the first copy of each entry, so of the javax.sound SPI registrations
-// in META-INF/services only mp3spi's survived and FLAC (jflac) wasn't decodable. Merge them.
+// The uber jar keeps only the first copy of each entry, so of service registrations (META-INF/services)
+// that several jars make only one would survive. Merge them.
 tasks.withType<AbstractJarsFlattenTask>().configureEach {
     doLast {
         val services = linkedMapOf<String, LinkedHashSet<String>>()

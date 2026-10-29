@@ -1,6 +1,6 @@
 package de.ronnyporsch.voidcast
 
-import de.ronnyporsch.voidcast.platform.AudioPlayerJvm
+import de.ronnyporsch.voidcast.platform.VlcPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayInputStream
@@ -48,7 +48,7 @@ class SharedLogicDesktopTest {
     }
 
     @Test
-    fun testAudioPlayerJvmPlayback() = runBlocking {
+    fun testVlcPlayerPlayback() = runBlocking {
         val wavBytes = createWavBytes(1)
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/test.wav") { exchange ->
@@ -59,7 +59,9 @@ class SharedLogicDesktopTest {
         val port = server.address.port
         val url = "http://127.0.0.1:$port/test.wav"
 
-        val player = AudioPlayerJvm()
+        val player = VlcPlayer()
+        // VLC isn't installed
+        if (!player.supportsVideo) return@runBlocking server.stop(0)
         player.play(url)
 
         var finished = false
@@ -77,7 +79,7 @@ class SharedLogicDesktopTest {
     }
 
     @Test
-    fun testAudioPlayerJvmPauseResumeAndSeek() = runBlocking {
+    fun testVlcPlayerPauseResumeAndSeek() = runBlocking {
         val wavBytes = createWavBytes(3)
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/test_long.wav") { exchange ->
@@ -88,7 +90,9 @@ class SharedLogicDesktopTest {
         val port = server.address.port
         val url = "http://127.0.0.1:$port/test_long.wav"
 
-        val player = AudioPlayerJvm()
+        val player = VlcPlayer()
+        // VLC isn't installed
+        if (!player.supportsVideo) return@runBlocking server.stop(0)
         player.play(url)
 
         // Wait for playback to start
