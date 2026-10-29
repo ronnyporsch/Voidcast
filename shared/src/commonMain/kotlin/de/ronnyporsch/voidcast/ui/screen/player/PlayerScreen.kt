@@ -2,7 +2,9 @@ package de.ronnyporsch.voidcast.ui.screen.player
 
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.aspectRatio
@@ -36,6 +39,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +71,7 @@ import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifySurface
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlayerScreen(
@@ -90,10 +96,36 @@ fun PlayerScreen(
     val toggleIconSize = if (isMobile) 32.dp else 24.dp
     val skipIconSize = if (isMobile) 40.dp else 24.dp
 
+    // Mobile: swipe left/right anywhere to skip to the next/previous song, like in the mini player.
+    // The seek bar consumes its own drags, so it still seeks.
+    val scope = rememberCoroutineScope()
+    val swipeOffset = remember { Animatable(0f) }
+    val swipeModifier = if (isMobile) Modifier.graphicsLayer { translationX = swipeOffset.value } else Modifier
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .then(
+                if (isMobile) Modifier.pointerInput(Unit) {
+                    val threshold = size.width / 4f
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val offset = swipeOffset.value
+                            when {
+                                offset <= -threshold -> viewModel.onEvent(PlayerEvent.Next)
+                                offset >= threshold -> viewModel.onEvent(PlayerEvent.Previous)
+                            }
+                            scope.launch { swipeOffset.animateTo(0f) }
+                        },
+                        onDragCancel = { scope.launch { swipeOffset.animateTo(0f) } },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        scope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
+                    }
+                }
+                else Modifier
+            )
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -134,11 +166,11 @@ fun PlayerScreen(
                     viewModel.onEvent(PlayerEvent.SeekTo(it))
                     viewModel.onEvent(PlayerEvent.Play)
                 },
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().then(swipeModifier).padding(vertical = 16.dp),
             )
         } else if (state.isVideo && song != null) {
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().then(swipeModifier).padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 // The fullscreen view shows the picture meanwhile; a player has only one
@@ -161,7 +193,7 @@ fun PlayerScreen(
 
             CoverArtImage(
                 url = coverArt.getUrl(song?.coverArtId),
-                modifier = Modifier.size(280.dp),
+                modifier = swipeModifier.size(280.dp),
                 cornerRadius = 0.dp,
                 placeholderFontSize = 80.sp,
             )
@@ -169,7 +201,7 @@ fun PlayerScreen(
             Spacer(Modifier.weight(0.5f))
         }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().then(swipeModifier), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Box(Modifier.fillMaxWidth()) {
                     HoverLinkText(
