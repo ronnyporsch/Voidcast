@@ -60,6 +60,7 @@ public class VoidcastController : ControllerBase
             Warning = _ytDlp.CookiesWarning,
             VideoAvailable = true,
             PlaylistAdditionAvailable = true,
+            SongLookupAvailable = true,
         };
     }
 
@@ -96,6 +97,26 @@ public class VoidcastController : ControllerBase
         try
         {
             return await _youTubeMusic.SearchArtistsAsync(query, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>A song or video by its id, e.g. from a link pasted into the search.</summary>
+    [HttpGet("YouTube/Songs/{videoId}")]
+    public async Task<ActionResult<YouTubeSongDto>> GetSong([FromRoute] string videoId, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var song = await _youTubeMusic.GetSongAsync(videoId, cancellationToken).ConfigureAwait(false);
+            return song != null ? song : NotFound();
         }
         catch (HttpRequestException e)
         {

@@ -2,13 +2,17 @@ package de.ronnyporsch.voidcast.ui.screen.search
 
 import androidx.lifecycle.viewModelScope
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.data.youtube.YouTubeLink
 import de.ronnyporsch.voidcast.data.youtube.YouTubeService
+import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.domain.model.YOUTUBE_SONG_ID_PREFIX
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -19,6 +23,7 @@ class SearchViewModel(
     private val youTube: YouTubeService,
 ) : MviStore<SearchState, SearchEvent, SearchEffect>(SearchState()) {
 
+    private var librarySearchJob: Job? = null
     private var youTubeSearchJob: Job? = null
 
     init {
@@ -89,10 +94,16 @@ class SearchViewModel(
 
     private fun performSearch(query: String) {
         if (query.isBlank()) return
+        val link = YouTubeLink.parse(query)
+        if (link != null && currentState.youTubeAvailable) {
+            openYouTubeLink(link)
+            return
+        }
         setState { copy(isLoading = true) }
-        launch {
+        librarySearchJob?.cancel()
+        librarySearchJob = viewModelScope.launch {
             // The search APIs don't cover playlists, so match them by name
-            val matchingPlaylists = viewModelScope.async {
+            val matchingPlaylists = async {
                 repository.getPlaylists().getOrDefault(emptyList()).filter { it.name.contains(query.trim(), ignoreCase = true) }
             }
             val results = repository.search(query)
@@ -117,20 +128,42 @@ class SearchViewModel(
         if (currentState.youTubeAvailable) searchYouTube(query)
     }
 
-    private fun searchYouTube(query: String) {
+    private fun searchYouTube(query: String) = loadYouTube {
+        // Debounce: the query changes on every keystroke
+        delay(400)
+        // Artists are optional: plugins before artist search answer with 404
+        val artists = async { runCatching { youTube.searchArtists(query) }.onFailure { if (it is CancellationException) throw it } }
+        val songs = youTube.searchSongs(query)
+        artists.await().getOrDefault(emptyList()) to songs
+    }
+
+    /** Shows just what [link] points to; the library has nothing to match a link. */
+    private fun openYouTubeLink(link: YouTubeLink) {
+        librarySearchJob?.cancel()
+        setState {
+            copy(artists = emptyList(), playlists = emptyList(), albums = emptyList(), songs = emptyList(), isLoading = false, hasSearched = true)
+        }
+        loadYouTube {
+            when (link) {
+                is YouTubeLink.Video -> {
+                    if (!youTube.currentCapabilities.songLookup) error("Update the Voidcast plugin on the server to open YouTube links")
+                    emptyList<Artist>() to listOf(youTube.getSong(link.videoId))
+                }
+                is YouTubeLink.Channel -> listOf(youTube.getArtist(YOUTUBE_SONG_ID_PREFIX + link.channelId).artist) to emptyList()
+            }
+        }
+    }
+
+    /** Replaces the YouTube Music results with those [load] finds, cancelling a previous search. */
+    private fun loadYouTube(load: suspend CoroutineScope.() -> Pair<List<Artist>, List<Song>>) {
         youTubeSearchJob?.cancel()
         setState { copy(isYouTubeLoading = true) }
         youTubeSearchJob = viewModelScope.launch {
-            // Debounce: the query changes on every keystroke
-            delay(400)
             try {
-                // Artists are optional: plugins before artist search answer with 404
-                val artists = async { runCatching { youTube.searchArtists(query) }.onFailure { if (it is CancellationException) throw it } }
-                val songs = youTube.searchSongs(query)
-                val foundArtists = artists.await().getOrDefault(emptyList())
+                val (artists, songs) = load()
                 setState {
                     copy(
-                        youTubeArtists = foundArtists,
+                        youTubeArtists = artists,
                         youTubeSongs = songs,
                         isYouTubeLoading = false,
                         youTubeError = null,

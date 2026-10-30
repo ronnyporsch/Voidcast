@@ -136,6 +136,8 @@ data class PluginInfoDto(
     @SerialName("VideoAvailable") val videoAvailable: Boolean = false,
     /** Whether YouTube Music tracks can be added to playlists, see [PlaylistAdditionDto] (plugin 1.9.0.0 and later). */
     @SerialName("PlaylistAdditionAvailable") val playlistAdditionAvailable: Boolean = false,
+    /** Whether songs and videos can be looked up by id, e.g. from a link, see [JellyfinApiService.getYouTubeSong]. */
+    @SerialName("SongLookupAvailable") val songLookupAvailable: Boolean = false,
 )
 
 @Serializable

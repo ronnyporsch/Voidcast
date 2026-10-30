@@ -5,6 +5,7 @@ import de.ronnyporsch.voidcast.data.dto.AlbumDto
 import de.ronnyporsch.voidcast.data.dto.ArtistDto
 import de.ronnyporsch.voidcast.data.dto.SongDto
 import de.ronnyporsch.voidcast.data.repository.collectAppearsOnAlbumIds
+import de.ronnyporsch.voidcast.data.youtube.YouTubeLink
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
@@ -28,6 +29,7 @@ import de.ronnyporsch.voidcast.ui.navigation.Screen
 import de.ronnyporsch.voidcast.util.md5
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SharedCommonTest {
@@ -321,5 +323,32 @@ class SharedCommonTest {
             listOf("[Rock: 2]", "Rock/80s", "Rock/Classics.Best", "Chill", "Party", ".hidden", "Vol."),
             playlists.toSidebarEntries(expandedFolders = setOf("Rock")).map(describe),
         )
+    }
+
+    @Test
+    fun youtube_links_are_recognized() {
+        val video = YouTubeLink.Video("dQw4w9WgXcQ")
+        listOf(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "  https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVM&si=abc  ",
+            "http://m.youtube.com/watch?feature=share&v=dQw4w9WgXcQ#t=10",
+            "youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ?si=xyz",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+            "HTTPS://WWW.YOUTUBE.COM/watch?v=dQw4w9WgXcQ",
+        ).forEach { assertEquals(video, YouTubeLink.parse(it), it) }
+        assertEquals(
+            YouTubeLink.Channel("UCuAXFkgsw1L7xaCfnd5JJOw"),
+            YouTubeLink.parse("https://music.youtube.com/channel/UCuAXFkgsw1L7xaCfnd5JJOw"),
+        )
+        listOf(
+            "rick astley",
+            "https://www.youtube.com/watch?v=tooShort",
+            "https://www.youtube.com/",
+            "https://example.com/watch?v=dQw4w9WgXcQ",
+            "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
+            "https://music.youtube.com/browse/MPREb_abc",
+        ).forEach { assertNull(YouTubeLink.parse(it), it) }
     }
 }

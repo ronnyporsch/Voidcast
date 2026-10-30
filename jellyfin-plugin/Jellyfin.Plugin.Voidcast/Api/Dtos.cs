@@ -227,4 +227,7 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether tracks can be added to playlists (downloading them first).</summary>
     public bool PlaylistAdditionAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether songs and videos can be looked up by id, see <c>YouTube/Songs/{videoId}</c>.</summary>
+    public bool SongLookupAvailable { get; set; }
 }

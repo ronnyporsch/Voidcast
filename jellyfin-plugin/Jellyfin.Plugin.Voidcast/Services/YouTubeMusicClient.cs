@@ -126,6 +126,47 @@ public partial class YouTubeMusicClient
             .ToList();
     }
 
+    /// <summary>Looks up a song or video by its id (e.g. from a link), or returns null if unavailable.</summary>
+    public async Task<YouTubeSongDto?> GetSongAsync(string videoId, CancellationToken cancellationToken)
+    {
+        var root = await PostAsync("next", new JsonObject { ["videoId"] = videoId }, cancellationToken).ConfigureAwait(false);
+        // The watch page's queue starts with the video; songs with a music video (or vice versa) come wrapped with it
+        var item = Path(root, "contents", "singleColumnMusicWatchNextResultsRenderer", "tabbedRenderer", "watchNextTabbedResultsRenderer", "tabs")
+            .Items().FirstOrDefault()
+            .Pipe(tab => Path(tab, "tabRenderer", "content", "musicQueueRenderer", "content", "playlistPanelRenderer", "contents"))
+            .Items()
+            .SelectMany(entry => new[]
+            {
+                Path(entry, "playlistPanelVideoRenderer"),
+                Path(entry, "playlistPanelVideoWrapperRenderer", "primaryRenderer", "playlistPanelVideoRenderer"),
+            }.Concat(Path(entry, "playlistPanelVideoWrapperRenderer", "counterpart").Items()
+                .Select(counterpart => Path(counterpart, "counterpartRenderer", "playlistPanelVideoRenderer"))))
+            .FirstOrDefault(renderer => String(renderer, "videoId") == videoId);
+        var title = Join(Path(item, "title", "runs").Items());
+        if (title.Length == 0)
+        {
+            return null;
+        }
+
+        // "<artist runs> • <album> • <year>" for songs, "<artist runs> • <views> • <likes>" for videos
+        var bylineRuns = Path(item, "longBylineText", "runs").Items();
+        var artistRuns = bylineRuns.TakeWhile(run => String(run, "text")?.Trim() != "•").ToList();
+        var albumRun = bylineRuns.FirstOrDefault(run => PageType(run) == "MUSIC_PAGE_TYPE_ALBUM");
+        var length = Join(Path(item, "lengthText", "runs").Items());
+        return new YouTubeSongDto
+        {
+            VideoId = videoId,
+            Title = title,
+            Artist = Join(artistRuns),
+            Artists = ParseArtists(artistRuns),
+            Album = String(albumRun, "text") ?? string.Empty,
+            AlbumId = BrowseId(albumRun) ?? string.Empty,
+            ThumbnailUrl = String(Path(item, "thumbnail", "thumbnails").Items().LastOrDefault(), "url"),
+            Duration = DurationRegex().IsMatch(length) ? Seconds(length) : 0,
+            IsVideo = MusicVideoType(item, null) is { } type && type != "MUSIC_VIDEO_TYPE_ATV",
+        };
+    }
+
     /// <summary>Looks up an artist page by its channel id, or returns null if unavailable.</summary>
     public async Task<YouTubeArtistPageDto?> GetArtistAsync(string channelId, CancellationToken cancellationToken)
     {
@@ -372,7 +413,7 @@ public partial class YouTubeMusicClient
         var albumRun = details.FirstOrDefault(run => PageType(run) == "MUSIC_PAGE_TYPE_ALBUM");
         var duration = details.Select(run => String(run, "text")?.Trim())
             .LastOrDefault(text => text != null && DurationRegex().IsMatch(text))
-            ?.Split(':').Aggregate(0, (acc, part) => (acc * 60) + int.Parse(part, CultureInfo.InvariantCulture)) ?? 0;
+            ?.Pipe(Seconds) ?? 0;
 
         return new YouTubeSongDto
         {
@@ -399,6 +440,10 @@ public partial class YouTubeMusicClient
         return Type(Path(titleRun, "navigationEndpoint", "watchEndpoint"))
             ?? Type(Path(item, "overlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint"));
     }
+
+    /// <summary>Seconds of a duration like "3:45" or "1:02:03".</summary>
+    private static int Seconds(string duration) =>
+        duration.Split(':').Aggregate(0, (acc, part) => (acc * 60) + int.Parse(part, CultureInfo.InvariantCulture));
 
     private static YouTubeAlbumSummaryDto? ParseAlbumSummary(JsonNode? item, string? defaultType)
     {

@@ -40,6 +40,8 @@ data class YouTubeCapabilities(
     val videos: Boolean = false,
     /** Whether songs can be added to playlists (the server downloads them into its library first). */
     val addToPlaylists: Boolean = false,
+    /** Whether songs and videos can be looked up by id, see [YouTubeService.getSong]. */
+    val songLookup: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -112,6 +114,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             canDownload = server?.canDownload == true,
             videos = server?.videoAvailable == true,
             addToPlaylists = server?.playlistAdditionAvailable == true,
+            songLookup = server?.songLookupAvailable == true,
         )
     }
 
@@ -122,6 +125,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
     suspend fun searchArtists(query: String): List<Artist> = connection.jellyfinApi.searchYouTubeArtists(query).map {
         Artist(id = YOUTUBE_SONG_ID_PREFIX + it.id, name = it.name, coverArtId = it.thumbnailUrl)
     }
+
+    /** The song or video with [videoId], e.g. from a [YouTubeLink]. */
+    suspend fun getSong(videoId: String): Song =
+        connection.jellyfinApi.getYouTubeSong(videoId).toSong().also { checkDownloaded(listOf(it)) }
 
     /** [artistId] is a YouTube Music artist id, i.e. with [YOUTUBE_SONG_ID_PREFIX]. */
     suspend fun getArtist(artistId: String): YouTubeArtist {

@@ -319,6 +319,9 @@ class JellyfinApiService {
     suspend fun searchYouTubeArtists(query: String): List<YouTubeArtistSummaryDto> =
         get("Voidcast/YouTube/Artists/Search", mapOf("query" to query))
 
+    /** Needs [PluginInfoDto.songLookupAvailable]. */
+    suspend fun getYouTubeSong(videoId: String): YouTubeSongDto = get("Voidcast/YouTube/Songs/$videoId", emptyMap())
+
     suspend fun getYouTubeArtist(channelId: String): YouTubeArtistPageDto = get("Voidcast/YouTube/Artists/$channelId", emptyMap())
 
     suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("Voidcast/YouTube/Albums/$albumId", emptyMap())
