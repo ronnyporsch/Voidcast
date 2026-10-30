@@ -248,6 +248,12 @@ fun App() {
         }
     }
 
+    LaunchedEffect(connection) {
+        connection.downloads.deferred.collect {
+            snackbarHostState.showSnackbar("Not on wifi: the download starts once you are", duration = SnackbarDuration.Short)
+        }
+    }
+
     LaunchedEffect(playerViewModel) {
         playerViewModel.effects.collect { effect ->
             when (effect) {

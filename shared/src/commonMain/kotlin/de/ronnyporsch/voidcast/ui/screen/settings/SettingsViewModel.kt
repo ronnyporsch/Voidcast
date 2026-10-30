@@ -26,6 +26,8 @@ class SettingsViewModel(
                 gaplessEnabled = current.playback.gaplessEnabled,
                 crossfadeEnabled = current.playback.crossfadeEnabled,
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
+                offlineMode = current.offlineMode,
+                downloadOnlyOnWifi = current.downloadOnlyOnWifi,
             )
         }
         viewModelScope.launch {
@@ -70,6 +72,14 @@ class SettingsViewModel(
             is SettingsEvent.CrossfadeDurationChanged -> {
                 setState { copy(crossfadeDurationSeconds = event.seconds) }
                 updatePlaybackSettings { copy(crossfadeDurationSeconds = event.seconds) }
+            }
+            is SettingsEvent.OfflineModeToggled -> {
+                setState { copy(offlineMode = event.enabled) }
+                settingsHolder.update { copy(offlineMode = event.enabled) }
+            }
+            is SettingsEvent.DownloadOnlyOnWifiToggled -> {
+                setState { copy(downloadOnlyOnWifi = event.enabled) }
+                settingsHolder.update { copy(downloadOnlyOnWifi = event.enabled) }
             }
             is SettingsEvent.Reconnect -> reconnect()
             is SettingsEvent.Logout -> logout()

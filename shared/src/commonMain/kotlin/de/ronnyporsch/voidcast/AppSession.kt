@@ -9,6 +9,8 @@ import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.platform.CrossfadeAudioPlayer
 import de.ronnyporsch.voidcast.platform.createAudioPlayer
 import de.ronnyporsch.voidcast.platform.createSystemMediaControls
+import de.ronnyporsch.voidcast.platform.isOnWifi
+import de.ronnyporsch.voidcast.platform.offlineMode
 import de.ronnyporsch.voidcast.ui.screen.player.PlayerViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -66,6 +70,24 @@ class AppSession private constructor() {
     )
 
     init {
+        // Before anything goes to the network
+        offlineMode = settingsHolder.settings.value.offlineMode
+        scope.launch {
+            settingsHolder.settings.map { it.offlineMode }.distinctUntilChanged().drop(1).collect { offline ->
+                offlineMode = offline
+                if (offline) return@collect
+                if (_autoLoginStatus.value == AutoLoginStatus.Connected) connection.downloads.syncAll() else retryConnection()
+            }
+        }
+        // Downloads that waited for wifi
+        scope.launch {
+            combine(settingsHolder.settings.map { it.downloadOnlyOnWifi }, isOnWifi) { wifiOnly, wifi -> !wifiOnly || wifi }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { allowed ->
+                    if (allowed && _autoLoginStatus.value == AutoLoginStatus.Connected) connection.downloads.syncAll()
+                }
+        }
         if (autoLogin) scope.launch { runAutoLogin() }
         // Also after logging in by hand, e.g. once the saved login got rejected
         scope.launch {

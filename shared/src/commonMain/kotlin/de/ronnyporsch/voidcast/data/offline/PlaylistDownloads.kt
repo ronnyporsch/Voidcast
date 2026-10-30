@@ -8,7 +8,10 @@ import de.ronnyporsch.voidcast.platform.SongFileStore
 import de.ronnyporsch.voidcast.platform.readAppFile
 import de.ronnyporsch.voidcast.platform.writeAppFile
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
@@ -68,6 +71,8 @@ class PlaylistDownloads(
     private val repository: MusicRepository,
     private val files: SongFileStore?,
     private val serverKey: () -> String,
+    /** Whether files may be downloaded right now, e.g. not over mobile data if the user wants that; checked before each. */
+    private val canDownload: () -> Boolean = { true },
 ) {
     val isSupported: Boolean get() = files != null
 
@@ -110,6 +115,10 @@ class PlaylistDownloads(
     /** The songs of the current server that got downloaded on their own, whether their files are there yet or not. */
     val singleSongIds: StateFlow<Set<String>> = _singleSongIds.asStateFlow()
 
+    private val _deferred = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Emits when a download got requested while [canDownload] says no, so its files follow later. */
+    val deferred: SharedFlow<Unit> = _deferred.asSharedFlow()
+
     init {
         if (files != null) {
             scope.launch { publish() }
@@ -133,6 +142,7 @@ class PlaylistDownloads(
             }
             sync(server, playlist.id)
         }
+        tellIfDeferred()
     }
 
     fun remove(playlistId: String) {
@@ -157,6 +167,7 @@ class PlaylistDownloads(
             }
             syncAlbum(server, album.id)
         }
+        tellIfDeferred()
     }
 
     fun removeAlbum(albumId: String) {
@@ -181,6 +192,7 @@ class PlaylistDownloads(
             if (new.isNotEmpty()) saveSongs(loadSongs() + new.map { DownloadedSong(server, it) })
             syncSongs(server)
         }
+        tellIfDeferred()
     }
 
     /** Removes the downloads of [songIds] made by [downloadSongs]; files that downloaded playlists need stay. */
@@ -196,6 +208,10 @@ class PlaylistDownloads(
             deleteUnused(removed.map { it.song })
             syncSongs(server)
         }
+    }
+
+    private fun tellIfDeferred() {
+        if (!canDownload()) _deferred.tryEmit(Unit)
     }
 
     /** Resumes unfinished downloads and syncs all downloaded playlists of the current server, e.g. after connecting. */
@@ -346,7 +362,8 @@ class PlaylistDownloads(
         downloadCovers(files, songs.map { it.coverArtId })
         for (song in songs.distinctBy { it.id }) {
             if (files.uriOf(song.id) != null) continue
-            if (serverKey() != server) break
+            // Stays missing; the next sync downloads it
+            if (serverKey() != server || !canDownload()) break
             transferring += song.id
             publish()
             try {
@@ -366,6 +383,7 @@ class PlaylistDownloads(
     private suspend fun downloadCovers(files: SongFileStore, coverArtIds: List<String?>) {
         for (coverArtId in coverArtIds.filterNotNull().distinct()) {
             if (files.coverUriOf(coverArtId) != null) continue
+            if (!canDownload()) return
             try {
                 files.downloadCover(coverArtId, repository.getCoverArtUrl(coverArtId, COVER_SIZE))
             } catch (e: CancellationException) {

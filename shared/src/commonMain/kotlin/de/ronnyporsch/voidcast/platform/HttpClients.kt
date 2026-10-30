@@ -16,6 +16,21 @@ var untrustedCertificateHost: String? = null
         closeIdleConnections()
     }
 
+/**
+ * Makes every request fail as if the device had no network, see [de.ronnyporsch.voidcast.domain.model.AppSettings.offlineMode].
+ * Turning it on also cancels the running requests, e.g. downloads and the stream being played. No effect on the web.
+ */
+@Volatile
+var offlineMode: Boolean = false
+    set(value) {
+        if (field == value) return
+        field = value
+        if (value) cancelRequests()
+    }
+
+/** Cancels the requests in flight, see [offlineMode]. */
+internal expect fun cancelRequests()
+
 /** Drops pooled connections, which were established under the previous [untrustedCertificateHost]. */
 internal expect fun closeIdleConnections()
 

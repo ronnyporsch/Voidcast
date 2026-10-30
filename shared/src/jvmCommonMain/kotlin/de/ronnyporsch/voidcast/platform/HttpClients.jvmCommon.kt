@@ -4,6 +4,7 @@ import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import java.io.IOException
 import java.net.Socket
 import java.security.KeyStore
 import java.security.cert.X509Certificate
@@ -19,6 +20,9 @@ actual fun createHttpClient(block: HttpClientConfig<*>.() -> Unit): HttpClient =
 // Ktor's engine and the image loader derive from sharedOkHttpClient, so they share its connection pool
 internal actual fun closeIdleConnections() = sharedOkHttpClient.connectionPool.evictAll()
 
+// Clients derived from sharedOkHttpClient share its dispatcher
+internal actual fun cancelRequests() = sharedOkHttpClient.dispatcher.cancelAll()
+
 /** For everything that loads from the music server outside of Ktor (e.g. audio playback). */
 val sharedOkHttpClient: OkHttpClient by lazy {
     val defaultHostnameVerifier = OkHttpClient().hostnameVerifier
@@ -27,6 +31,11 @@ val sharedOkHttpClient: OkHttpClient by lazy {
         // Everything goes to the one music server; OkHttp's default of 5 per host lets slow requests (e.g. YouTube
         // stream info, which runs yt-dlp on the server) block unrelated ones like loading the next screen
         .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32 })
+        // Fails like a request without network does
+        .addInterceptor { chain ->
+            if (offlineMode) throw IOException("Offline mode is on")
+            chain.proceed(chain.request())
+        }
         .sslSocketFactory(sslContext.socketFactory, UntrustedHostTrustManager)
         .hostnameVerifier { hostname, session ->
             hostname.isUntrusted() || defaultHostnameVerifier.verify(hostname, session)

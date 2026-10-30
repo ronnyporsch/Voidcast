@@ -11,6 +11,8 @@ data class SettingsState(
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
+    val offlineMode: Boolean = false,
+    val downloadOnlyOnWifi: Boolean = false,
     /** Describes the YouTube Music support of the connected Jellyfin server's Voidcast plugin, if any. */
     val serverYouTubeInfo: String? = null,
     /** The connected Jellyfin server has no Voidcast plugin, so YouTube Music is unavailable. */
@@ -30,6 +32,8 @@ sealed class SettingsEvent {
     data class GaplessToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeDurationChanged(val seconds: Int) : SettingsEvent()
+    data class OfflineModeToggled(val enabled: Boolean) : SettingsEvent()
+    data class DownloadOnlyOnWifiToggled(val enabled: Boolean) : SettingsEvent()
     data object Reconnect : SettingsEvent()
     data object Logout : SettingsEvent()
 }

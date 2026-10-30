@@ -12,6 +12,7 @@ import de.ronnyporsch.voidcast.data.youtube.resizeYouTubeThumbnail
 import de.ronnyporsch.voidcast.domain.model.*
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.platform.createSongFileStore
+import de.ronnyporsch.voidcast.platform.isOnWifi
 import de.ronnyporsch.voidcast.platform.untrustedCertificateHost
 import de.ronnyporsch.voidcast.util.generateSalt
 import de.ronnyporsch.voidcast.util.md5
@@ -59,7 +60,9 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
     private val songFiles = createSongFileStore()
 
     /** Playlists downloaded for offline playback. */
-    val downloads = PlaylistDownloads(online, songFiles, ::serverKey)
+    val downloads = PlaylistDownloads(online, songFiles, ::serverKey) {
+        !settingsHolder.settings.value.downloadOnlyOnWifi || isOnWifi.value
+    }
 
     val repository = OfflineMusicRepository(online, PlaylistCache(::serverKey), downloads, songFiles)
 

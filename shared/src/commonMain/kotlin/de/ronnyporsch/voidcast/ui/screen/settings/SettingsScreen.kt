@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.AppVersion
+import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.components.PluginMissingWarning
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
@@ -233,6 +234,27 @@ fun SettingsScreen(
                             Text("12s", style = MaterialTheme.typography.bodySmall, color = SpotifyLightGray)
                         }
                     }
+                }
+
+                // Offline downloads and mobile data are a phone thing
+                if (remember { getPlatform().isMobile }) {
+                    Spacer(Modifier.height(16.dp))
+
+                    SectionHeader("Network")
+
+                    SettingsSwitch(
+                        title = "Offline Mode",
+                        subtitle = "Don't use the network, as if in airplane mode; only downloaded songs play",
+                        checked = state.offlineMode,
+                        onCheckedChange = { viewModel.onEvent(SettingsEvent.OfflineModeToggled(it)) },
+                    )
+
+                    SettingsSwitch(
+                        title = "Download Only on Wifi",
+                        subtitle = "Wait for wifi to download songs for offline playback, don't use mobile data",
+                        checked = state.downloadOnlyOnWifi,
+                        onCheckedChange = { viewModel.onEvent(SettingsEvent.DownloadOnlyOnWifiToggled(it)) },
+                    )
                 }
 
                 state.serverYouTubeInfo?.let { info ->

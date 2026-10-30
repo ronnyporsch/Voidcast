@@ -24,6 +24,8 @@ actual fun saveSettings(settings: AppSettings) {
         .putString("repeatMode", settings.playback.repeatMode.name)
         .putString("jellyfinDeviceId", settings.jellyfinDeviceId)
         .putString("libraryView", settings.libraryView.encode())
+        .putBoolean("offlineMode", settings.offlineMode)
+        .putBoolean("downloadOnlyOnWifi", settings.downloadOnlyOnWifi)
         .apply()
 }
 
@@ -46,5 +48,7 @@ actual fun loadSettings(): AppSettings? {
         ),
         jellyfinDeviceId = p.getString("jellyfinDeviceId", "") ?: "",
         libraryView = decodeLibraryView(p.getString("libraryView", null)),
+        offlineMode = p.getBoolean("offlineMode", false),
+        downloadOnlyOnWifi = p.getBoolean("downloadOnlyOnWifi", false),
     )
 }

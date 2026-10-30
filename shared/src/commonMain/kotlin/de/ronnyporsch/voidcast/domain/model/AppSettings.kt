@@ -41,6 +41,10 @@ data class AppSettings(
     /** Identifies this installation to Jellyfin, so logging in again replaces the previous session. */
     val jellyfinDeviceId: String = "",
     val libraryView: LibraryViewSettings = LibraryViewSettings(),
+    /** Don't use the network at all, as if the device was in airplane mode. */
+    val offlineMode: Boolean = false,
+    /** Download songs for offline playback only while on wifi, not over mobile data. */
+    val downloadOnlyOnWifi: Boolean = false,
 ) {
     val hasSavedConnection: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
