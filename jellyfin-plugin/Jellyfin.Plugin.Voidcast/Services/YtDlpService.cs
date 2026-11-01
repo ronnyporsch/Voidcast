@@ -225,7 +225,13 @@ public partial class YtDlpService
         int? endTime = null)
     {
         RequireValidId(videoId);
-        List<string> args = ["--no-playlist", "--quiet", "--no-warnings", .. BestAudio, "-x"];
+        // ffmpeg's Ogg pages default to a second; with high-bitrate Opus the last page gets so big that VLC finds no
+        // length (it looks for the last page near the end of the file). Ignored by the other containers
+        List<string> args =
+        [
+            "--no-playlist", "--quiet", "--no-warnings", .. BestAudio, "-x",
+            "--postprocessor-args", "ExtractAudio+ffmpeg_o:-page_duration 100000",
+        ];
         if (audioFormat != null)
         {
             args.AddRange(["--audio-format", audioFormat, "--audio-quality", "0"]);
