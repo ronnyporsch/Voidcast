@@ -61,7 +61,7 @@ class CrossfadeAudioPlayer(
         nextPreparedUrl = url
         val player = nextPlayer
         // Start loading on the next player (it will buffer/download)
-        player.play(url)
+        player.prepare(url)
         // Immediately pause it so it's ready but not audible
         player.setVolume(0f)
         prepareJob?.cancel()
@@ -84,10 +84,8 @@ class CrossfadeAudioPlayer(
 
         outPlayer.stop()
         outPlayer.setVolume(1f)
-        // It played for a moment before being paused
-        inPlayer.seekTo(0)
         inPlayer.setVolume(1f)
-        inPlayer.resume()
+        resumeFromStart(inPlayer)
 
         currentPlayer = inPlayer
         nextPlayer = outPlayer
@@ -95,6 +93,12 @@ class CrossfadeAudioPlayer(
 
         collectCurrentPlayerState()
         return true
+    }
+
+    /** Starts the song [prepareNext] loaded on [player]; it may have played for a moment before being paused. */
+    private fun resumeFromStart(player: AudioPlayer) {
+        if (player.state.value.positionMs > 0) player.seekTo(0)
+        player.resume()
     }
 
     fun startCrossfade(durationMs: Long) {
@@ -110,7 +114,7 @@ class CrossfadeAudioPlayer(
 
         // Resume the next player (was paused after prepareNext)
         inPlayer.setVolume(0f)
-        inPlayer.resume()
+        resumeFromStart(inPlayer)
 
         crossfadeJob = scope.launch {
             val steps = (durationMs / 50).toInt().coerceAtLeast(1)
@@ -165,7 +169,7 @@ class CrossfadeAudioPlayer(
         if (nextPreparedUrl != null) {
             // Next track is pre-loaded and paused — just resume it
             inPlayer.setVolume(1f)
-            inPlayer.resume()
+            resumeFromStart(inPlayer)
         }
 
         outPlayer.stop()

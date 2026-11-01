@@ -61,6 +61,9 @@ class VlcPlayer : AudioPlayer {
     // before there is an audio output may get lost
     @Volatile private var volume = 100
     @Volatile private var pauseRequested = false
+    /** What's loaded, to start it again; null after [stop]. */
+    @Volatile private var currentUrl: String? = null
+    @Volatile private var currentIsVideo = false
 
     init {
         // Finding and loading libVLC takes a moment, don't let the start of the app or the first song wait for it
@@ -86,7 +89,11 @@ class VlcPlayer : AudioPlayer {
                         mediaPlayer.submit { mediaPlayer.audio().setVolume(this@VlcPlayer.volume) }
                     }
                 }
-                override fun paused(mediaPlayer: MediaPlayer) = update { copy(isPlaying = false, isBuffering = false) }
+                override fun paused(mediaPlayer: MediaPlayer) {
+                    // Resumed while it was still starting paused (see prepare)
+                    if (!pauseRequested) return mediaPlayer.submit { mediaPlayer.controls().setPause(false) }
+                    update { copy(isPlaying = false, isBuffering = false) }
+                }
                 override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) =
                     update { copy(isBuffering = newCache < 100f && !pauseRequested) }
                 override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) = update { copy(positionMs = newTime) }
@@ -107,17 +114,28 @@ class VlcPlayer : AudioPlayer {
 
     override fun play(url: String) = load(url, video = false, startPositionMs = 0)
 
+    // Paused before any of it is played, so it starts at its beginning
+    override fun prepare(url: String) = load(url, video = false, startPositionMs = 0, paused = true)
+
     override fun playVideo(url: String, startPositionMs: Long) = load(url, video = true, startPositionMs = startPositionMs)
 
-    private fun load(url: String, video: Boolean, startPositionMs: Long) {
+    private fun load(url: String, video: Boolean, startPositionMs: Long, paused: Boolean = false) {
         val player = player ?: return update { AudioPlayerState(error = "Playback needs VLC 3, see videolan.org") }
-        pauseRequested = false
+        pauseRequested = paused
+        // Loading it again (see seekTo) doesn't change its length
+        val durationMs = if (url == currentUrl) _state.value.durationMs else 0
+        currentUrl = url
+        currentIsVideo = video
         if (!video) frames.clear()
-        update { AudioPlayerState(isBuffering = true, positionMs = startPositionMs) }
+        update { AudioPlayerState(isBuffering = !paused, positionMs = startPositionMs, durationMs = durationMs) }
         val options = buildList {
             // Cover art embedded in songs isn't shown as video
             if (!video) add(":no-video")
+            // VLC's own Ogg demuxer ignores seeking backwards in a stream (not in a file) and often finds no length;
+            // FFmpeg's seeks every song format correctly
+            if (!video) add(":demux=avformat")
             if (startPositionMs > 0) add(":start-time=${startPositionMs / 1000.0}")
+            if (paused) add(":start-paused")
         }
         player.media().play(url, *options.toTypedArray())
     }
@@ -140,12 +158,20 @@ class VlcPlayer : AudioPlayer {
     }
 
     override fun seekTo(positionMs: Long) {
-        player?.controls()?.setTime(positionMs)
+        val player = player ?: return
+        val url = currentUrl
+        // A stream the server transcodes while sending it can only be seeked forward (VLC reads up to the position),
+        // so it's loaded again to go back
+        if (url != null && !player.status().isSeekable && positionMs < player.status().time()) {
+            return load(url, currentIsVideo, startPositionMs = positionMs, paused = pauseRequested)
+        }
+        player.controls().setTime(positionMs)
         update { copy(positionMs = positionMs) }
     }
 
     override fun stop() {
         pauseRequested = false
+        currentUrl = null
         player?.controls()?.stop()
         frames.clear()
         update { AudioPlayerState() }

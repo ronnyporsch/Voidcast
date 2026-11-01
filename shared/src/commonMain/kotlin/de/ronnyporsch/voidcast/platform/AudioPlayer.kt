@@ -19,6 +19,12 @@ data class AudioPlayerState(
 interface AudioPlayer {
     val state: StateFlow<AudioPlayerState>
     fun play(url: String)
+
+    /**
+     * Loads [url] to be started by [resume], e.g. the next song. Players that can't load without playing just play
+     * it; then the caller pauses it.
+     */
+    fun prepare(url: String) = play(url)
     fun pause()
     fun resume()
     fun seekTo(positionMs: Long)
