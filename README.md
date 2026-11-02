@@ -15,7 +15,7 @@ cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in t
 - Select several songs or albums: with Ctrl- and Shift-clicks on the desktop, on Android by long pressing and moving the finger across them, like in a photo gallery.
 - Support for Synced lyrics.
 - Gapless playback and crossfade
-- Offline listening on Android.
+- Offline listening: download playlists, albums and songs to the device (Android and desktop) or the browser.
 - Remote control of other devices.
 - Music videos (from YouTube and Jellyfin).
 - Basic support for Navidrome and other Subsonic servers (YouTube integration and remote control require Jellyfin instead).

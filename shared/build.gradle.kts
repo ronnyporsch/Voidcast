@@ -126,6 +126,9 @@ kotlin {
             // The native Skia library, which the player's video frames need
             implementation(compose.desktop.currentOs)
         }
+        webMain.dependencies {
+            implementation(libs.wrappers.browser)
+        }
         jsMain.dependencies {
             implementation(libs.wrappers.browser)
             implementation(libs.ktor.client.js)

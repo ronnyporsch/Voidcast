@@ -34,4 +34,6 @@ actual suspend fun writeAppFile(name: String, content: String?) = writeMutex.wit
     }
 }
 
-actual fun createSongFileStore(): SongFileStore? = null
+actual fun createSongFileStore(): SongFileStore? = songFileStore
+
+private val songFileStore by lazy { FileSongFileStore({ dataDir }) { it.toPath().toUri().toString() } }

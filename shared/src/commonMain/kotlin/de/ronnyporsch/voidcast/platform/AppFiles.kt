@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.platform
 
+import de.ronnyporsch.voidcast.util.md5
+
 /** Reads a text file the app stored with [writeAppFile], or null if there is none. */
 expect suspend fun readAppFile(name: String): String?
 
@@ -8,6 +10,9 @@ expect suspend fun writeAppFile(name: String, content: String?)
 
 /** Song files kept on the device for offline playback. */
 interface SongFileStore {
+    /** Suspends until the store knows which files it has; until then [uriOf] and [coverUriOf] may return null. */
+    suspend fun awaitLoaded() {}
+
     /** URI the audio player can play the downloaded song from, or null if it isn't downloaded. */
     fun uriOf(songId: String): String?
 
@@ -27,3 +32,9 @@ interface SongFileStore {
 
 /** Null where songs can't be downloaded. */
 expect fun createSongFileStore(): SongFileStore?
+
+/** Name of the file of the downloaded song [songId]. */
+internal fun songFileName(songId: String) = songId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+
+/** Name of the file of the downloaded cover art [coverArtId], which may be a long URL (YouTube Music thumbnails). */
+internal fun coverFileName(coverArtId: String) = md5(coverArtId)

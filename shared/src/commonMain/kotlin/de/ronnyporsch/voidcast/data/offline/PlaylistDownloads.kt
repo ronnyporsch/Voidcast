@@ -270,6 +270,7 @@ class PlaylistDownloads(
     /** The songs of the current server whose files are on the device, with what is known about them. */
     suspend fun downloadedSongs(): List<Song> = withContext(dispatcher) {
         val files = files ?: return@withContext emptyList()
+        files.awaitLoaded()
         val server = serverKey()
         (loadSongs().filter { it.server == server }.map { it.song } +
             load().filter { it.server == server }.flatMap { it.playlist.songs } +
@@ -358,6 +359,8 @@ class PlaylistDownloads(
     }
 
     private suspend fun downloadMissing(files: SongFileStore, server: String, songs: List<Song>) {
+        // Otherwise files already there would be downloaded again
+        files.awaitLoaded()
         // Also for songs downloaded before covers were kept
         downloadCovers(files, songs.map { it.coverArtId })
         for (song in songs.distinctBy { it.id }) {
@@ -381,6 +384,7 @@ class PlaylistDownloads(
 
     /** Downloads the missing ones of [coverArtIds]; a cover that can't be downloaded doesn't hold up the songs. */
     private suspend fun downloadCovers(files: SongFileStore, coverArtIds: List<String?>) {
+        files.awaitLoaded()
         for (coverArtId in coverArtIds.filterNotNull().distinct()) {
             if (files.coverUriOf(coverArtId) != null) continue
             if (!canDownload()) return
@@ -412,6 +416,7 @@ class PlaylistDownloads(
 
     private suspend fun publish() {
         val files = files ?: return
+        files.awaitLoaded()
         val server = serverKey()
         val entries = load().filter { it.server == server }
         val singleSongs = loadSongs().filter { it.server == server }

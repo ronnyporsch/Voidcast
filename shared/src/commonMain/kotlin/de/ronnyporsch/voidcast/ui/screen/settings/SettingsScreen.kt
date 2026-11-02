@@ -236,7 +236,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // Offline downloads and mobile data are a phone thing
+                // Offline mode and mobile data are a phone thing
                 if (remember { getPlatform().isMobile }) {
                     Spacer(Modifier.height(16.dp))
 

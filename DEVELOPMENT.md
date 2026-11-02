@@ -57,10 +57,11 @@ Use the run button in the IDE's editor gutter, or these Gradle tasks:
 |---|---|
 | [`shared/`](./shared/src) | Almost all code: UI, view models, server clients, playback logic |
 | `shared/src/commonMain` | Code for all platforms (`data/` server APIs and repositories, `ui/` screens, `mvi/` view model base) |
-| `shared/src/jvmCommonMain` | Code shared by Android and desktop (OkHttp-based HTTP client) |
-| `shared/src/androidMain` | ExoPlayer playback, media session, offline song storage |
+| `shared/src/jvmCommonMain` | Code shared by Android and desktop (OkHttp-based HTTP client, offline song storage) |
+| `shared/src/androidMain` | ExoPlayer playback, media session |
 | `shared/src/jvmMain` | Desktop playback of songs and videos through VLC, MPRIS |
 | `shared/src/jsMain`, `wasmJsMain` | Browser audio/video through HTML media elements |
+| `shared/src/webMain` | Code shared by both browser targets (offline song storage in the origin private file system) |
 | [`androidApp/`](./androidApp), [`desktopApp/`](./desktopApp), [`webApp/`](./webApp) | Thin entry points for each platform |
 | [`jellyfin-plugin/`](./jellyfin-plugin) | The Jellyfin plugin (C#) for YouTube Music |
 | [`packaging/`](./packaging) | Distribution packages (Arch Linux PKGBUILD) and the icon generator |

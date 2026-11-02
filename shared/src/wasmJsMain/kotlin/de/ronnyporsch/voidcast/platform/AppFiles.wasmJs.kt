@@ -13,5 +13,3 @@ actual suspend fun writeAppFile(name: String, content: String?) {
     } catch (_: Throwable) {
     }
 }
-
-actual fun createSongFileStore(): SongFileStore? = null
