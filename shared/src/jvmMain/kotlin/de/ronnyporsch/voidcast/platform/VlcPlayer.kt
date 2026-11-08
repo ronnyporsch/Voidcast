@@ -25,6 +25,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
+import java.io.File
 import java.nio.ByteBuffer
 import kotlin.concurrent.thread
 import kotlin.math.min
@@ -35,12 +36,28 @@ private object Vlc {
     /** Null if VLC isn't installed. */
     val factory: MediaPlayerFactory? by lazy {
         try {
-            if (NativeDiscovery().discover()) MediaPlayerFactory("--no-video-title-show", "--quiet") else null
+            if (NativeDiscovery().discover()) {
+                val args = listOf("--no-video-title-show", "--quiet") + (if (alsaGoesToPipeWire()) listOf("--aout=alsa") else emptyList())
+                MediaPlayerFactory(*args.toTypedArray())
+            } else null
         } catch (e: Throwable) {
             // E.g. an incompatible VLC version
             System.err.println("VLC not usable: $e")
             null
         }
+    }
+
+    /**
+     * VLC's PulseAudio output misjudges the latency of PipeWire's PulseAudio server: for the first seconds of every
+     * song it's ~100 ms off and VLC resamples back and forth to catch up, which stutters. Through ALSA into PipeWire
+     * it plays cleanly, and since VLC then sets the volume itself, each player still has its own (for crossfades).
+     * Only where ALSA's default device is PipeWire: plain ALSA would give the sound card to just one player.
+     */
+    private fun alsaGoesToPipeWire(): Boolean {
+        if (!System.getProperty("os.name").orEmpty().startsWith("Linux")) return false
+        val runtimeDir = System.getenv("XDG_RUNTIME_DIR") ?: return false
+        if (!File(runtimeDir, "pipewire-0").exists()) return false
+        return listOf("/etc/alsa/conf.d", "/usr/share/alsa/alsa.conf.d").any { File(it, "99-pipewire-default.conf").exists() }
     }
 }
 
