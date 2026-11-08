@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
@@ -210,6 +211,9 @@ val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
 /** Adds songs to the player's queue, from the song context menu. */
 val LocalAddToQueue = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 
+/** Plays songs right after the current one, from the song context menu. */
+val LocalPlayNext = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
+
 /** Plays a radio of a song (it, then similar songs), from the song context menu; null where radios aren't available. */
 val LocalStartRadio = staticCompositionLocalOf<((Song) -> Unit)?> { null }
 
@@ -263,6 +267,7 @@ fun SongContextMenu(
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
+    val playNext = LocalPlayNext.current
     val songDownloads = LocalSongDownloads.current
     if (editor == null && addToQueue == null && onRemoveFromPlaylist == null && songDownloads == null) return
     // YouTube Music results aren't in the library; the server downloads them first where it can
@@ -345,6 +350,16 @@ fun SongContextMenu(
                 }
             }
         } else if (!showPlaylists) {
+            if (playNext != null) {
+                DropdownMenuItem(
+                    text = { Text("Play next") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
+                    onClick = {
+                        playNext(songs)
+                        finish()
+                    },
+                )
+            }
             if (addToQueue != null) {
                 DropdownMenuItem(
                     text = { Text("Add to queue") },
@@ -396,7 +411,7 @@ fun SongContextMenu(
             if (editor != null && containingSong != null) {
                 DropdownMenuItem(
                     text = { Text("Playlists with this song") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.LibraryMusic, contentDescription = null) },
                     onClick = { showContainingPlaylists = true },
                 )
             }

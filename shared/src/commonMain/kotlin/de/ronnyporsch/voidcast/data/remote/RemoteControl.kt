@@ -206,7 +206,8 @@ class RemoteControl(private val connection: MusicServerConnection, scope: Corout
         val songs = connection.jellyfinLibrary.getSongs(request.itemIds).getOrNull()?.takeIf { it.isNotEmpty() } ?: return
         val startIndex = (request.startIndex ?: 0).coerceIn(songs.indices)
         val command = when (request.playCommand) {
-            "PlayNext", "PlayLast" -> RemoteCommand.AddToQueue(songs)
+            "PlayNext" -> RemoteCommand.PlayNext(songs)
+            "PlayLast" -> RemoteCommand.AddToQueue(songs)
             "PlayShuffle" -> RemoteCommand.PlaySongs(songs, 0, shuffle = true)
             else -> RemoteCommand.PlaySongs(songs, startIndex, startPositionMs = (request.startPositionTicks ?: 0) / TICKS_PER_MS)
         }
@@ -276,6 +277,7 @@ class RemoteControl(private val connection: MusicServerConnection, scope: Corout
             is RemoteCommand.SetRepeat ->
                 api.sendGeneralCommand(id, GeneralCommandDto("SetRepeatMode", mapOf("RepeatMode" to command.repeatMode.toJellyfin())))
             is RemoteCommand.AddToQueue -> api.sendPlay(id, librarySongIds(device, command.songs), "PlayNext")
+            is RemoteCommand.PlayNext -> api.sendPlay(id, librarySongIds(device, command.songs), "PlayNext")
             is RemoteCommand.PlayNow -> api.sendPlay(id, librarySongIds(device, listOf(command.song)), "PlayNow")
             is RemoteCommand.MoveInQueue, is RemoteCommand.RemoveFromQueue, is RemoteCommand.PlayQueueIndex ->
                 throw UnsupportedOperationException("${device.name} doesn't share its queue")

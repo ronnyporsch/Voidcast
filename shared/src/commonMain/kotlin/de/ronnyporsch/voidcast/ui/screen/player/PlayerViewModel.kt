@@ -273,6 +273,7 @@ class PlayerViewModel(
             is PlayerEvent.ToggleLyrics -> setState { copy(showLyrics = !showLyrics) }
             is PlayerEvent.ShowLyrics -> setState { copy(showLyrics = true) }
             is PlayerEvent.AddToQueue -> addToQueue(event.songs)
+            is PlayerEvent.PlayNext -> playSongsNext(event.songs)
             is PlayerEvent.MoveInQueue -> moveInQueue(event.from, event.to)
             is PlayerEvent.RemoveFromQueue -> removeFromQueue(event.index)
             is PlayerEvent.PlayQueueIndex -> playQueueIndex(event.index)
@@ -305,6 +306,7 @@ class PlayerViewModel(
         PlayerEvent.ToggleShuffle -> RemoteCommand.SetShuffle(!currentState.playback.shuffle)
         PlayerEvent.ToggleRepeat -> RemoteCommand.SetRepeat(currentState.playback.repeatMode.next())
         is PlayerEvent.AddToQueue -> RemoteCommand.AddToQueue(songs)
+        is PlayerEvent.PlayNext -> RemoteCommand.PlayNext(songs)
         is PlayerEvent.MoveInQueue -> RemoteCommand.MoveInQueue(from, to)
         is PlayerEvent.RemoveFromQueue -> RemoteCommand.RemoveFromQueue(index)
         is PlayerEvent.PlayQueueIndex -> RemoteCommand.PlayQueueIndex(index)
@@ -442,6 +444,7 @@ class PlayerViewModel(
             is RemoteCommand.SetShuffle -> if (command.shuffle != currentState.playback.shuffle) toggleShuffle()
             is RemoteCommand.SetRepeat -> setState { copy(playback = playback.copy(repeatMode = command.repeatMode)) }
             is RemoteCommand.AddToQueue -> addToQueue(command.songs)
+            is RemoteCommand.PlayNext -> playSongsNext(command.songs)
             is RemoteCommand.MoveInQueue -> moveInQueue(command.from, command.to)
             is RemoteCommand.RemoveFromQueue -> removeFromQueue(command.index)
             is RemoteCommand.PlayQueueIndex -> playQueueIndex(command.index)
@@ -644,6 +647,20 @@ class PlayerViewModel(
             return
         }
         val insertAt = (playback.currentIndex + 1 + playback.queuedCount).coerceAtMost(playback.queue.size)
+        val queue = playback.queue.take(insertAt) + songs + playback.queue.drop(insertAt)
+        setState { copy(playback = playback.copy(queue = queue, queuedCount = playback.queuedCount + songs.size)) }
+        onUpcomingChanged()
+    }
+
+    /** Plays [songs] right after the current song, before the songs queued already; starts playing if nothing is. */
+    private fun playSongsNext(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val playback = currentState.playback
+        if (playback.currentSong == null) {
+            playSongs(songs, 0, null)
+            return
+        }
+        val insertAt = (playback.currentIndex + 1).coerceAtMost(playback.queue.size)
         val queue = playback.queue.take(insertAt) + songs + playback.queue.drop(insertAt)
         setState { copy(playback = playback.copy(queue = queue, queuedCount = playback.queuedCount + songs.size)) }
         onUpcomingChanged()

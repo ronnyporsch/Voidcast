@@ -75,6 +75,7 @@ import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.PendingYouTubeAdditionDialog
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
+import de.ronnyporsch.voidcast.ui.components.LocalPlayNext
 import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
 import de.ronnyporsch.voidcast.ui.components.LocalStartRadio
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
@@ -143,6 +144,13 @@ fun App() {
             playerViewModel.onEvent(PlayerEvent.AddToQueue(songs))
             val what = songs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${songs.size} songs"
             scope.launch { snackbarHostState.showSnackbar("Added $what to the queue", duration = SnackbarDuration.Short) }
+        }
+    }
+    val playNext: (List<Song>) -> Unit = remember {
+        { songs ->
+            playerViewModel.onEvent(PlayerEvent.PlayNext(songs))
+            val what = songs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${songs.size} songs"
+            scope.launch { snackbarHostState.showSnackbar("Playing $what next", duration = SnackbarDuration.Short) }
         }
     }
     // Only the latest radio started gets played
@@ -374,6 +382,7 @@ fun App() {
             LocalMusicRepository provides repository,
             LocalPlaylistEditor provides playlistEditor,
             LocalAddToQueue provides addToQueue,
+            LocalPlayNext provides playNext,
             LocalAlbumSongs provides loadAlbumSongs,
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalStartRadio provides startRadio.takeIf { youTubeCapabilities.radio },

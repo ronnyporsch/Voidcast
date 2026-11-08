@@ -68,6 +68,8 @@ sealed class PlayerEvent {
     data object ShowLyrics : PlayerEvent()
     /** Plays [songs] after the current song and the ones queued before. */
     data class AddToQueue(val songs: List<Song>) : PlayerEvent()
+    /** Plays [songs] right after the current song, before the ones queued already. */
+    data class PlayNext(val songs: List<Song>) : PlayerEvent()
     /** Moves the song at queue index [from] to [to]. */
     data class MoveInQueue(val from: Int, val to: Int) : PlayerEvent()
     data class RemoveFromQueue(val index: Int) : PlayerEvent()

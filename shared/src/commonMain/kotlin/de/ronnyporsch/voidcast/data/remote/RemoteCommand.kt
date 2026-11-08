@@ -31,6 +31,7 @@ sealed interface RemoteCommand {
     @Serializable @SerialName("SetShuffle") data class SetShuffle(val shuffle: Boolean) : RemoteCommand
     @Serializable @SerialName("SetRepeat") data class SetRepeat(val repeatMode: RepeatMode) : RemoteCommand
     @Serializable @SerialName("AddToQueue") data class AddToQueue(val songs: List<Song>) : RemoteCommand
+    @Serializable @SerialName("PlayNext") data class PlayNext(val songs: List<Song>) : RemoteCommand
     @Serializable @SerialName("MoveInQueue") data class MoveInQueue(val from: Int, val to: Int) : RemoteCommand
     @Serializable @SerialName("RemoveFromQueue") data class RemoveFromQueue(val index: Int) : RemoteCommand
     @Serializable @SerialName("PlayQueueIndex") data class PlayQueueIndex(val index: Int) : RemoteCommand

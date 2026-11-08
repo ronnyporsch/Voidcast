@@ -1588,7 +1588,6 @@ private fun PlaylistDetailPane(
                                 index = index,
                                 onSongClick = { onSongClick(song, index) },
                                 onSongDoubleClick = { onSongDoubleClick(song, index) },
-                                onRemoveClick = { onRemoveClick(listOf(index)) },
                                 onSongCtrlClick = { onSongCtrlClick(song) },
                                 onSongShiftClick = { onSongShiftClick(visibleSongs, visibleIndex) },
                                 contextMenuSongs = { contextMenuSongs(visibleSongs, song) },
