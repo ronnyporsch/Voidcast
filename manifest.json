@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.7.0.0",
+        "changelog": "added page for new releases",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.7.0/voidcast_1.7.0.0.zip",
+        "checksum": "29b96f756958a94f84baf422d4dd7a2a",
+        "timestamp": "2026-11-08T21:25:11Z"
+      },
+      {
         "version": "1.6.0.0",
         "changelog": "added YouTube Song Radio",
         "targetAbi": "12.2.0.0",
