@@ -50,6 +50,10 @@ object GlobalShortcuts {
     /** Enters or leaves fullscreen for the video playing; only collected while one is. */
     val toggleVideoFullscreen: SharedFlow<Unit> = _toggleVideoFullscreen.asSharedFlow()
 
+    private val _scroll = MutableSharedFlow<ScrollCommand>(extraBufferCapacity = 1)
+    /** Moves the list of the main view; only collected while there is one. */
+    val scroll: SharedFlow<ScrollCommand> = _scroll.asSharedFlow()
+
     /**
      * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS), F5 and Ctrl+R reload what is
      * shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
@@ -71,7 +75,8 @@ object GlobalShortcuts {
 
     /**
      * Ctrl+Right/Left skips to the next/previous song (Cmd on macOS), Right/Left seek 5 s forward/back, Space pauses
-     * or resumes, F enters or leaves fullscreen for a video. Only for key events nothing else handled, as text fields move the cursor with them and type spaces.
+     * or resumes, F enters or leaves fullscreen for a video, Home/End and Page Up/Down move the main view's list. Only
+     * for key events nothing else handled, as text fields move the cursor with them and type spaces.
      */
     fun onUnhandledKeyEvent(event: KeyEvent): Boolean {
         // Text fields only take the typed character, not the key press, so react to the former
@@ -90,6 +95,10 @@ object GlobalShortcuts {
         if (!event.isCtrlPressed && !event.isMetaPressed) return when (event.key) {
             Key.DirectionRight -> requestSeek(forward = true)
             Key.DirectionLeft -> requestSeek(forward = false)
+            Key.MoveHome -> requestScroll(ScrollCommand.Top)
+            Key.MoveEnd -> requestScroll(ScrollCommand.Bottom)
+            Key.PageUp -> requestScroll(ScrollCommand.PageUp)
+            Key.PageDown -> requestScroll(ScrollCommand.PageDown)
             else -> false
         }
         return when (event.key) {
@@ -130,6 +139,13 @@ object GlobalShortcuts {
         return true
     }
 
+    /** Returns false if the main view has no list to move, so the key does what it does otherwise. */
+    fun requestScroll(command: ScrollCommand): Boolean {
+        if (_scroll.subscriptionCount.value == 0) return false
+        _scroll.tryEmit(command)
+        return true
+    }
+
     /** Returns false if no video is playing, so F does what it does otherwise. */
     fun requestToggleVideoFullscreen(): Boolean {
         if (_toggleVideoFullscreen.subscriptionCount.value == 0) return false
@@ -137,6 +153,9 @@ object GlobalShortcuts {
         return true
     }
 }
+
+/** How [GlobalShortcuts.scroll] moves the list of the main view. */
+enum class ScrollCommand { Top, Bottom, PageUp, PageDown }
 
 /** Hooks [GlobalShortcuts] into platforms whose window isn't reachable from the app's entry point. */
 expect fun installGlobalShortcutListener()

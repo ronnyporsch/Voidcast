@@ -26,6 +26,7 @@ import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.components.SongRow
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
+import de.ronnyporsch.voidcast.ui.components.ScrollWithKeys
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
@@ -112,6 +113,7 @@ private fun QueueList(
     val currentSong = playback.currentSong
     val isMobile = remember { getPlatform().isMobile }
     val listState = rememberLazyListState()
+    ScrollWithKeys(listState)
     val reorder = remember(listState) { QueueReorderState(listState) }
     // Index of the first upcoming song in the queue
     val firstUpcoming = current + 1
@@ -231,6 +233,7 @@ private fun RecentlyPlayedList(
     val isMobile = remember { getPlatform().isMobile }
     var selectedId by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    ScrollWithKeys(listState)
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 100.dp), modifier = Modifier.fillMaxSize()) {
             if (state.recentlyPlayed.isEmpty()) {

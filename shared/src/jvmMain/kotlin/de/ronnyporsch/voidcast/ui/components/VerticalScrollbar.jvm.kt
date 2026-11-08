@@ -9,6 +9,14 @@ import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import de.ronnyporsch.voidcast.ui.theme.ScrollbarColor
+import de.ronnyporsch.voidcast.ui.theme.ScrollbarHoverColor
+
+private fun scrollbarStyle() = defaultScrollbarStyle().copy(
+    thickness = 12.dp,
+    unhoverColor = ScrollbarColor,
+    hoverColor = ScrollbarHoverColor,
+)
 
 @Composable
 actual fun VerticalScrollbar(
@@ -18,9 +26,7 @@ actual fun VerticalScrollbar(
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
         modifier = modifier,
-        style = defaultScrollbarStyle().copy(
-            thickness = 12.dp
-        )
+        style = scrollbarStyle()
     )
 }
 
@@ -30,11 +36,9 @@ actual fun VerticalScrollbar(
     state: LazyGridState
 ) {
     VerticalScrollbar(
-        adapter = rememberScrollbarAdapter(state),
+        adapter = rememberGridScrollbarAdapter(state),
         modifier = modifier,
-        style = defaultScrollbarStyle().copy(
-            thickness = 12.dp
-        )
+        style = scrollbarStyle()
     )
 }
 
@@ -46,8 +50,6 @@ actual fun VerticalScrollbar(
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
         modifier = modifier,
-        style = defaultScrollbarStyle().copy(
-            thickness = 12.dp
-        )
+        style = scrollbarStyle()
     )
 }

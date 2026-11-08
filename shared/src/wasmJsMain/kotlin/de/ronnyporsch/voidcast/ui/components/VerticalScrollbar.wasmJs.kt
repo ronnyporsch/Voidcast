@@ -15,7 +15,8 @@ actual fun VerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier
+        modifier = modifier,
+        style = webScrollbarStyle(),
     )
 }
 
@@ -25,8 +26,9 @@ actual fun VerticalScrollbar(
     state: LazyGridState
 ) {
     VerticalScrollbar(
-        adapter = rememberScrollbarAdapter(state),
-        modifier = modifier
+        adapter = rememberGridScrollbarAdapter(state),
+        modifier = modifier,
+        style = webScrollbarStyle(),
     )
 }
 
@@ -37,6 +39,7 @@ actual fun VerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier
+        modifier = modifier,
+        style = webScrollbarStyle(),
     )
 }

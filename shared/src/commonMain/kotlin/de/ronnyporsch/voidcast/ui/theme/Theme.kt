@@ -18,6 +18,10 @@ val SpotifyWhite = Color(0xFFFFFFFF)
 /** Placeholder of search and filter fields; set explicitly, as the text styles hardcode white. */
 val SearchPlaceholderGray = Color(0xFF757575)
 
+/** Thumb of the desktop and web scrollbars; Compose's default is a black that doesn't show on the dark backgrounds. */
+val ScrollbarColor = SpotifyWhite.copy(alpha = 0.25f)
+val ScrollbarHoverColor = SpotifyWhite.copy(alpha = 0.55f)
+
 /** Background of selected songs and albums; tinted, so it shows on every background, the sidebar's included. */
 val SelectionColor = AccentColor.copy(alpha = 0.22f)
 

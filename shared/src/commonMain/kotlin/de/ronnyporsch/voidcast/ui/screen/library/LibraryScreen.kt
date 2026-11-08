@@ -3,6 +3,7 @@ package de.ronnyporsch.voidcast.ui.screen.library
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.audioFormat
+import de.ronnyporsch.voidcast.domain.model.formatTotals
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -52,6 +53,7 @@ import de.ronnyporsch.voidcast.domain.model.LibraryOrder
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.domain.model.LibrarySort
 import de.ronnyporsch.voidcast.util.sortedBy
+import de.ronnyporsch.voidcast.util.withSongCounts
 import kotlinx.coroutines.launch
 
 @Composable
@@ -263,14 +265,13 @@ private fun LibrarySidebar(
 
             when (state.category) {
                 LibraryCategory.Artists -> {
-                    val artists = remember(state.artists, order, filter) {
-                        state.artists.sortedBy(order).filter { matchesFilter(filter, it.name) }
+                    val artists = remember(state.artists, state.albums, order, filter) {
+                        val counted = if (order.sort == LibrarySort.SongCount) state.artists.withSongCounts(state.albums) else state.artists
+                        counted.sortedBy(order).filter { matchesFilter(filter, it.name) }
                     }
                     SidebarList(
                         items = artists,
                         key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
-                        name = { it.name },
-                        showAlphabet = order.sort == LibrarySort.Alphabetical,
                         state = listState,
                         emptyText = if (filter.isBlank()) "No artists" else "No matching artists",
                     ) { _, artist ->
@@ -291,8 +292,6 @@ private fun LibrarySidebar(
                     SidebarList(
                         items = albums,
                         key = { index, album -> "${album.id}::$index" },
-                        name = { it.name },
-                        showAlphabet = order.sort == LibrarySort.Alphabetical,
                         state = listState,
                         isLoading = isCategoryLoading,
                         emptyText = if (filter.isBlank()) "No albums" else "No matching albums",
@@ -311,7 +310,6 @@ private fun LibrarySidebar(
                     val songs = remember(state.songs, order, filter) { state.songs.sortedBy(order).filter { it.matches(filter) } }
                     SongSidebar(
                         songs = songs,
-                        showAlphabet = order.sort == LibrarySort.Alphabetical,
                         state = listState,
                         isLoading = isCategoryLoading,
                         onPlay = { index -> viewModel.onEvent(LibraryEvent.PlaySongs(songs, index)) },
@@ -326,8 +324,6 @@ private fun LibrarySidebar(
                     SidebarList(
                         items = genres,
                         key = { _, genre -> genre.id },
-                        name = { it.name },
-                        showAlphabet = true,
                         state = listState,
                         isLoading = isCategoryLoading,
                         emptyText = if (filter.isBlank()) "No genres" else "No matching genres",
@@ -371,7 +367,6 @@ private fun LibrarySidebar(
                     PlaylistSidebar(
                         entries = entries,
                         onFolderClick = { viewModel.onEvent(LibraryEvent.PlaylistFolderToggled(it.name)) },
-                        showAlphabet = order.sort == LibrarySort.Alphabetical,
                         selectedPlaylistId = state.selectedPlaylistId,
                         onPlaylistClick = {
                             open(LibrarySelection.Playlist(it.id), LibraryEvent.OpenPlaylistScreen(it))
@@ -507,16 +502,11 @@ private fun LibrarySidebarHeader(
     }
 }
 
-/**
- * The scrolling list of a sidebar category, with a letter index next to it when it is ordered alphabetically by
- * [name]. Shows [emptyText] if there are no [items].
- */
+/** The scrolling list of a sidebar category. Shows [emptyText] if there are no [items]. */
 @Composable
 private fun <T> SidebarList(
     items: List<T>,
     key: (index: Int, item: T) -> Any,
-    name: (T) -> String,
-    showAlphabet: Boolean,
     state: LazyListState,
     emptyText: String,
     modifier: Modifier = Modifier,
@@ -525,7 +515,6 @@ private fun <T> SidebarList(
     listModifier: Modifier = Modifier,
     itemContent: @Composable (index: Int, item: T) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     Box(modifier = modifier.fillMaxSize().padding(12.dp)) {
         when {
             isLoading && items.isEmpty() -> CircularProgressIndicator(color = AccentColor, modifier = Modifier.align(Alignment.Center))
@@ -536,27 +525,12 @@ private fun <T> SidebarList(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
             )
             else -> {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = state,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f).then(listModifier),
-                    ) {
-                        itemsIndexed(items, key = key) { index, item -> itemContent(index, item) }
-                    }
-
-                    if (showAlphabet) {
-                        AlphabetScroller(
-                            // In the order of the list, which may be Z to A
-                            alphabet = items.mapNotNull { name(it).firstOrNull()?.uppercaseChar() }.distinct(),
-                            onCharClicked = { char ->
-                                val index = items.indexOfFirst { name(it).firstOrNull()?.uppercaseChar() == char }
-                                if (index != -1) {
-                                    scope.launch { state.animateScrollToItem(index) }
-                                }
-                            }
-                        )
-                    }
+                LazyColumn(
+                    state = state,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize().then(listModifier),
+                ) {
+                    itemsIndexed(items, key = key) { index, item -> itemContent(index, item) }
                 }
 
                 VerticalScrollbar(
@@ -575,7 +549,6 @@ private fun <T> SidebarList(
 @Composable
 private fun SongSidebar(
     songs: List<Song>,
-    showAlphabet: Boolean,
     state: LazyListState,
     isLoading: Boolean,
     onPlay: (index: Int) -> Unit,
@@ -597,8 +570,6 @@ private fun SongSidebar(
         items = songs,
         key = songKey,
         listModifier = Modifier.touchSelection(touchSelection, state),
-        name = { it.title },
-        showAlphabet = showAlphabet,
         state = state,
         isLoading = isLoading,
         emptyText = "No songs",
@@ -854,6 +825,7 @@ private fun ArtistDetailPane(
                             artistName = artist.name,
                             imageUrl = largeImageUrl,
                             biography = biography,
+                            songTotals = songs.formatTotals(),
                             headerState = headerState,
                         )
                     }
@@ -1198,6 +1170,7 @@ private fun ArtistHeader(
     artistName: String,
     imageUrl: String?,
     biography: String?,
+    songTotals: String?,
     headerState: CollapsingHeaderState,
 ) {
     Column(
@@ -1223,6 +1196,10 @@ private fun ArtistHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.collapsingHeaderTitle(headerState),
         )
+
+        if (songTotals != null) {
+            Text(text = songTotals, style = MaterialTheme.typography.bodySmall)
+        }
 
         FavoriteButton(FavoriteKind.Artist, artistId)
 
@@ -1281,7 +1258,6 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false, subtitle: Stri
 private fun PlaylistSidebar(
     entries: List<PlaylistSidebarEntry>,
     onFolderClick: (PlaylistSidebarEntry.Folder) -> Unit,
-    showAlphabet: Boolean,
     selectedPlaylistId: String?,
     onPlaylistClick: (Playlist) -> Unit,
     onPlaylistDoubleClick: ((Playlist) -> Unit)?,
@@ -1303,14 +1279,6 @@ private fun PlaylistSidebar(
                 is PlaylistSidebarEntry.Item -> entry.playlist.id
             }
         },
-        // The letters lead to the folders, not into them
-        name = { entry ->
-            when (entry) {
-                is PlaylistSidebarEntry.Folder -> entry.name
-                is PlaylistSidebarEntry.Item -> entry.folder ?: entry.name
-            }
-        },
-        showAlphabet = showAlphabet,
         state = state,
         emptyText = "No playlists",
     ) { _, entry ->
@@ -1656,7 +1624,10 @@ private fun ArtistListItem(artist: Artist, isSelected: Boolean, onClick: () -> U
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${artist.albumCount} album${if (artist.albumCount != 1) "s" else ""}",
+                text = buildString {
+                    append("${artist.albumCount} album${if (artist.albumCount != 1) "s" else ""}")
+                    artist.songCount?.let { append(" • $it song${if (it != 1) "s" else ""}") }
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

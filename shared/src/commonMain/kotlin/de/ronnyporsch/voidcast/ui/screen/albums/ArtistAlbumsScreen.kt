@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.domain.model.formatTotals
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.ArtistImage
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
@@ -157,6 +158,8 @@ fun ArtistAlbumsScreen(
                             artistName = state.artistName,
                             imageUrl = state.largeImageUrl,
                             biography = state.biography,
+                            // YouTube Music only lists an artist's top songs
+                            songTotals = if (state.isYouTube) null else state.songs.formatTotals(),
                             headerState = headerState,
                         )
                     }
@@ -320,6 +323,7 @@ private fun ArtistHeader(
     artistName: String,
     imageUrl: String?,
     biography: String?,
+    songTotals: String?,
     headerState: CollapsingHeaderState,
 ) {
     Column(
@@ -345,6 +349,10 @@ private fun ArtistHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.collapsingHeaderTitle(headerState),
         )
+
+        if (songTotals != null) {
+            Text(text = songTotals, style = MaterialTheme.typography.bodySmall)
+        }
 
         FavoriteButton(FavoriteKind.Artist, artistId)
 

@@ -15,6 +15,8 @@ import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
 import de.ronnyporsch.voidcast.platform.decodeLibraryView
 import de.ronnyporsch.voidcast.platform.encode
 import de.ronnyporsch.voidcast.util.sortedBy
+import de.ronnyporsch.voidcast.util.withSongCounts
+import de.ronnyporsch.voidcast.domain.model.formatTotals
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatDuration
 import de.ronnyporsch.voidcast.domain.model.formatDurationMs
@@ -245,6 +247,33 @@ class SharedCommonTest {
         // A new visit of an equal screen starts at the top
         navigator.push(Screen.Search)
         assertTrue(navigator.currentEntry.value.id != search.id)
+    }
+
+    @Test
+    fun artists_sort_by_the_songs_on_their_albums() {
+        val shared = Artist(id = "b", name = "Beta")
+        val artists = listOf(Artist(id = "a", name = "Alpha"), shared, Artist(id = "c", name = "Gamma"), Artist(id = "d", name = "Delta"))
+        val albums = listOf(
+            Album(id = "1", name = "One", artists = listOf(Artist(id = "a", name = "Alpha")), songCount = 3),
+            Album(id = "2", name = "Two", artistId = "b", artist = "Beta", songCount = 10),
+            Album(id = "3", name = "Three", artists = listOf(shared, Artist(id = "c", name = "Gamma")), songCount = 5),
+        )
+        val counted = artists.withSongCounts(albums)
+        assertEquals(listOf(3, 15, 5, 0), counted.map { it.songCount })
+        assertEquals(listOf("b", "c", "a", "d"), counted.sortedBy(LibraryOrder(LibrarySort.SongCount)).map { it.id })
+        assertEquals(listOf("d", "a", "c", "b"), counted.sortedBy(LibraryOrder(LibrarySort.SongCount, reversed = true)).map { it.id })
+        // Unknown until the albums are there
+        assertEquals(listOf(null, null, null, null), artists.withSongCounts(emptyList()).map { it.songCount })
+    }
+
+    @Test
+    fun song_totals_leave_out_an_unknown_size() {
+        assertNull(emptyList<Song>().formatTotals())
+        assertEquals("1 song", listOf(Song(id = "1", title = "A")).formatTotals())
+        assertEquals(
+            "2 songs • 3.0 MB",
+            listOf(Song(id = "1", title = "A", size = 1024L * 1024), Song(id = "2", title = "B", size = 2048L * 1024)).formatTotals(),
+        )
     }
 
     @Test

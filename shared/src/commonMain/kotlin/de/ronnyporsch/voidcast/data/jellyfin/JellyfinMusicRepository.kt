@@ -129,14 +129,14 @@ class JellyfinMusicRepository(
 
     override suspend fun findSongsByArtistName(name: String): Result<List<Song>> = runCatching {
         val artist = findArtistByName(name).getOrNull() ?: return@runCatching emptyList()
-        songs("artistIds" to artist.id, "sortBy" to "Album,ParentIndexNumber,IndexNumber", WITH_FORMAT)
+        songs("artistIds" to artist.id, "sortBy" to "Album,ParentIndexNumber,IndexNumber", WITH_FORMAT_AND_SIZE)
     }
 
     override suspend fun getSongsForArtist(artistName: String, albumIds: List<String>): Result<List<Song>> = runCatching {
         coroutineScope {
             val albumSongs = async {
                 if (albumIds.isEmpty()) emptyList()
-                else songs("albumIds" to albumIds.joinToString(","), "sortBy" to "ProductionYear,Album,ParentIndexNumber,IndexNumber", WITH_FORMAT)
+                else songs("albumIds" to albumIds.joinToString(","), "sortBy" to "ProductionYear,Album,ParentIndexNumber,IndexNumber", WITH_FORMAT_AND_SIZE)
             }
             val creditedSongs = async { findSongsByArtistName(artistName).getOrDefault(emptyList()) }
             val fromAlbums = albumSongs.await()
@@ -316,10 +316,7 @@ class JellyfinMusicRepository(
         ).items.map { it.toSong() }
 }
 
-/** Song query parameter for codec and bitrate; only where shown, the media streams make responses a lot bigger. */
-private val WITH_FORMAT = "fields" to "Genres,DateCreated,MediaStreams"
-
-/** Like [WITH_FORMAT], plus the media sources for the file sizes. */
+/** Song query parameter for codec, bitrate and file size; only where shown, they make responses a lot bigger. */
 private val WITH_FORMAT_AND_SIZE = "fields" to "Genres,DateCreated,MediaStreams,MediaSources"
 
 /** Like the plugin names the codecs of YouTube videos, e.g. "h264" -> "H.264". */

@@ -10,6 +10,7 @@ import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
+import de.ronnyporsch.voidcast.domain.model.LibrarySort
 import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
 import de.ronnyporsch.voidcast.domain.model.isYouTube
 import de.ronnyporsch.voidcast.getPlatform
@@ -98,6 +99,7 @@ class LibraryViewModel(
                 val current = view.orderOf(view.category)
                 val order = if (current.sort == event.sort) current.copy(reversed = !current.reversed) else LibraryOrder(event.sort)
                 setView(view.copy(orders = view.orders + (view.category to order)))
+                loadAlbumsForSongCounts()
                 // Show the start of the reordered list
                 launch { sidebarStates.getValue(view.category).scrollToItem(0) }
             }
@@ -426,6 +428,7 @@ class LibraryViewModel(
     private fun loadTabData(category: LibraryCategory) {
         when (category) {
             LibraryCategory.Artists -> {
+                loadAlbumsForSongCounts()
                 if (currentState.artists.isEmpty()) {
                     launch {
                         repository.getArtists().onSuccess {
@@ -458,6 +461,13 @@ class LibraryViewModel(
                 }
             }
         }
+    }
+
+    /** Servers don't tell how many songs an artist has, so sorting artists by it needs all albums. */
+    private fun loadAlbumsForSongCounts() {
+        val view = currentState.view
+        val needed = view.category == LibraryCategory.Artists && view.orderOf(view.category).sort == LibrarySort.SongCount
+        if (needed && currentState.albums.isEmpty()) loadCategory(LibraryCategory.Albums, { getAlbums() }) { copy(albums = it) }
     }
 
     /** Loads the items of a sidebar [category] with [load] and puts them into the state with [update]. */

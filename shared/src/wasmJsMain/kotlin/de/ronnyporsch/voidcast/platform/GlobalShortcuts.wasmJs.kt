@@ -28,6 +28,21 @@ actual fun installGlobalShortcutListener() {
             event.stopPropagation()
             return@addEventListener
         }
+        // Home/End and Page Up/Down move the main view's list, unless a text field moves its cursor with them
+        val scroll = when (event.key) {
+            "Home" -> ScrollCommand.Top
+            "End" -> ScrollCommand.Bottom
+            "PageUp" -> ScrollCommand.PageUp
+            "PageDown" -> ScrollCommand.PageDown
+            else -> null
+        }
+        if (scroll != null && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && !isTextInputFocused()) {
+            if (GlobalShortcuts.requestScroll(scroll)) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            return@addEventListener
+        }
         // F enters or leaves fullscreen for a video, unless it's typed into a text field
         if (event.key.lowercase() == "f" && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextInputFocused()) {
             if (event.repeat || GlobalShortcuts.requestToggleVideoFullscreen()) {

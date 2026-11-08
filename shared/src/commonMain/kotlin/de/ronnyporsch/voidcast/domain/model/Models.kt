@@ -17,6 +17,8 @@ data class Artist(
     val coverArtId: String? = null,
     /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
     val dateAdded: String? = null,
+    /** Songs on its albums; servers don't tell, null until worked out, see [de.ronnyporsch.voidcast.util.withSongCounts]. */
+    val songCount: Int? = null,
 )
 
 data class ArtistInfo(
@@ -163,6 +165,14 @@ fun Long.formatFileSize(): String {
     if (unit < 2) return "${value.toLong()} ${units[unit]}"
     val tenths = (value * 10 + 0.5).toLong()
     return "${tenths / 10}.${tenths % 10} ${units[unit]}"
+}
+
+/** E.g. "12 songs • 84.3 MB", without the size if the server doesn't tell it; null without songs. */
+fun List<Song>.formatTotals(): String? {
+    if (isEmpty()) return null
+    val songs = "$size song${if (size != 1) "s" else ""}"
+    val totalSize = sumOf { it.size ?: 0L }
+    return if (totalSize > 0) "$songs • ${totalSize.formatFileSize()}" else songs
 }
 
 fun Int.formatDuration(): String {

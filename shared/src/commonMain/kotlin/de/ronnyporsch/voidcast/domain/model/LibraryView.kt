@@ -2,26 +2,32 @@ package de.ronnyporsch.voidcast.domain.model
 
 import kotlinx.serialization.Serializable
 
-/** How the library's sidebar orders its items. Release date and date added put the newest first unless reversed. */
+/**
+ * How the library's sidebar orders its items. Release date and date added put the newest first, number of songs the
+ * most first, unless reversed.
+ */
 @Serializable
 enum class LibrarySort(val title: String) {
     Alphabetical("Alphabetical"),
     ReleaseDate("Release date"),
     DateAdded("Date added"),
+    SongCount("Number of songs"),
 }
+
+private val DATED_SORTS = listOf(LibrarySort.Alphabetical, LibrarySort.ReleaseDate, LibrarySort.DateAdded)
 
 /** What the library's sidebar lists, and the orders that make sense for it. */
 @Serializable
 enum class LibraryCategory(val title: String, val sorts: List<LibrarySort>) {
     Playlists("Playlists", listOf(LibrarySort.Alphabetical, LibrarySort.DateAdded)),
-    Artists("Artists", listOf(LibrarySort.Alphabetical, LibrarySort.DateAdded)),
-    Albums("Albums", LibrarySort.entries),
-    Songs("Songs", LibrarySort.entries),
+    Artists("Artists", listOf(LibrarySort.Alphabetical, LibrarySort.DateAdded, LibrarySort.SongCount)),
+    Albums("Albums", DATED_SORTS),
+    Songs("Songs", DATED_SORTS),
     Genres("Genres", listOf(LibrarySort.Alphabetical)),
-    Favorites("Favorites", LibrarySort.entries),
+    Favorites("Favorites", DATED_SORTS),
 }
 
-/** A [sort], [reversed] from its usual direction (A to Z, newest first). */
+/** A [sort], [reversed] from its usual direction (A to Z, newest first, most first). */
 @Serializable
 data class LibraryOrder(
     val sort: LibrarySort = LibrarySort.Alphabetical,
@@ -33,6 +39,7 @@ data class LibraryOrder(
     val description: String
         get() = sort.title + when (sort) {
             LibrarySort.Alphabetical -> if (reversed) ", Z to A" else ", A to Z"
+            LibrarySort.SongCount -> if (reversed) ", fewest first" else ", most first"
             else -> if (reversed) ", oldest first" else ", newest first"
         }
 }
