@@ -21,6 +21,8 @@ data class PlaybackSettings(
 
 const val DEFAULT_VIDEO_QUALITY = 1080
 
+const val DEFAULT_NEW_RELEASES_MIN_SONGS = 15
+
 /** Offered while the heights a video is available in aren't known yet. */
 val STANDARD_VIDEO_QUALITIES = listOf(2160, 1440, 1080, 720, 480, 360, 240, 144)
 
@@ -45,6 +47,10 @@ data class AppSettings(
     val offlineMode: Boolean = false,
     /** Download songs for offline playback only while on wifi, not over mobile data. */
     val downloadOnlyOnWifi: Boolean = false,
+    /** New releases are looked for from the artists with at least this many songs in the library. */
+    val newReleasesMinSongs: Int = DEFAULT_NEW_RELEASES_MIN_SONGS,
+    /** New releases are looked for from the favorite artists instead, whatever number of songs the library has of them. */
+    val newReleasesFavoritesOnly: Boolean = false,
 ) {
     val hasSavedConnection: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()

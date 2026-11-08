@@ -62,6 +62,7 @@ public class VoidcastController : ControllerBase
             PlaylistAdditionAvailable = true,
             SongLookupAvailable = true,
             RadioAvailable = true,
+            AlbumReleaseDatesAvailable = true,
         };
     }
 
@@ -180,6 +181,28 @@ public class VoidcastController : ControllerBase
         {
             var album = await _youTubeMusic.GetAlbumDetailsAsync(albumId, cancellationToken).ConfigureAwait(false);
             return album != null ? album : NotFound();
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>About when a YouTube Music album came out, see <see cref="YouTubeMusicClient.GetAlbumReleaseDateAsync"/>.</summary>
+    [HttpGet("YouTube/Albums/{albumId}/ReleaseDate")]
+    public async Task<ActionResult<YouTubeAlbumReleaseDateDto>> GetAlbumReleaseDate([FromRoute] string albumId, CancellationToken cancellationToken)
+    {
+        if (!YouTubeMusicClient.IsValidAlbumId(albumId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            return new YouTubeAlbumReleaseDateDto
+            {
+                ReleaseDate = await _youTubeMusic.GetAlbumReleaseDateAsync(albumId, cancellationToken).ConfigureAwait(false),
+            };
         }
         catch (HttpRequestException e)
         {

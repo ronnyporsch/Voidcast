@@ -45,6 +45,8 @@ data class YouTubeCapabilities(
     val songLookup: Boolean = false,
     /** Whether songs' radios can be loaded, see [YouTubeService.getRadio]. */
     val radio: Boolean = false,
+    /** Whether albums' release dates can be loaded, see [YouTubeService.getAlbumReleaseDate]. */
+    val albumReleaseDates: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -119,6 +121,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             addToPlaylists = server?.playlistAdditionAvailable == true,
             songLookup = server?.songLookupAvailable == true,
             radio = server?.radioAvailable == true,
+            albumReleaseDates = server?.albumReleaseDatesAvailable == true,
         )
     }
 
@@ -188,10 +191,31 @@ class YouTubeService(private val connection: MusicServerConnection) {
         )
     }
 
+    /** The albums, singles and EPs of the artist, see [getArtist]; for looking at many artists without their songs. */
+    suspend fun getArtistReleases(artistId: String): List<Album> {
+        val channelId = artistId.youTubeId ?: throw IllegalArgumentException("Not a YouTube Music artist: $artistId")
+        val page = connection.jellyfinApi.getYouTubeArtist(channelId)
+        val artist = Artist(id = artistId, name = page.name, coverArtId = page.thumbnailUrl)
+        return page.albums.map { it.toAlbum(artist) }
+    }
+
     /** [albumId] is a YouTube Music album id, i.e. with [YOUTUBE_SONG_ID_PREFIX]. */
     suspend fun getAlbum(albumId: String): Album {
         val browseId = albumId.youTubeId ?: throw IllegalArgumentException("Not a YouTube Music album: $albumId")
         return connection.jellyfinApi.getYouTubeAlbum(browseId).toAlbum().also { checkDownloaded(it.songs) }
+    }
+
+    /** The day (yyyy-MM-dd) the album with [albumId] (a YouTube Music one) about came out; null if unknown. */
+    suspend fun getAlbumReleaseDate(albumId: String): String? {
+        val browseId = albumId.youTubeId?.takeIf { currentCapabilities.albumReleaseDates } ?: return null
+        return try {
+            connection.jellyfinApi.getYouTubeAlbumReleaseDate(browseId).releaseDate
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Only for ordering
+            null
+        }
     }
 
     /** Marks those of [songs] that are already in the server's library, so they show as downloaded. */

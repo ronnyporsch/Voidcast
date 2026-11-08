@@ -56,6 +56,13 @@ public class YouTubeRadioDto
     public string? Continuation { get; set; }
 }
 
+/// <summary>When an album came out, see <c>YouTube/Albums/{albumId}/ReleaseDate</c>.</summary>
+public class YouTubeAlbumReleaseDateDto
+{
+    /// <summary>Gets or sets the day as yyyy-MM-dd, null if unknown.</summary>
+    public string? ReleaseDate { get; set; }
+}
+
 /// <summary>A YouTube Music search result. Clients send it back as is to download the track.</summary>
 public class YouTubeSongDto
 {
@@ -243,4 +250,7 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether songs' radios can be loaded, see <c>YouTube/Songs/{videoId}/Radio</c>.</summary>
     public bool RadioAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether albums' release dates can be loaded, see <c>YouTube/Albums/{albumId}/ReleaseDate</c>.</summary>
+    public bool AlbumReleaseDatesAvailable { get; set; }
 }

@@ -340,6 +340,10 @@ class JellyfinApiService {
 
     suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("Voidcast/YouTube/Albums/$albumId", emptyMap())
 
+    /** Needs [PluginInfoDto.albumReleaseDatesAvailable]. */
+    suspend fun getYouTubeAlbumReleaseDate(albumId: String): YouTubeAlbumReleaseDateDto =
+        get("Voidcast/YouTube/Albums/$albumId/ReleaseDate", emptyMap())
+
     /** Queues a download of [song], a result of [searchYouTube]. */
     suspend fun requestDownload(song: YouTubeSongDto): DownloadJobDto {
         val response = client.post("${baseUrl()}/Voidcast/Downloads") {

@@ -289,6 +289,24 @@ public partial class YouTubeMusicClient
         };
     }
 
+    /// <summary>
+    /// The day (yyyy-MM-dd) the album's first track got uploaded, or null if unknown. YouTube Music only tells release
+    /// years, but tracks get uploaded for each release, about when it comes out.
+    /// </summary>
+    public async Task<string?> GetAlbumReleaseDateAsync(string albumId, CancellationToken cancellationToken)
+    {
+        var album = await GetAlbumAsync(albumId, cancellationToken).ConfigureAwait(false);
+        var videoId = album?.Tracks.FirstOrDefault(track => track.VideoId != null)?.VideoId;
+        if (videoId == null)
+        {
+            return null;
+        }
+
+        var root = await PostAsync("player", new JsonObject { ["videoId"] = videoId }, cancellationToken).ConfigureAwait(false);
+        var uploaded = String(Path(root, "microformat", "microformatDataRenderer"), "uploadDate");
+        return uploaded is { Length: >= 10 } ? uploaded[..10] : null;
+    }
+
     /// <summary>Looks up an album with its playable tracks for clients, or returns null if unavailable.</summary>
     public async Task<YouTubeAlbumDto?> GetAlbumDetailsAsync(string albumId, CancellationToken cancellationToken)
     {

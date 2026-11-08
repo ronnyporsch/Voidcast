@@ -140,6 +140,7 @@ data class PluginInfoDto(
     @SerialName("SongLookupAvailable") val songLookupAvailable: Boolean = false,
     /** Whether songs' radios can be loaded, see [JellyfinApiService.getYouTubeRadio]. */
     @SerialName("RadioAvailable") val radioAvailable: Boolean = false,
+    @SerialName("AlbumReleaseDatesAvailable") val albumReleaseDatesAvailable: Boolean = false,
 )
 
 @Serializable
@@ -151,6 +152,12 @@ data class YouTubeArtistDto(
 
 /** A YouTube Music search result of the plugin; sent back as is to download the track. */
 /** A page of a song's radio, see [JellyfinApiService.getYouTubeRadio]. */
+@Serializable
+data class YouTubeAlbumReleaseDateDto(
+    /** The day as yyyy-MM-dd; null if unknown. */
+    @SerialName("ReleaseDate") val releaseDate: String? = null,
+)
+
 @Serializable
 data class YouTubeRadioDto(
     /** The first page starts with the song the radio is of. */

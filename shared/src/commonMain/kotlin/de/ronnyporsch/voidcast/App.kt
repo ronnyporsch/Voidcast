@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -66,6 +67,10 @@ import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsButton
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsScreen
 import de.ronnyporsch.voidcast.ui.screen.videos.MusicVideosScreen
+import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesEvent
+import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesScreen
+import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesViewModel
+import de.ronnyporsch.voidcast.data.youtube.NewReleasesCache
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
@@ -222,6 +227,9 @@ fun App() {
         )
     }
     val searchViewModel = remember { SearchViewModel(repository, youTube) }
+    val newReleasesViewModel = remember {
+        NewReleasesViewModel(repository, youTube, { settingsHolder.settings.value }, NewReleasesCache { settingsHolder.settings.value.serverKey })
+    }
     val coverArtUrlProvider = remember { CoverArtUrlProvider(repository) }
     // Touch drags scroll, so songs can only be dragged with a mouse
     val songDragAndDrop = remember { if (getPlatform().isMobile) null else SongDragAndDrop() }
@@ -229,7 +237,10 @@ fun App() {
     // (Re)load the library whenever a server got connected, it may be a different one
     LaunchedEffect(connection) {
         connection.connections.collect { count ->
-            if (count > 0) libraryViewModel.onEvent(LibraryEvent.Refresh)
+            if (count > 0) {
+                libraryViewModel.onEvent(LibraryEvent.Refresh)
+                newReleasesViewModel.onEvent(NewReleasesEvent.Connected)
+            }
         }
     }
 
@@ -349,6 +360,7 @@ fun App() {
                 }
                 Screen.FavoriteSongs -> connection.favorites.reload()
                 Screen.Search -> searchViewModel.onEvent(SearchEvent.Search)
+                Screen.NewReleases -> newReleasesViewModel.onEvent(NewReleasesEvent.Refresh)
                 // Their view models load everything again when created
                 else -> screenGeneration++
             }
@@ -594,6 +606,7 @@ fun App() {
                                 currentScreen,
                                 navigator,
                                 showVideos = (serverType ?: savedServerType) == ServerType.Jellyfin,
+                                showNewReleases = youTubeCapabilities.available,
                             )
                         }
                     }
@@ -803,6 +816,14 @@ fun App() {
                         )
                     }
 
+                    is Screen.NewReleases -> {
+                        LaunchedEffect(Unit) { newReleasesViewModel.onEvent(NewReleasesEvent.Open) }
+                        NewReleasesScreen(
+                            viewModel = newReleasesViewModel,
+                            onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                        )
+                    }
+
                     is Screen.Downloads -> {
                         DownloadsScreen(
                             youTube = youTube,
@@ -923,7 +944,7 @@ private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, start
 }
 
 @Composable
-private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean) {
+private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean, showNewReleases: Boolean) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -949,6 +970,30 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, sho
                 indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
             ),
         )
+
+        if (showNewReleases) {
+            NavigationBarItem(
+                selected = currentScreen is Screen.NewReleases,
+                onClick = {
+                    if (currentScreen !is Screen.NewReleases) {
+                        navigator.push(Screen.NewReleases)
+                    }
+                },
+                icon = {
+                    Icon(Icons.Default.NewReleases, contentDescription = null, tint = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray)
+                },
+                label = {
+                    Text(
+                        "Releases",
+                        color = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray,
+                        fontWeight = if (currentScreen is Screen.NewReleases) FontWeight.Bold else FontWeight.Normal,
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            )
+        }
 
         if (showVideos) {
             NavigationBarItem(

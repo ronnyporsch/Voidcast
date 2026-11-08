@@ -28,6 +28,8 @@ class SettingsViewModel(
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
                 offlineMode = current.offlineMode,
                 downloadOnlyOnWifi = current.downloadOnlyOnWifi,
+                newReleasesMinSongs = current.newReleasesMinSongs,
+                newReleasesFavoritesOnly = current.newReleasesFavoritesOnly,
             )
         }
         viewModelScope.launch {
@@ -80,6 +82,14 @@ class SettingsViewModel(
             is SettingsEvent.DownloadOnlyOnWifiToggled -> {
                 setState { copy(downloadOnlyOnWifi = event.enabled) }
                 settingsHolder.update { copy(downloadOnlyOnWifi = event.enabled) }
+            }
+            is SettingsEvent.NewReleasesMinSongsChanged -> {
+                setState { copy(newReleasesMinSongs = event.minSongs) }
+                settingsHolder.update { copy(newReleasesMinSongs = event.minSongs) }
+            }
+            is SettingsEvent.NewReleasesFavoritesOnlyToggled -> {
+                setState { copy(newReleasesFavoritesOnly = event.enabled) }
+                settingsHolder.update { copy(newReleasesFavoritesOnly = event.enabled) }
             }
             is SettingsEvent.Reconnect -> reconnect()
             is SettingsEvent.Logout -> logout()

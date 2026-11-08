@@ -263,6 +263,43 @@ fun SettingsScreen(
                     SectionHeader("YouTube Music")
 
                     Text(info, style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
+
+                    Spacer(Modifier.height(12.dp))
+
+                    SettingsSwitch(
+                        title = "New releases: only favorite artists",
+                        subtitle = "Look at all your favorite artists, however many of their songs you have",
+                        checked = state.newReleasesFavoritesOnly,
+                        onCheckedChange = { viewModel.onEvent(SettingsEvent.NewReleasesFavoritesOnlyToggled(it)) },
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Kept apart from the setting, which only takes valid numbers: the field may be empty while typing
+                    var minSongs by remember { mutableStateOf(state.newReleasesMinSongs.toString()) }
+                    val minSongsValid = (minSongs.toIntOrNull() ?: 0) >= 1
+                    OutlinedTextField(
+                        value = minSongs,
+                        onValueChange = { text ->
+                            minSongs = text.filter { it in '0'..'9' }.take(4)
+                            minSongs.toIntOrNull()?.takeIf { it >= 1 }?.let {
+                                viewModel.onEvent(SettingsEvent.NewReleasesMinSongsChanged(it))
+                            }
+                        },
+                        label = { Text("New releases: minimum songs per artist") },
+                        supportingText = {
+                            Text(
+                                if (minSongsValid) "Artists with fewer songs in your library are skipped. A lower number makes the search take longer."
+                                else "Enter a number of at least 1"
+                            )
+                        },
+                        isError = !minSongsValid,
+                        enabled = !state.newReleasesFavoritesOnly,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = settingsTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 if (state.pluginMissing) {

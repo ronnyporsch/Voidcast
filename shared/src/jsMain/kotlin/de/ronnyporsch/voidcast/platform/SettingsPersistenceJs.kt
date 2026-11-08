@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.platform
 
 import de.ronnyporsch.voidcast.domain.model.AppSettings
+import de.ronnyporsch.voidcast.domain.model.DEFAULT_NEW_RELEASES_MIN_SONGS
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.ServerType
@@ -20,6 +21,8 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("repeatMode", settings.playback.repeatMode.name)
     storage.setItem("jellyfinDeviceId", settings.jellyfinDeviceId)
     storage.setItem("libraryView", settings.libraryView.encode())
+    storage.setItem("newReleasesMinSongs", settings.newReleasesMinSongs.toString())
+    storage.setItem("newReleasesFavoritesOnly", settings.newReleasesFavoritesOnly.toString())
 }
 
 actual fun loadSettings(): AppSettings? {
@@ -41,5 +44,7 @@ actual fun loadSettings(): AppSettings? {
         ),
         jellyfinDeviceId = storage.getItem("jellyfinDeviceId") ?: "",
         libraryView = decodeLibraryView(storage.getItem("libraryView")),
+        newReleasesMinSongs = storage.getItem("newReleasesMinSongs")?.toIntOrNull() ?: DEFAULT_NEW_RELEASES_MIN_SONGS,
+        newReleasesFavoritesOnly = storage.getItem("newReleasesFavoritesOnly")?.toBooleanStrictOrNull() ?: false,
     )
 }

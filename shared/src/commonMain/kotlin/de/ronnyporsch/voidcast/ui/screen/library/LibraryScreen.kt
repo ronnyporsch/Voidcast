@@ -1240,7 +1240,7 @@ private fun ArtistHeader(
 
 /** [showArtist] where the albums aren't all of one artist. */
 @Composable
-internal fun AlbumCard(album: Album, showArtist: Boolean = false) {
+internal fun AlbumCard(album: Album, showArtist: Boolean = false, subtitle: String? = null) {
     val coverArt = LocalCoverArtUrlProvider.current
     Column(
         modifier = Modifier
@@ -1267,7 +1267,7 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false) {
         }
 
         Text(
-            text = if (showArtist) listOfNotNull(album.artist.ifBlank { null }, album.year?.toString()).joinToString(" \u2022 ")
+            text = subtitle ?: if (showArtist) listOfNotNull(album.artist.ifBlank { null }, album.year?.toString()).joinToString(" \u2022 ")
             else album.year?.toString() ?: "",
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
