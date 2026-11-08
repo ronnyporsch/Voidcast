@@ -61,6 +61,7 @@ public class VoidcastController : ControllerBase
             VideoAvailable = true,
             PlaylistAdditionAvailable = true,
             SongLookupAvailable = true,
+            RadioAvailable = true,
         };
     }
 
@@ -117,6 +118,28 @@ public class VoidcastController : ControllerBase
         {
             var song = await _youTubeMusic.GetSongAsync(videoId, cancellationToken).ConfigureAwait(false);
             return song != null ? song : NotFound();
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>
+    /// A page of the radio of a song or video: it and similar songs; <paramref name="continuation"/> (of the previous
+    /// page) loads the next one. See <see cref="YouTubeMusicClient.GetRadioAsync"/>.
+    /// </summary>
+    [HttpGet("YouTube/Songs/{videoId}/Radio")]
+    public async Task<ActionResult<YouTubeRadioDto>> GetRadio([FromRoute] string videoId, [FromQuery] string? continuation, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId) || continuation is { Length: 0 or > 1000 })
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            return await _youTubeMusic.GetRadioAsync(videoId, continuation, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException e)
         {

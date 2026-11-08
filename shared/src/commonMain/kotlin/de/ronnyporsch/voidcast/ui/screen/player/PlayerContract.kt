@@ -51,6 +51,11 @@ sealed class PlayerEvent {
      * shuffle mode and, if it's on, plays the song at [startIndex] first.
      */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
+    /**
+     * Plays the radio [songs] from the start, without shuffle; [loadMore] gets the radio's next songs as the queue
+     * runs out, until it returns none. Playing other songs ends the radio.
+     */
+    data class PlayRadio(val songs: List<Song>, val loadMore: suspend () -> List<Song>) : PlayerEvent()
     data object PlayPause : PlayerEvent()
     data object Play : PlayerEvent()
     data object Pause : PlayerEvent()

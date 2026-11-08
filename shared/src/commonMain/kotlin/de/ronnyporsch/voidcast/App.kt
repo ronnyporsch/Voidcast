@@ -76,6 +76,7 @@ import de.ronnyporsch.voidcast.ui.components.PendingYouTubeAdditionDialog
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
 import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
+import de.ronnyporsch.voidcast.ui.components.LocalStartRadio
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
 import de.ronnyporsch.voidcast.ui.components.description
 import de.ronnyporsch.voidcast.ui.components.LocalSongDragAndDrop
@@ -102,6 +103,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -141,6 +143,20 @@ fun App() {
             playerViewModel.onEvent(PlayerEvent.AddToQueue(songs))
             val what = songs.singleOrNull()?.let { "\"${it.title}\"" } ?: "${songs.size} songs"
             scope.launch { snackbarHostState.showSnackbar("Added $what to the queue", duration = SnackbarDuration.Short) }
+        }
+    }
+    // Only the latest radio started gets played
+    var radioJob by remember { mutableStateOf<Job?>(null) }
+    val startRadio: (Song) -> Unit = remember {
+        { song ->
+            radioJob?.cancel()
+            radioJob = scope.launch {
+                val loading = launch { snackbarHostState.showSnackbar("Starting the radio of \"${song.title}\"…", duration = SnackbarDuration.Short) }
+                val songs = runCatching { youTube.getRadio(song) }.onFailure { if (it is CancellationException) throw it }
+                loading.cancel()
+                songs.onSuccess { radio -> playerViewModel.onEvent(PlayerEvent.PlayRadio(radio.songs, radio::loadMore)) }
+                    .onFailure { snackbarHostState.showSnackbar("Couldn't start the radio: ${it.message}", duration = SnackbarDuration.Short) }
+            }
         }
     }
     val lookUpStreamFormat: (List<Song>) -> Unit = remember {
@@ -360,6 +376,7 @@ fun App() {
             LocalAddToQueue provides addToQueue,
             LocalAlbumSongs provides loadAlbumSongs,
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
+            LocalStartRadio provides startRadio.takeIf { youTubeCapabilities.radio },
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
             LocalDownloadedSongIds provides downloadedSongIds,

@@ -10,6 +10,7 @@ cover. Voidcast runs on Android, on the desktop (Linux, Windows, macOS) and in t
 
 - Listen to music from your Jellyfin library and YouTube Music all in one place.
 - Download songs from YouTube and add them to your Jellyfin playlists, fully tagged and in the best available quality.
+- Song radio: start a radio from any song (context menu) to discover similar music from YouTube Music.
 - Manage playlists and favorites.
 - Browse the library by playlists, artists, albums, songs, genres or favorites, sorted alphabetically, by release date or by date added, either way round.
 - Select several songs or albums: with Ctrl- and Shift-clicks on the desktop, on Android by long pressing and moving the finger across them, like in a photo gallery.

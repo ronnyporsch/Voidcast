@@ -131,10 +131,7 @@ public partial class YouTubeMusicClient
     {
         var root = await PostAsync("next", new JsonObject { ["videoId"] = videoId }, cancellationToken).ConfigureAwait(false);
         // The watch page's queue starts with the video; songs with a music video (or vice versa) come wrapped with it
-        var item = Path(root, "contents", "singleColumnMusicWatchNextResultsRenderer", "tabbedRenderer", "watchNextTabbedResultsRenderer", "tabs")
-            .Items().FirstOrDefault()
-            .Pipe(tab => Path(tab, "tabRenderer", "content", "musicQueueRenderer", "content", "playlistPanelRenderer", "contents"))
-            .Items()
+        var item = QueueEntries(root)
             .SelectMany(entry => new[]
             {
                 Path(entry, "playlistPanelVideoRenderer"),
@@ -142,8 +139,49 @@ public partial class YouTubeMusicClient
             }.Concat(Path(entry, "playlistPanelVideoWrapperRenderer", "counterpart").Items()
                 .Select(counterpart => Path(counterpart, "counterpartRenderer", "playlistPanelVideoRenderer"))))
             .FirstOrDefault(renderer => String(renderer, "videoId") == videoId);
+        return ParseQueueItem(item);
+    }
+
+    /// <summary>
+    /// A page of YouTube Music's radio of a song or video, as the watch page queues them when starting a radio: the
+    /// first page (without <paramref name="continuation"/>) starts with the song itself, followed by similar ones; the
+    /// page's <see cref="YouTubeRadioDto.Continuation"/> loads the next one.
+    /// </summary>
+    public async Task<YouTubeRadioDto> GetRadioAsync(string videoId, string? continuation, CancellationToken cancellationToken)
+    {
+        var parameters = continuation != null
+            ? new JsonObject { ["continuation"] = continuation }
+            : new JsonObject { ["videoId"] = videoId, ["playlistId"] = "RDAMVM" + videoId };
+        var root = await PostAsync("next", parameters, cancellationToken).ConfigureAwait(false);
+        var panel = continuation != null ? Path(root, "continuationContents", "playlistPanelContinuation") : QueuePanel(root);
+        // Songs with a music video (or vice versa) come wrapped with it; the primary one is what the radio plays
+        var songs = Path(panel, "contents").Items()
+            .Select(entry => Path(entry, "playlistPanelVideoRenderer")
+                ?? Path(entry, "playlistPanelVideoWrapperRenderer", "primaryRenderer", "playlistPanelVideoRenderer"))
+            .Select(ParseQueueItem)
+            .OfType<YouTubeSongDto>()
+            .DistinctBy(song => song.VideoId)
+            .ToList();
+        var next = Path(panel, "continuations").Items()
+            .Select(item => String(Path(item, "nextRadioContinuationData"), "continuation"))
+            .FirstOrDefault(token => !string.IsNullOrEmpty(token));
+        return new YouTubeRadioDto { Songs = songs, Continuation = songs.Count > 0 ? next : null };
+    }
+
+    /// <summary>The entries of the queue of a <c>next</c> (watch page) response.</summary>
+    private static List<JsonNode?> QueueEntries(JsonNode? root) => Path(QueuePanel(root), "contents").Items();
+
+    private static JsonNode? QueuePanel(JsonNode? root) =>
+        Path(root, "contents", "singleColumnMusicWatchNextResultsRenderer", "tabbedRenderer", "watchNextTabbedResultsRenderer", "tabs")
+            .Items().FirstOrDefault()
+            .Pipe(tab => Path(tab, "tabRenderer", "content", "musicQueueRenderer", "content", "playlistPanelRenderer"));
+
+    /// <summary>A <c>playlistPanelVideoRenderer</c> of the watch page's queue, or null if it isn't a playable song.</summary>
+    private static YouTubeSongDto? ParseQueueItem(JsonNode? item)
+    {
+        var videoId = String(item, "videoId");
         var title = Join(Path(item, "title", "runs").Items());
-        if (title.Length == 0)
+        if (videoId == null || title.Length == 0)
         {
             return null;
         }

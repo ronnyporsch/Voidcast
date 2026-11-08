@@ -322,6 +322,13 @@ class JellyfinApiService {
     /** Needs [PluginInfoDto.songLookupAvailable]. */
     suspend fun getYouTubeSong(videoId: String): YouTubeSongDto = get("Voidcast/YouTube/Songs/$videoId", emptyMap())
 
+    /**
+     * A page of YouTube Music's radio of the song or video [videoId]: the first one (without [continuation]) starts
+     * with it, followed by similar songs; [YouTubeRadioDto.continuation] loads the next. Needs [PluginInfoDto.radioAvailable].
+     */
+    suspend fun getYouTubeRadio(videoId: String, continuation: String? = null): YouTubeRadioDto =
+        get("Voidcast/YouTube/Songs/$videoId/Radio", mapOf("continuation" to continuation))
+
     suspend fun getYouTubeArtist(channelId: String): YouTubeArtistPageDto = get("Voidcast/YouTube/Artists/$channelId", emptyMap())
 
     suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("Voidcast/YouTube/Albums/$albumId", emptyMap())

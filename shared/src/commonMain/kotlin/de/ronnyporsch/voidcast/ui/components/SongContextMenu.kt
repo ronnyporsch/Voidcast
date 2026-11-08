@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlaylistRemove
+import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -209,6 +210,9 @@ val LocalPlaylistEditor = staticCompositionLocalOf<PlaylistEditor?> { null }
 /** Adds songs to the player's queue, from the song context menu. */
 val LocalAddToQueue = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 
+/** Plays a radio of a song (it, then similar songs), from the song context menu; null where radios aren't available. */
+val LocalStartRadio = staticCompositionLocalOf<((Song) -> Unit)?> { null }
+
 /** Looks up codec and bitrate of YouTube Music songs' streams, from the song context menu. */
 val LocalStreamFormatLookup = staticCompositionLocalOf<((List<Song>) -> Unit)?> { null }
 
@@ -273,6 +277,7 @@ fun SongContextMenu(
     val playlists by (editor?.playlists ?: remember { MutableStateFlow(emptyList<Playlist>()) }).collectAsState()
     val favorites = LocalFavorites.current
     val streamFormatLookup = LocalStreamFormatLookup.current
+    val startRadio = LocalStartRadio.current
     val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
     val downloadedSongIds = LocalDownloadedSongIds.current
     val pendingDownloads = LocalPendingSongDownloads.current
@@ -346,6 +351,17 @@ fun SongContextMenu(
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null) },
                     onClick = {
                         addToQueue(songs)
+                        finish()
+                    },
+                )
+            }
+            val radioSong = songs.singleOrNull()
+            if (startRadio != null && radioSong != null) {
+                DropdownMenuItem(
+                    text = { Text("Start radio") },
+                    leadingIcon = { Icon(Icons.Default.Radio, contentDescription = null) },
+                    onClick = {
+                        startRadio(radioSong)
                         finish()
                     },
                 )

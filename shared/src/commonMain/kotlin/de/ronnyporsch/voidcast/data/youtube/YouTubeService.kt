@@ -7,6 +7,7 @@ import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeAlbumDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeAlbumSummaryDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeArtistDto
+import de.ronnyporsch.voidcast.data.jellyfin.YouTubeRadioDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeSongDto
 import de.ronnyporsch.voidcast.data.repository.MusicServerConnection
 import de.ronnyporsch.voidcast.domain.model.Album
@@ -42,6 +43,8 @@ data class YouTubeCapabilities(
     val addToPlaylists: Boolean = false,
     /** Whether songs and videos can be looked up by id, see [YouTubeService.getSong]. */
     val songLookup: Boolean = false,
+    /** Whether songs' radios can be loaded, see [YouTubeService.getRadio]. */
+    val radio: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -115,6 +118,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             videos = server?.videoAvailable == true,
             addToPlaylists = server?.playlistAdditionAvailable == true,
             songLookup = server?.songLookupAvailable == true,
+            radio = server?.radioAvailable == true,
         )
     }
 
@@ -129,6 +133,46 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** The song or video with [videoId], e.g. from a [YouTubeLink]. */
     suspend fun getSong(videoId: String): Song =
         connection.jellyfinApi.getYouTubeSong(videoId).toSong().also { checkDownloaded(listOf(it)) }
+
+    /**
+     * A radio of [song]: it, followed by similar songs from YouTube Music, with more to load, see [YouTubeRadio].
+     * Library songs get matched with a YouTube Music song by searching for their artist and title first.
+     */
+    suspend fun getRadio(song: Song): YouTubeRadio {
+        val videoId = song.youTubeVideoId
+            ?: connection.jellyfinApi.searchYouTube("${song.artist} ${song.title}".trim(), includeVideos = false)
+                .firstOrNull()?.videoId
+            ?: throw NoSuchElementException("\"${song.title}\" isn't on YouTube Music")
+        val page = connection.jellyfinApi.getYouTubeRadio(videoId)
+        val radio = YouTubeRadio(videoId, page.continuation)
+        return radio.apply { songs = listOf(song) + radio.newSongs(page) }
+    }
+
+    /**
+     * A radio of a song, see [getRadio]: its first [songs], then [loadMore] for the next ones. Songs it played
+     * already don't come again.
+     */
+    inner class YouTubeRadio internal constructor(private val videoId: String, private var continuation: String?) {
+        var songs: List<Song> = emptyList()
+            internal set
+
+        private val seenVideoIds = mutableSetOf(videoId)
+
+        /** The next songs of the radio; empty once it has no more. Not to be called again before it returns. */
+        suspend fun loadMore(): List<Song> {
+            // A page may only repeat songs of earlier ones
+            repeat(MAX_RADIO_PAGES_PER_LOAD) {
+                val token = continuation ?: return emptyList()
+                val page = connection.jellyfinApi.getYouTubeRadio(videoId, token)
+                continuation = page.continuation
+                newSongs(page).takeIf { it.isNotEmpty() }?.let { return it }
+            }
+            return emptyList()
+        }
+
+        internal fun newSongs(page: YouTubeRadioDto): List<Song> =
+            page.songs.filter { seenVideoIds.add(it.videoId) }.map { it.toSong() }.also(::checkDownloaded)
+    }
 
     /** [artistId] is a YouTube Music artist id, i.e. with [YOUTUBE_SONG_ID_PREFIX]. */
     suspend fun getArtist(artistId: String): YouTubeArtist {
@@ -326,6 +370,8 @@ fun resizeYouTubeThumbnail(url: String, size: Int): String =
 private fun prefixed(id: String) = if (id.isEmpty()) "" else YOUTUBE_SONG_ID_PREFIX + id
 
 private fun YouTubeArtistDto.toArtist() = Artist(id = prefixed(id), name = name)
+
+private const val MAX_RADIO_PAGES_PER_LOAD = 3
 
 private fun YouTubeSongDto.toSong() = Song(
     id = YOUTUBE_SONG_ID_PREFIX + videoId,

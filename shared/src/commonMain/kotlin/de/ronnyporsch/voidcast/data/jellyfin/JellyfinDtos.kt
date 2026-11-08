@@ -138,6 +138,8 @@ data class PluginInfoDto(
     @SerialName("PlaylistAdditionAvailable") val playlistAdditionAvailable: Boolean = false,
     /** Whether songs and videos can be looked up by id, e.g. from a link, see [JellyfinApiService.getYouTubeSong]. */
     @SerialName("SongLookupAvailable") val songLookupAvailable: Boolean = false,
+    /** Whether songs' radios can be loaded, see [JellyfinApiService.getYouTubeRadio]. */
+    @SerialName("RadioAvailable") val radioAvailable: Boolean = false,
 )
 
 @Serializable
@@ -148,6 +150,15 @@ data class YouTubeArtistDto(
 )
 
 /** A YouTube Music search result of the plugin; sent back as is to download the track. */
+/** A page of a song's radio, see [JellyfinApiService.getYouTubeRadio]. */
+@Serializable
+data class YouTubeRadioDto(
+    /** The first page starts with the song the radio is of. */
+    @SerialName("Songs") val songs: List<YouTubeSongDto> = emptyList(),
+    /** Loads the next page; null if the radio has no more. */
+    @SerialName("Continuation") val continuation: String? = null,
+)
+
 @Serializable
 data class YouTubeSongDto(
     @SerialName("VideoId") val videoId: String,

@@ -15,6 +15,7 @@ import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.platform.AudioPlayer
 import de.ronnyporsch.voidcast.platform.CrossfadeAudioPlayer
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
@@ -53,6 +54,12 @@ class PlayerViewModel(
 
     /** The songs last played, in their own order; turning shuffle off goes back to it. */
     private var unshuffledSongs: List<Song> = emptyList()
+
+    /** Loads the next songs of the radio the queue plays, see [PlayerEvent.PlayRadio]; null if it isn't one (any more). */
+    private var radio: (suspend () -> List<Song>)? = null
+    private var radioJob: Job? = null
+    /** Whether the queue ran out before the radio's next songs got loaded, so they start playing once they are. */
+    private var playWhenRadioExtended = false
 
     /** Song whose lyrics are in [PlayerState.lyrics], unless they failed to load. */
     private var lyricsSongId: String? = null
@@ -191,6 +198,10 @@ class PlayerViewModel(
                 }
         }
         launch {
+            // The radio gets its next songs before the queue runs out
+            state.map { it.playback.currentIndex to it.playback.queue.size }.distinctUntilChanged().collect { extendRadio() }
+        }
+        launch {
             // Each server has its own history
             settingsHolder.settings.map { it.serverKey }.distinctUntilChanged().collect { history.reload() }
         }
@@ -243,6 +254,7 @@ class PlayerViewModel(
         }
         when (event) {
             is PlayerEvent.PlaySongs -> playSongs(event.songs, event.startIndex, event.shuffle)
+            is PlayerEvent.PlayRadio -> playRadio(event.songs, event.loadMore)
             is PlayerEvent.PlayPause -> togglePlayPause()
             is PlayerEvent.Play -> when (currentState.playback.status) {
                 PlaybackStatus.Paused -> audioPlayer.resume()
@@ -283,6 +295,8 @@ class PlayerViewModel(
 
     private fun PlayerEvent.toRemoteCommand(): RemoteCommand? = when (this) {
         is PlayerEvent.PlaySongs -> RemoteCommand.PlaySongs(songs, startIndex, shuffle)
+        // Other devices play the songs loaded so far
+        is PlayerEvent.PlayRadio -> RemoteCommand.PlaySongs(songs, 0, false)
         PlayerEvent.PlayPause -> RemoteCommand.PlayPause
         PlayerEvent.Play -> RemoteCommand.Play
         PlayerEvent.Pause -> RemoteCommand.Pause
@@ -509,6 +523,7 @@ class PlayerViewModel(
     }
 
     private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?, start: PendingStart? = null) {
+        endRadio()
         val targetShuffle = shuffle ?: currentState.playback.shuffle
         unshuffledSongs = songs
         val queue: List<Song>
@@ -547,6 +562,70 @@ class PlayerViewModel(
             )
         }
         playCurrent(start)
+    }
+
+    private fun playRadio(songs: List<Song>, loadMore: suspend () -> List<Song>) {
+        playSongs(songs, 0, false)
+        radio = loadMore
+        extendRadio()
+    }
+
+    private fun endRadio() {
+        radio = null
+        radioJob?.cancel()
+        radioJob = null
+        playWhenRadioExtended = false
+    }
+
+    /**
+     * Appends the radio's next songs to the queue once only [RADIO_REFILL_AT] songs are left after the current one, or
+     * when the queue ran out, see [playWhenRadioExtended].
+     */
+    private fun extendRadio() {
+        val loadMore = radio ?: return
+        if (radioJob?.isActive == true || remoteSessionId != null) return
+        val playback = currentState.playback
+        val remaining = playback.queue.size - 1 - playback.currentIndex
+        if (!playWhenRadioExtended && (playback.currentIndex < 0 || remaining > RADIO_REFILL_AT)) return
+        radioJob = viewModelScope.launch {
+            val loaded = try {
+                loadMore()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Tried again with the next song
+                if (playWhenRadioExtended) {
+                    playWhenRadioExtended = false
+                    // Unless another song got picked meanwhile
+                    if (currentState.playback.currentIndex == currentState.playback.queue.lastIndex) stopPlayback()
+                }
+                emitEffect(PlayerEffect.Message("Couldn't load more songs of the radio: ${e.message}"))
+                return@launch
+            }
+            // Unless another song got picked meanwhile
+            val play = playWhenRadioExtended && currentState.playback.currentIndex == currentState.playback.queue.lastIndex
+            playWhenRadioExtended = false
+            val queueIds = currentState.playback.queue.mapTo(mutableSetOf()) { it.id }
+            val songs = loaded.filter { it.id !in queueIds }
+            if (loaded.isEmpty()) radio = null
+            if (songs.isEmpty()) {
+                // Without the radio, the end of the queue: repeats it or stops
+                if (play && radio == null) playNext() else if (play) stopPlayback()
+                return@launch
+            }
+            unshuffledSongs = unshuffledSongs + songs
+            val start = currentState.playback.queue.size
+            setState { copy(playback = playback.copy(queue = playback.queue + songs)) }
+            if (play) {
+                hasAutoAdvanced = false
+                hasPreparedNext = false
+                hasCrossfadeStarted = false
+                setState { copy(playback = playback.movedTo(start)) }
+                playCurrent()
+            } else {
+                onUpcomingChanged()
+            }
+        }
     }
 
     /** Current song at [index]; skipping forward past queued songs counts them as played. */
@@ -743,6 +822,11 @@ class PlayerViewModel(
                 }
                 playCurrent()
             }
+            // Continues with the radio's next songs once they are loaded
+            radio != null -> {
+                playWhenRadioExtended = true
+                extendRadio()
+            }
             state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> {
                 hasAutoAdvanced = false
                 setState {
@@ -840,3 +924,6 @@ class PlayerViewModel(
 
 /** How long a song plays before the next one gets pre-buffered. */
 private const val PREFETCH_AFTER_MS = 3000L
+
+/** How few songs may be left after the current one before a radio loads its next ones. */
+private const val RADIO_REFILL_AT = 5

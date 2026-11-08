@@ -46,6 +46,16 @@ public class YouTubeArtistDto
     public string Name { get; set; } = string.Empty;
 }
 
+/// <summary>A page of a song's radio, see <c>YouTube/Songs/{videoId}/Radio</c>.</summary>
+public class YouTubeRadioDto
+{
+    /// <summary>Gets or sets the songs; the first page starts with the song the radio is of.</summary>
+    public List<YouTubeSongDto> Songs { get; set; } = [];
+
+    /// <summary>Gets or sets the token to load the next page with, null if the radio has no more.</summary>
+    public string? Continuation { get; set; }
+}
+
 /// <summary>A YouTube Music search result. Clients send it back as is to download the track.</summary>
 public class YouTubeSongDto
 {
@@ -230,4 +240,7 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether songs and videos can be looked up by id, see <c>YouTube/Songs/{videoId}</c>.</summary>
     public bool SongLookupAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether songs' radios can be loaded, see <c>YouTube/Songs/{videoId}/Radio</c>.</summary>
+    public bool RadioAvailable { get; set; }
 }
