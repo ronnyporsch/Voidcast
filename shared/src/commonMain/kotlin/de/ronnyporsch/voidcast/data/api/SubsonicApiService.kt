@@ -120,6 +120,15 @@ class SubsonicApiService {
         }.body()
     }
 
+    /** Replaces the songs of the playlist with [songIds]. */
+    suspend fun replacePlaylistSongs(playlistId: String, songIds: List<String>): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/createPlaylist.view") {
+            addAuthParams()
+            parameter("playlistId", playlistId)
+            songIds.forEach { parameter("songId", it) }
+        }.body()
+    }
+
     suspend fun updatePlaylist(
         playlistId: String,
         songIdsToAdd: List<String> = emptyList(),

@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.data.jellyfin
 
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.data.repository.singleMovesTo
 import de.ronnyporsch.voidcast.data.repository.SearchResults
 import de.ronnyporsch.voidcast.domain.model.*
 import de.ronnyporsch.voidcast.getPlatform
@@ -106,6 +107,18 @@ class JellyfinMusicRepository(
             items.getOrNull(it)?.playlistItemId ?: throw IllegalStateException("Song not found in playlist")
         }
         api.removeFromPlaylist(playlistId, entries)
+    }
+
+    override suspend fun moveSongsInPlaylist(playlistId: String, songIndices: List<Int>, to: Int): Result<Unit> = runCatching {
+        // Jellyfin moves one entry at a time, by its playlist entry id
+        val entries = api.getPlaylistItems(playlistId).items.map {
+            it.playlistItemId ?: throw IllegalStateException("Playlist entry without id")
+        }.toMutableList()
+        for (move in entries.singleMovesTo(songIndices, to)) {
+            val entry = entries.removeAt(move.from)
+            entries.add(move.to, entry)
+            api.movePlaylistItem(playlistId, entry, move.to)
+        }
     }
 
     override suspend fun findArtistByName(name: String): Result<Artist?> = runCatching {

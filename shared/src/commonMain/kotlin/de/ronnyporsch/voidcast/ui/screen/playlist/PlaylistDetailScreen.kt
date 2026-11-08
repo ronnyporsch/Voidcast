@@ -25,6 +25,11 @@ import de.ronnyporsch.voidcast.ui.components.collapsingHeaderImage
 import de.ronnyporsch.voidcast.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.voidcast.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.voidcast.ui.components.SongRow
+import de.ronnyporsch.voidcast.ui.components.PlaylistEntriesDrag
+import de.ronnyporsch.voidcast.ui.components.PlaylistReorderIndicator
+import de.ronnyporsch.voidcast.ui.components.playlistEntryKey
+import de.ronnyporsch.voidcast.ui.components.playlistReorderTarget
+import de.ronnyporsch.voidcast.ui.components.rememberPlaylistReorder
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
@@ -77,7 +82,11 @@ fun PlaylistDetailScreen(
             // The songs matching the search, with their positions in the playlist, which the events refer to
             val visible = remember(playlist.songs, query) { playlist.songs.filtered(query) }
             val visibleSongs = remember(visible) { visible.map { it.value } }
-            val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+            val songKey = { index: Int, song: Song -> playlistEntryKey(song.id, index) }
+            // Songs dragged within the list move there; not while searching, as the hidden ones would be in the way
+            val reorder = rememberPlaylistReorder(playlist.id, listState, enabled = query.isBlank()) { indices, before ->
+                viewModel.onEvent(PlaylistDetailEvent.MoveSongs(indices, before))
+            }
             // The field is the third item, after the header and the play buttons
             val filterFocus = rememberSongFilterFocus(listState, itemIndex = 2)
             val songSelection = rememberTouchSelection(
@@ -99,7 +108,7 @@ fun PlaylistDetailScreen(
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(bottom = 100.dp),
-                    modifier = Modifier.touchSelection(songSelection, listState).onKeyEvent { event ->
+                    modifier = Modifier.playlistReorderTarget(reorder).touchSelection(songSelection, listState).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
                             val currentIndex = visibleSongs.indexOfFirst { it.id in state.selectedSongIds }
                             when (event.key) {
@@ -232,13 +241,17 @@ fun PlaylistDetailScreen(
                             },
                             isSelected = song.id in state.selectedSongIds,
                             isPlaying = currentSongId == song.id,
+                            dragOrigin = {
+                                val indices = visibleSongs.contextMenuIndices(visibleIndex, state.selectedSongIds).map { visible[it].index }
+                                PlaylistEntriesDrag(playlist.id, indices)
+                            },
                         )
                     }
                 }
 
+                reorder?.let { PlaylistReorderIndicator(it, Modifier.matchParentSize()) }
                 VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), listState)
             }
         }
     }
 }
-

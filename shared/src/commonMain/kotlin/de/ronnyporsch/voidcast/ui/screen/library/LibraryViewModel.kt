@@ -5,6 +5,8 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.foundation.lazy.LazyListState
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.data.repository.movedTo
+import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
@@ -52,7 +54,7 @@ class LibraryViewModel(
         launch {
             playlistChanges.collect { playlistId ->
                 repository.getPlaylists().onSuccess { setState { copy(playlists = it) } }
-                if (currentState.selectedPlaylistId == playlistId) loadPlaylist(playlistId, force = true)
+                if (currentState.selectedPlaylistId == playlistId) reloadPlaylist(playlistId)
             }
         }
         if (downloads != null) {
@@ -231,6 +233,7 @@ class LibraryViewModel(
                 repository.removeSongsFromPlaylist(event.playlist.id, event.indices)
                     .onSuccess { setState { copy(selectedSongIds = emptySet()) } }
             }
+            is LibraryEvent.MoveSongsInPlaylist -> moveSongsInPlaylist(event.playlist, event.indices, event.before)
             is LibraryEvent.PlayAllPlaylistSongs -> {
                 val songs = currentState.selectedPlaylist?.songs.orEmpty()
                 if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
@@ -611,6 +614,29 @@ class LibraryViewModel(
                 .onSuccess { album ->
                     setState { copy(selectedAlbum = album) }
                 }
+        }
+    }
+
+    private fun moveSongsInPlaylist(playlist: Playlist, indices: List<Int>, before: Int) {
+        // Counted in the playlist without the moved songs
+        val to = before - indices.distinct().count { it < before }
+        val moved = playlist.songs.movedTo(indices, to)
+        if (moved == playlist.songs) return
+        // Shown right away, the server takes a moment
+        setState { if (selectedPlaylist?.id == playlist.id) copy(selectedPlaylist = playlist.copy(songs = moved)) else this }
+        launch {
+            // On success the playlist gets reloaded through playlistChanges; otherwise this brings the old order back
+            repository.moveSongsInPlaylist(playlist.id, indices, to).onFailure { reloadPlaylist(playlist.id) }
+        }
+    }
+
+    /** Loads the shown playlist again after it changed, keeping it on screen meanwhile (no spinner, same scroll position). */
+    private fun reloadPlaylist(playlistId: String) {
+        if (currentState.selectedPlaylist?.id != playlistId) return loadPlaylist(playlistId, force = true)
+        launch {
+            repository.getPlaylist(playlistId).onSuccess { playlist ->
+                setState { if (selectedPlaylistId == playlistId) copy(selectedPlaylist = playlist) else this }
+            }
         }
     }
 

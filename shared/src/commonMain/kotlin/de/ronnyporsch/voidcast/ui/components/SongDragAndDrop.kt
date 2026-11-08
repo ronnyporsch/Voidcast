@@ -16,6 +16,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
@@ -40,12 +41,16 @@ class SongDragAndDrop {
         private set
     var hoveredTarget by mutableStateOf<SongDropTarget?>(null)
         private set
+    /** Where the songs come from, if their [source][songDragSource] tells, e.g. their positions in a playlist. */
+    var origin by mutableStateOf<Any?>(null)
+        private set
     val isDragging: Boolean get() = songs.isNotEmpty()
 
     private val targets = mutableListOf<SongDropTarget>()
 
-    internal fun start(songs: List<Song>, position: Offset) {
+    internal fun start(songs: List<Song>, origin: Any?, position: Offset) {
         this.songs = songs
+        this.origin = origin
         moveTo(position)
     }
 
@@ -57,12 +62,17 @@ class SongDragAndDrop {
     internal fun drop() {
         val songs = songs
         val target = hoveredTarget
-        cancel()
-        if (target != null && songs.isNotEmpty()) target.onDrop(songs)
+        // Before clearing, so the target can still look at the origin and position
+        try {
+            if (target != null && songs.isNotEmpty()) target.onDrop(songs)
+        } finally {
+            cancel()
+        }
     }
 
     internal fun cancel() {
         songs = emptyList()
+        origin = null
         hoveredTarget = null
     }
 
@@ -80,10 +90,16 @@ class SongDropTarget internal constructor(private val dragAndDrop: SongDragAndDr
     internal var bounds = Rect.Zero
     internal var onDrop: (List<Song>) -> Unit = {}
     internal var accepts: (List<Song>) -> Boolean = { true }
+    /** Shown next to the pointer while the songs are over this target. */
+    internal var icon: ImageVector = Icons.AutoMirrored.Filled.PlaylistAdd
 
     /** Songs are being dragged, so this target could take them. */
     val isActive: Boolean get() = dragAndDrop.isDragging
     val isHovered: Boolean get() = dragAndDrop.hoveredTarget == this
+    /** Where the dragged songs come from, see [SongDragAndDrop.origin]. */
+    val origin: Any? get() = dragAndDrop.origin
+    /** The pointer, in window coordinates. */
+    val position: Offset get() = dragAndDrop.position
 }
 
 /** Null where songs can't be dragged (mobile, where touch drags scroll instead). */
@@ -94,11 +110,16 @@ val LocalSongDragAndDrop = staticCompositionLocalOf<SongDragAndDrop?> { null }
  * doesn't [accept][accepts] pass over it as if it wasn't there.
  */
 @Composable
-fun rememberSongDropTarget(accepts: (List<Song>) -> Boolean = { true }, onDrop: (List<Song>) -> Unit): SongDropTarget? {
+fun rememberSongDropTarget(
+    accepts: (List<Song>) -> Boolean = { true },
+    icon: ImageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+    onDrop: (List<Song>) -> Unit,
+): SongDropTarget? {
     val dragAndDrop = LocalSongDragAndDrop.current ?: return null
     val target = remember(dragAndDrop) { SongDropTarget(dragAndDrop) }
     target.onDrop = onDrop
     target.accepts = accepts
+    target.icon = icon
     DisposableEffect(target) {
         dragAndDrop.register(target)
         onDispose { dragAndDrop.unregister(target) }
@@ -130,18 +151,22 @@ private class CoordinatesHolder {
     var coordinates: LayoutCoordinates? = null
 }
 
-/** Lets the [songs] be dragged with the mouse. Must come before click handling, so a drag doesn't also click. */
-fun Modifier.songDragSource(enabled: Boolean, songs: () -> List<Song>): Modifier = composed {
+/**
+ * Lets the [songs] be dragged with the mouse; [origin] tells drop targets where they come from (see
+ * [SongDragAndDrop.origin]). Must come before click handling, so a drag doesn't also click.
+ */
+fun Modifier.songDragSource(enabled: Boolean, origin: () -> Any? = { null }, songs: () -> List<Song>): Modifier = composed {
     val dragAndDrop = LocalSongDragAndDrop.current
     if (!enabled || dragAndDrop == null) return@composed Modifier
     val currentSongs by rememberUpdatedState(songs)
+    val currentOrigin by rememberUpdatedState(origin)
     val holder = remember { CoordinatesHolder() }
     Modifier
         .onGloballyPositioned { holder.coordinates = it }
         .pointerInput(dragAndDrop) {
             fun toWindow(offset: Offset) = holder.coordinates?.takeIf { it.isAttached }?.localToWindow(offset) ?: offset
             detectDragGestures(
-                onDragStart = { dragAndDrop.start(currentSongs(), toWindow(it)) },
+                onDragStart = { dragAndDrop.start(currentSongs(), currentOrigin(), toWindow(it)) },
                 onDragEnd = { dragAndDrop.drop() },
                 onDragCancel = { dragAndDrop.cancel() },
             ) { change, _ ->
@@ -173,7 +198,7 @@ fun SongDragOverlay(dragAndDrop: SongDragAndDrop, modifier: Modifier = Modifier)
                 .widthIn(max = 280.dp),
         ) {
             Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(target?.icon ?: Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = songs.singleOrNull()?.title ?: "${songs.size} songs",

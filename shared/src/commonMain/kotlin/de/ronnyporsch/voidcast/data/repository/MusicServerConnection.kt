@@ -188,6 +188,8 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
             active.addSongsToPlaylist(playlistId, songIds)
         override suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>) =
             active.removeSongsFromPlaylist(playlistId, songIndices)
+        override suspend fun moveSongsInPlaylist(playlistId: String, songIndices: List<Int>, to: Int) =
+            active.moveSongsInPlaylist(playlistId, songIndices, to)
         override suspend fun findArtistByName(name: String) = active.findArtistByName(name)
         override suspend fun findSongsByArtistName(name: String) = active.findSongsByArtistName(name)
         override suspend fun getSongsForArtist(artistName: String, albumIds: List<String>) =

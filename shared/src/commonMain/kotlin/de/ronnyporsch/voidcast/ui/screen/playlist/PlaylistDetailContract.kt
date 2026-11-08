@@ -19,6 +19,8 @@ sealed class PlaylistDetailEvent {
     data class SongSelectionToggled(val song: Song) : PlaylistDetailEvent()
     /** Removes the entries at [indices] (positions in the playlist) from it. */
     data class RemoveSongs(val indices: List<Int>) : PlaylistDetailEvent()
+    /** Moves the entries at [indices] (positions in the playlist) to before the one at [before] (the size of it: to the end). */
+    data class MoveSongs(val indices: List<Int>, val before: Int) : PlaylistDetailEvent()
     data object PlayAll : PlaylistDetailEvent()
     data object ShuffleAll : PlaylistDetailEvent()
     data class ArtistClicked(val artistName: String) : PlaylistDetailEvent()

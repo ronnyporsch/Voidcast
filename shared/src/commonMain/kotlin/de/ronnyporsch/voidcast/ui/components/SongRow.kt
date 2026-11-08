@@ -97,6 +97,8 @@ fun SongRow(
     onRemoveFromPlaylist: (() -> Unit)? = null,
     /** Mobile: a long press selects the song (see [TouchSelection]) rather than opening the context menu. */
     longPressSelects: Boolean = false,
+    /** Where the songs dragged from this row come from, see [SongDragAndDrop.origin]. */
+    dragOrigin: () -> Any? = { null },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     val platform = getPlatform()
@@ -162,7 +164,7 @@ fun SongRow(
             .fillMaxWidth()
             .background(background)
             // Library songs can be dragged onto playlists; with a selection the drag takes all selected songs
-            .songDragSource(enabled = isDraggable) { currentContextMenuSongs() }
+            .songDragSource(enabled = isDraggable, origin = dragOrigin) { currentContextMenuSongs() }
             .pointerInput(hasContextMenu) {
                 awaitPointerEventScope {
                     while (true) {

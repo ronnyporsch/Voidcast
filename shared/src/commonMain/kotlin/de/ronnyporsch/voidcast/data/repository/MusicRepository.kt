@@ -42,6 +42,11 @@ interface MusicRepository {
     suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Result<Unit>
     /** Removes the entries at [songIndices] (positions in the playlist, not song ids, as a song can be in it more than once). */
     suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit>
+    /**
+     * Moves the entries at [songIndices] (positions in the playlist) to [to], keeping their order: the position of the
+     * first of them afterwards, counted in the playlist without them.
+     */
+    suspend fun moveSongsInPlaylist(playlistId: String, songIndices: List<Int>, to: Int): Result<Unit>
     suspend fun findArtistByName(name: String): Result<Artist?>
     suspend fun findSongsByArtistName(name: String): Result<List<Song>>
 
@@ -230,6 +235,14 @@ class MusicRepositoryImpl(
         val response = api.updatePlaylist(playlistId, songIndicesToRemove = songIndices)
         val body = response.subsonicResponse
         if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error removing song from playlist")
+    }
+
+    override suspend fun moveSongsInPlaylist(playlistId: String, songIndices: List<Int>, to: Int): Result<Unit> = runCatching {
+        // Subsonic can't move entries, but createPlaylist with the id of an existing one replaces its songs
+        val songs = getPlaylist(playlistId).getOrThrow().songs
+        val response = api.replacePlaylistSongs(playlistId, songs.movedTo(songIndices, to).map { it.id })
+        val body = response.subsonicResponse
+        if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error moving songs in playlist")
     }
 
     override suspend fun findArtistByName(name: String): Result<Artist?> = runCatching {

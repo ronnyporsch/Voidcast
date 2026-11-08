@@ -750,6 +750,9 @@ private fun LibraryDetailPane(
                 }
             },
             contextMenuIndices = { songs, index -> songs.contextMenuIndices(index, state.selectedSongIds) },
+            onMoveSongs = { indices, before ->
+                state.selectedPlaylist?.let { viewModel.onEvent(LibraryEvent.MoveSongsInPlaylist(it, indices, before)) }
+            },
             isSelected = { it in state.selectedSongIds },
             isPlaying = { it == currentSongId },
             onArtistClick = { name -> viewModel.onEvent(LibraryEvent.SongArtistClicked(name)) },
@@ -1438,6 +1441,8 @@ private fun PlaylistDetailPane(
     onSongShiftClick: (List<Song>, Int) -> Unit = { _, _ -> },
     contextMenuSongs: (List<Song>, Song) -> List<Song> = { _, song -> listOf(song) },
     contextMenuIndices: (List<Song>, Int) -> List<Int> = { _, index -> listOf(index) },
+    /** Songs dragged to another position: their positions in the playlist and the one they go before. */
+    onMoveSongs: (indices: List<Int>, before: Int) -> Unit = { _, _ -> },
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     RememberScrollPosition(state, "playlist")
@@ -1472,11 +1477,13 @@ private fun PlaylistDetailPane(
                 val visibleSongs = remember(visible) { visible.map { it.value } }
                 // The field is the third item, after the header and the play buttons
                 val filterFocus = rememberSongFilterFocus(state, itemIndex = 2)
+                // Songs dragged within the list move there; not while searching, as the hidden ones would be in the way
+                val reorder = rememberPlaylistReorder(playlist.id, state, enabled = query.isBlank(), onMove = onMoveSongs)
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = state,
                         contentPadding = PaddingValues(bottom = 100.dp),
-                        modifier = Modifier.onKeyEvent { event ->
+                        modifier = Modifier.playlistReorderTarget(reorder).onKeyEvent { event ->
                             if (event.type == KeyEventType.KeyDown) {
                                 val currentIndex = visibleSongs.indexOfFirst { isSelected(it.id) }
                                 when (event.key) {
@@ -1582,7 +1589,7 @@ private fun PlaylistDetailPane(
                         }
 
                         // Selections and context menus only act on the songs shown, so hidden ones aren't affected unnoticed
-                        itemsIndexed(visible, key = { _, (index, song) -> "${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}::$index" }) { visibleIndex, (index, song) ->
+                        itemsIndexed(visible, key = { _, (index, song) -> playlistEntryKey("${song.id.ifEmpty { "song" }}::${song.title}::${song.artist}", index) }) { visibleIndex, (index, song) ->
                             SongRow(
                                 song = song,
                                 index = index,
@@ -1596,9 +1603,14 @@ private fun PlaylistDetailPane(
                                 isPlaying = isPlaying(song.id),
                                 onArtistClick = onArtistClick,
                                 onAlbumClick = onAlbumClick,
+                                dragOrigin = {
+                                    PlaylistEntriesDrag(playlist.id, contextMenuIndices(visibleSongs, visibleIndex).map { visible[it].index })
+                                },
                             )
                         }
                     }
+
+                    reorder?.let { PlaylistReorderIndicator(it, Modifier.matchParentSize()) }
 
                     CollapsedHeaderOverlay(
                         state = headerState,

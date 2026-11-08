@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.playlist
 
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.data.repository.movedTo
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.ui.components.toggled
@@ -47,6 +48,7 @@ class PlaylistDetailViewModel(
                         loadPlaylist(showLoading = false)
                     }
             }
+            is PlaylistDetailEvent.MoveSongs -> moveSongs(event.indices, event.before)
             is PlaylistDetailEvent.PlayAll -> {
                 val songs = currentState.playlist?.songs ?: return
                 emitEffect(PlaylistDetailEffect.PlaySongs(songs, 0))
@@ -61,6 +63,21 @@ class PlaylistDetailViewModel(
             is PlaylistDetailEvent.AlbumClicked -> {
                 emitEffect(PlaylistDetailEffect.NavigateToAlbum(event.albumId))
             }
+        }
+    }
+
+    private fun moveSongs(indices: List<Int>, before: Int) {
+        val playlist = currentState.playlist ?: return
+        // Counted in the playlist without the moved songs
+        val to = before - indices.distinct().count { it < before }
+        val moved = playlist.songs.movedTo(indices, to)
+        if (moved == playlist.songs) return
+        // Shown right away, the server takes a moment
+        setState { copy(playlist = playlist.copy(songs = moved)) }
+        launch {
+            repository.moveSongsInPlaylist(playlistId, indices, to)
+                .onFailure { setState { copy(error = it.message) } }
+            loadPlaylist(showLoading = false)
         }
     }
 

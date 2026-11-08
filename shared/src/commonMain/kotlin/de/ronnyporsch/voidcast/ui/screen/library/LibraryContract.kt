@@ -114,6 +114,8 @@ sealed class LibraryEvent {
     data class PlaylistDoubleClicked(val playlist: Playlist) : LibraryEvent()
     data class CreatePlaylist(val name: String) : LibraryEvent()
     data class RemoveSongsFromPlaylist(val playlist: Playlist, val indices: List<Int>) : LibraryEvent()
+    /** Moves the entries at [indices] (positions in the playlist) to before the one at [before] (the size of it: to the end). */
+    data class MoveSongsInPlaylist(val playlist: Playlist, val indices: List<Int>, val before: Int) : LibraryEvent()
     data object PlayAllPlaylistSongs : LibraryEvent()
     data object ShuffleAllPlaylistSongs : LibraryEvent()
     data class SongClicked(val song: Song, val index: Int) : LibraryEvent()

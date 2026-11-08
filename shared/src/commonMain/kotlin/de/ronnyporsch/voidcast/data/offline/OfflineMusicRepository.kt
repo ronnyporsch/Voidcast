@@ -105,6 +105,9 @@ class OfflineMusicRepository(
     override suspend fun removeSongsFromPlaylist(playlistId: String, songIndices: List<Int>): Result<Unit> =
         server.removeSongsFromPlaylist(playlistId, songIndices).onSuccess { changed(playlistId) }
 
+    override suspend fun moveSongsInPlaylist(playlistId: String, songIndices: List<Int>, to: Int): Result<Unit> =
+        server.moveSongsInPlaylist(playlistId, songIndices, to).onSuccess { changed(playlistId) }
+
     override fun getStreamUrl(songId: String): String = files?.uriOf(songId) ?: server.getStreamUrl(songId)
 
     // Downloaded covers also show while the server can't be reached

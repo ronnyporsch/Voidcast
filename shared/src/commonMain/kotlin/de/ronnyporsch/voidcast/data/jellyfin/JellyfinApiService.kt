@@ -139,6 +139,13 @@ class JellyfinApiService {
         }.ensureSuccess()
     }
 
+    /** Moves the playlist entry [entryId] to [newIndex], its position afterwards. */
+    suspend fun movePlaylistItem(playlistId: String, entryId: String, newIndex: Int) {
+        client.post("${baseUrl()}/Playlists/$playlistId/Items/$entryId/Move/$newIndex") {
+            authorize()
+        }.ensureSuccess()
+    }
+
     /** Marks an item (song, album, artist) as favorite of the user or unmarks it. */
     suspend fun setFavorite(itemId: String, favorite: Boolean) {
         val url = "${baseUrl()}/UserFavoriteItems/$itemId"
