@@ -104,6 +104,7 @@ class AudioPlayerAndroid : AudioPlayer {
 
     override fun pause() {
         player.pause()
+        positionJob?.cancel()
         updateState()
     }
 
