@@ -446,15 +446,24 @@ fun App() {
         LaunchedEffect(videoPlaying) {
             if (videoPlaying) GlobalShortcuts.toggleVideoFullscreen.collect { setVideoFullscreen(!videoFullscreen) }
         }
+        // The visit of the player that was opened for its lyrics: hiding them with Ctrl+L goes back to the screen before
+        var lyricsVisitId by remember { mutableStateOf<Long?>(null) }
+        val openPlayerForLyrics = {
+            navigator.push(Screen.Player)
+            lyricsVisitId = navigator.currentEntry.value.id
+        }
         // Ctrl+L: elsewhere opens the player with the lyrics shown, like the mini player's lyrics button
         val canToggleLyrics = hasSong && playerState.lyrics is LyricsState.Loaded && currentScreen !is Screen.Login
         LaunchedEffect(canToggleLyrics) {
             if (canToggleLyrics) GlobalShortcuts.toggleLyrics.collect {
                 if (navigator.currentScreen.value is Screen.Player) {
+                    val leavePlayer = playerState.showLyrics && navigator.currentEntry.value.id == lyricsVisitId
                     playerViewModel.onEvent(PlayerEvent.ToggleLyrics)
+                    lyricsVisitId = null
+                    if (leavePlayer) navigator.pop()
                 } else {
                     playerViewModel.onEvent(PlayerEvent.ShowLyrics)
-                    navigator.push(Screen.Player)
+                    openPlayerForLyrics()
                 }
             }
         }
@@ -606,7 +615,7 @@ fun App() {
                                 },
                                 onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                                 onClick = { navigator.push(Screen.Player) },
-                                onLyricsClick = { navigator.push(Screen.Player) },
+                                onLyricsClick = openPlayerForLyrics,
                                 onQueueClick = { tab -> toggleQueue(navigator, tab) },
                                 openQueueTab = (currentScreen as? Screen.Queue)?.tab,
                             )
