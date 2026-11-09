@@ -203,6 +203,10 @@ val Song.isYouTube: Boolean
 val Song.youTubeVideoId: String?
     get() = id.youTubeId
 
+/** Link to the song on YouTube Music, if it is from there. */
+val Song.youTubeUrl: String?
+    get() = youTubeVideoId?.let { "https://music.youtube.com/watch?v=$it" }
+
 /** Id of the YouTube Music artist page of the song's artist [name], if it has one. */
 fun Song.youTubeArtistId(name: String): String? =
     if (isYouTube) artists.firstOrNull { it.name == name && it.id.isYouTubeId }?.id else null

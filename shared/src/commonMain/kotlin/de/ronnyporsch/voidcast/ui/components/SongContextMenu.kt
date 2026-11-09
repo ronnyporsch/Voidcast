@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.Favorite
@@ -23,6 +24,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -36,6 +39,7 @@ import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.isYouTube
+import de.ronnyporsch.voidcast.domain.model.youTubeUrl
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -283,6 +287,9 @@ fun SongContextMenu(
     val favorites = LocalFavorites.current
     val streamFormatLookup = LocalStreamFormatLookup.current
     val startRadio = LocalStartRadio.current
+    // Its replacement LocalClipboard has no way to create plain text entries in common code
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
     val favoriteIds by (favorites?.ids ?: remember { MutableStateFlow(emptySet<String>()) }).collectAsState()
     val downloadedSongIds = LocalDownloadedSongIds.current
     val pendingDownloads = LocalPendingSongDownloads.current
@@ -442,6 +449,17 @@ fun SongContextMenu(
                         },
                     )
                 }
+            }
+            val youTubeUrls = songs.mapNotNull { it.youTubeUrl }
+            if (youTubeUrls.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text(if (youTubeUrls.size > 1) "Copy URLs" else "Copy URL") },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                    onClick = {
+                        clipboard.setText(AnnotatedString(youTubeUrls.joinToString("\n")))
+                        finish()
+                    },
+                )
             }
             if (streamFormatLookup != null && songs.any { it.isYouTube }) {
                 DropdownMenuItem(
