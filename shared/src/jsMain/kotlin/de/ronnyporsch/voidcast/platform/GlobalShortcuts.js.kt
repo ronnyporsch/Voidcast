@@ -58,6 +58,7 @@ actual fun installGlobalShortcutListener() {
                 true
             }
             "f" -> GlobalShortcuts.requestFilterFocus()
+            "l" -> GlobalShortcuts.requestToggleLyrics()
             // Text fields move the cursor by words with them; a focused one has its input element focused
             "arrowright", "arrowleft" -> !event.shiftKey && !event.altKey && !isTextInputFocused() &&
                 GlobalShortcuts.requestSkip(next = event.key == "ArrowRight")

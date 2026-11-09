@@ -50,13 +50,17 @@ object GlobalShortcuts {
     /** Enters or leaves fullscreen for the video playing; only collected while one is. */
     val toggleVideoFullscreen: SharedFlow<Unit> = _toggleVideoFullscreen.asSharedFlow()
 
+    private val _toggleLyrics = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Shows or hides the lyrics of the current song; only collected while it has some. */
+    val toggleLyrics: SharedFlow<Unit> = _toggleLyrics.asSharedFlow()
+
     private val _scroll = MutableSharedFlow<ScrollCommand>(extraBufferCapacity = 1)
     /** Moves the list of the main view; only collected while there is one. */
     val scroll: SharedFlow<ScrollCommand> = _scroll.asSharedFlow()
 
     /**
-     * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown (Cmd on macOS), F5 and Ctrl+R reload what is
-     * shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
+     * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown, Ctrl+L shows or hides the lyrics (Cmd on macOS),
+     * F5 and Ctrl+R reload what is shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
      */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.type != KeyEventType.KeyDown) return false
@@ -68,6 +72,7 @@ object GlobalShortcuts {
                 true
             }
             Key.F -> requestFilterFocus()
+            Key.L -> requestToggleLyrics()
             Key.R -> requestRefresh()
             else -> false
         }
@@ -143,6 +148,13 @@ object GlobalShortcuts {
     fun requestScroll(command: ScrollCommand): Boolean {
         if (_scroll.subscriptionCount.value == 0) return false
         _scroll.tryEmit(command)
+        return true
+    }
+
+    /** Returns false if the current song has no lyrics, so the shortcut can do what it does otherwise, e.g. in browsers. */
+    fun requestToggleLyrics(): Boolean {
+        if (_toggleLyrics.subscriptionCount.value == 0) return false
+        _toggleLyrics.tryEmit(Unit)
         return true
     }
 

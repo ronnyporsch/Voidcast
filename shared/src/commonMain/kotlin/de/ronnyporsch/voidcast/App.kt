@@ -440,6 +440,18 @@ fun App() {
         LaunchedEffect(videoPlaying) {
             if (videoPlaying) GlobalShortcuts.toggleVideoFullscreen.collect { setVideoFullscreen(!videoFullscreen) }
         }
+        // Ctrl+L: elsewhere opens the player with the lyrics shown, like the mini player's lyrics button
+        val canToggleLyrics = hasSong && playerState.lyrics is LyricsState.Loaded && currentScreen !is Screen.Login
+        LaunchedEffect(canToggleLyrics) {
+            if (canToggleLyrics) GlobalShortcuts.toggleLyrics.collect {
+                if (navigator.currentScreen.value is Screen.Player) {
+                    playerViewModel.onEvent(PlayerEvent.ToggleLyrics)
+                } else {
+                    playerViewModel.onEvent(PlayerEvent.ShowLyrics)
+                    navigator.push(Screen.Player)
+                }
+            }
+        }
         // Phones: a video on the player screen goes fullscreen in landscape orientation, like in YouTube's app
         val windowSize = LocalWindowInfo.current.containerSize
         val isLandscape = windowSize.width > windowSize.height
