@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.library
 
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.audioFormat
@@ -1240,6 +1242,7 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false, subtitle: Stri
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (album.id.isYouTubeId) YouTubeIcon(Modifier.padding(start = 4.dp), size = 16.dp)
             FavoriteButton(FavoriteKind.Album, album.id, Modifier.size(28.dp), iconSize = 18.dp)
         }
 

@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.search
 
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -307,7 +309,10 @@ private fun SearchArtistRow(artist: Artist, subtitle: String = "Artist", onClick
         Spacer(Modifier.width(12.dp))
         Column {
             Text(artist.name, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (artist.id.isYouTubeId) YouTubeIcon(Modifier.padding(end = 4.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.screen.player
 
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import androidx.compose.animation.core.Animatable
@@ -239,6 +240,7 @@ fun PlayerScreen(
                     )
                 }
             }
+            if (song?.isYouTube == true) YouTubeIcon(size = 24.dp)
             FavoriteButton(FavoriteKind.Song, song?.id, iconSize = 28.dp)
         }
 

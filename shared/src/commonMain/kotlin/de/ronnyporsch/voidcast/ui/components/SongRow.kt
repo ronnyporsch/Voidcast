@@ -261,6 +261,7 @@ fun SongRow(
                             modifier = Modifier.padding(end = 4.dp).size(14.dp),
                         )
                     }
+                    if (song.isYouTube) YouTubeIcon(Modifier.padding(end = 4.dp))
                     if (typeLabel != null) {
                         Text(
                             text = if (showArtist || (showAlbum && song.album.isNotEmpty())) "$typeLabel \u2022 " else typeLabel,

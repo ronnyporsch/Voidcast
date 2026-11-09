@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.player
 
+import de.ronnyporsch.voidcast.domain.model.isYouTube
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import androidx.compose.animation.core.Animatable
@@ -189,6 +191,7 @@ fun MiniPlayer(
                 }
 
                 // Mobile: the big player has it
+                if (song.isYouTube) YouTubeIcon(Modifier.padding(start = 8.dp), size = 16.dp)
                 if (!isMobile) FavoriteButton(FavoriteKind.Song, song.id, iconSize = 20.dp)
             }
 

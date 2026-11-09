@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import androidx.compose.runtime.saveable.rememberSaveable
 import de.ronnyporsch.voidcast.ui.components.matchesFilter
 import de.ronnyporsch.voidcast.ui.components.filtered
@@ -354,6 +356,8 @@ private fun ArtistHeader(
             Text(text = songTotals, style = MaterialTheme.typography.bodySmall)
         }
 
+        if (artistId?.isYouTubeId == true) YouTubeIcon(Modifier.padding(top = 8.dp), size = 24.dp)
+
         FavoriteButton(FavoriteKind.Artist, artistId)
 
         if (!biography.isNullOrBlank()) {
@@ -405,6 +409,7 @@ private fun AlbumCard(album: Album, downloaded: Boolean) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (album.id.isYouTubeId) YouTubeIcon(Modifier.padding(start = 4.dp), size = 16.dp)
             FavoriteButton(FavoriteKind.Album, album.id, Modifier.size(28.dp), iconSize = 18.dp)
         }
 

@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.screen.albums
 
+import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.saveable.rememberSaveable
 import de.ronnyporsch.voidcast.ui.components.rememberSongFilterFocus
@@ -179,6 +180,8 @@ fun AlbumDetailScreen(
                                 text = albumInfo,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+
+                            if (state.isYouTube) YouTubeIcon(Modifier.padding(top = 8.dp), size = 24.dp)
                         }
                     }
 
