@@ -37,7 +37,9 @@ import androidx.compose.material.icons.filled.Shuffle
 import de.ronnyporsch.voidcast.ui.components.ClickableArtistText
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
 import de.ronnyporsch.voidcast.ui.components.HoverLinkText
+import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
+import de.ronnyporsch.voidcast.ui.components.songDragSource
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifySurface
@@ -61,6 +63,7 @@ fun MiniPlayer(
     val song = playback.currentSong ?: return
     val coverArt = LocalCoverArtUrlProvider.current
     val isMobile = remember { getPlatform().isMobile }
+    val isDraggable = LocalPlaylistEditor.current?.canAdd(song) == true
     val iconSize = if (isMobile) 32.dp else 24.dp
     val buttonSize = if (isMobile) 48.dp else 32.dp
     // Mobile: swipe the song info left/right to skip to the next/previous song.
@@ -144,7 +147,8 @@ fun MiniPlayer(
                                     scope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
                                 }
                             }
-                        else Modifier
+                        // Desktop: the current song can be dragged onto a playlist, like the songs of a list
+                        else Modifier.songDragSource(enabled = isDraggable) { listOf(song) }
                     ),
                 verticalAlignment = Alignment.CenterVertically
             ) {

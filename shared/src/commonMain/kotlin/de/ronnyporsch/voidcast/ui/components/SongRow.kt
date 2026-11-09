@@ -106,8 +106,7 @@ fun SongRow(
 
     val hasContextMenu = LocalPlaylistEditor.current != null || LocalAddToQueue.current != null ||
         onRemoveFromPlaylist != null || LocalSongDownloads.current != null
-    // YouTube Music results aren't in the library; dropping them onto playlists needs the server to download them
-    val isDraggable = LocalPlaylistEditor.current?.let { !song.isYouTube || it.canAddYouTube } == true
+    val isDraggable = LocalPlaylistEditor.current?.canAdd(song) == true
     var menuSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pressPosition by remember { mutableStateOf(Offset.Zero) }
     var ctrlPressed by remember { mutableStateOf(false) }

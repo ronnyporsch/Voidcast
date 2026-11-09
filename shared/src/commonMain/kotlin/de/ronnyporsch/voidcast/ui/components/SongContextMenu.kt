@@ -73,6 +73,9 @@ class PlaylistEditor(
     /** Whether YouTube Music songs can be added to playlists. */
     val canAddYouTube: Boolean get() = youTube?.currentCapabilities?.addToPlaylists == true
 
+    /** YouTube Music songs aren't in the library; the server has to be able to download them. */
+    fun canAdd(song: Song): Boolean = !song.isYouTube || canAddYouTube
+
     private val _pendingYouTube = MutableStateFlow<List<PendingYouTubeAddition>>(emptyList())
     /** YouTube Music songs to add to playlists once the user checked their tags, see [PendingYouTubeAdditionDialog]. */
     val pendingYouTube: StateFlow<List<PendingYouTubeAddition>> = _pendingYouTube.asStateFlow()
