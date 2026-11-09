@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Refresh
@@ -547,17 +548,18 @@ fun App() {
                             }
                         }
 
+                        val onSearchQueryChange = { query: String ->
+                            searchViewModel.onEvent(SearchEvent.QueryChanged(query))
+                            // Results only show while there is a query; clearing it goes back
+                            if (query.isEmpty()) {
+                                if (currentScreen is Screen.Search) navigator.pop()
+                            } else if (currentScreen !is Screen.Search) {
+                                navigator.push(Screen.Search)
+                            }
+                        }
                         OutlinedTextField(
                             value = searchState.query,
-                            onValueChange = {
-                                searchViewModel.onEvent(SearchEvent.QueryChanged(it))
-                                // Results only show while there is a query; clearing it goes back
-                                if (it.isEmpty()) {
-                                    if (currentScreen is Screen.Search) navigator.pop()
-                                } else if (currentScreen !is Screen.Search) {
-                                    navigator.push(Screen.Search)
-                                }
-                            },
+                            onValueChange = onSearchQueryChange,
                             // Explicit color: the theme's text styles hardcode white, which overrides the placeholder color
                             placeholder = { Text("Search artists, albums, songs...", color = SearchPlaceholderGray) },
                             modifier = Modifier.weight(1f).focusRequester(searchFocusRequester),
@@ -571,6 +573,13 @@ fun App() {
                                 }
                             }),
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            trailingIcon = if (searchState.query.isEmpty()) null else {
+                                {
+                                    IconButton(onClick = { onSearchQueryChange("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                    }
+                                }
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentColor,
                                 cursorColor = AccentColor,
