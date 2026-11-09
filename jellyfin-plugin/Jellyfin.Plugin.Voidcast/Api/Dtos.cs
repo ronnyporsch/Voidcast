@@ -56,13 +56,6 @@ public class YouTubeRadioDto
     public string? Continuation { get; set; }
 }
 
-/// <summary>When an album came out, see <c>YouTube/Albums/{albumId}/ReleaseDate</c>.</summary>
-public class YouTubeAlbumReleaseDateDto
-{
-    /// <summary>Gets or sets the day as yyyy-MM-dd, null if unknown.</summary>
-    public string? ReleaseDate { get; set; }
-}
-
 /// <summary>A YouTube Music search result. Clients send it back as is to download the track.</summary>
 public class YouTubeSongDto
 {
@@ -124,6 +117,70 @@ public class YouTubeAlbumSummaryDto
     public int? Year { get; set; }
 
     public string? ThumbnailUrl { get; set; }
+}
+
+/// <summary>A YouTube Music release the library doesn't have.</summary>
+public class NewReleaseDto : YouTubeAlbumSummaryDto
+{
+    /// <summary>Gets or sets about when it came out, as yyyy-MM-dd; null if unknown.</summary>
+    public string? ReleaseDate { get; set; }
+
+    /// <summary>Gets or sets the artist's name as in the library.</summary>
+    public string Artist { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the channel id of the artist page.</summary>
+    public string ArtistId { get; set; } = string.Empty;
+}
+
+/// <summary>The result of a scan for new releases.</summary>
+public record NewReleasesScanDto
+{
+    /// <summary>Gets when it finished, in milliseconds since the epoch.</summary>
+    public long ScannedAt { get; init; }
+
+    /// <summary>Gets how many artists got looked at.</summary>
+    public int ArtistCount { get; init; }
+
+    /// <summary>Gets how many of them couldn't be looked up.</summary>
+    public int FailedArtists { get; init; }
+
+    /// <summary>Gets the setting it ran with, see <see cref="Configuration.PluginConfiguration.NewReleasesMinSongs"/>.</summary>
+    public int MinSongs { get; init; }
+
+    /// <summary>Gets the setting it ran with, see <see cref="Configuration.PluginConfiguration.NewReleasesFavoritesOnly"/>.</summary>
+    public bool FavoritesOnly { get; init; }
+
+    /// <summary>Gets the releases, newest first.</summary>
+    public List<NewReleaseDto> Releases { get; init; } = [];
+}
+
+/// <summary>What a running scan for new releases got to, or how the latest one ended.</summary>
+public record NewReleasesStatusDto
+{
+    public bool IsScanning { get; init; }
+
+    public int CheckedArtists { get; init; }
+
+    /// <summary>Gets how many artists the running scan looks at, null until that is known.</summary>
+    public int? ArtistCount { get; init; }
+
+    /// <summary>Gets why the latest scan failed, if it did.</summary>
+    public string? Error { get; init; }
+}
+
+public class NewReleasesDto
+{
+    public NewReleasesStatusDto Status { get; set; } = new();
+
+    /// <summary>Gets or sets the latest finished scan, null if none finished yet.</summary>
+    public NewReleasesScanDto? Scan { get; set; }
+}
+
+public class NewReleasesSettingsDto
+{
+    public int MinSongs { get; set; }
+
+    public bool FavoritesOnly { get; set; }
 }
 
 public class YouTubeArtistPageDto
@@ -251,6 +308,10 @@ public class PluginInfoDto
     /// <summary>Gets or sets a value indicating whether songs' radios can be loaded, see <c>YouTube/Songs/{videoId}/Radio</c>.</summary>
     public bool RadioAvailable { get; set; }
 
-    /// <summary>Gets or sets a value indicating whether albums' release dates can be loaded, see <c>YouTube/Albums/{albumId}/ReleaseDate</c>.</summary>
-    public bool AlbumReleaseDatesAvailable { get; set; }
+    public int NewReleasesMinSongs { get; set; }
+
+    public bool NewReleasesFavoritesOnly { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the requesting user may change the new releases settings, which apply to the whole server.</summary>
+    public bool CanConfigureNewReleases { get; set; }
 }

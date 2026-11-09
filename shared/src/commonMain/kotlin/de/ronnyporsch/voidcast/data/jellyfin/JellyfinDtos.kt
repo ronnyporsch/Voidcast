@@ -140,7 +140,10 @@ data class PluginInfoDto(
     @SerialName("SongLookupAvailable") val songLookupAvailable: Boolean = false,
     /** Whether songs' radios can be loaded, see [JellyfinApiService.getYouTubeRadio]. */
     @SerialName("RadioAvailable") val radioAvailable: Boolean = false,
-    @SerialName("AlbumReleaseDatesAvailable") val albumReleaseDatesAvailable: Boolean = false,
+    @SerialName("NewReleasesMinSongs") val newReleasesMinSongs: Int = 0,
+    @SerialName("NewReleasesFavoritesOnly") val newReleasesFavoritesOnly: Boolean = false,
+    /** Whether this user may change the new releases settings, which apply to the whole server. */
+    @SerialName("CanConfigureNewReleases") val canConfigureNewReleases: Boolean = false,
 )
 
 @Serializable
@@ -153,9 +156,47 @@ data class YouTubeArtistDto(
 /** A YouTube Music search result of the plugin; sent back as is to download the track. */
 /** A page of a song's radio, see [JellyfinApiService.getYouTubeRadio]. */
 @Serializable
-data class YouTubeAlbumReleaseDateDto(
-    /** The day as yyyy-MM-dd; null if unknown. */
-    @SerialName("ReleaseDate") val releaseDate: String? = null,
+data class NewReleaseDto(
+    @SerialName("Id") val id: String = "",
+    @SerialName("Title") val title: String = "",
+    @SerialName("ReleaseType") val releaseType: String? = null,
+    @SerialName("Year") val year: Int? = null,
+    @SerialName("ThumbnailUrl") val thumbnailUrl: String? = null,
+    @SerialName("Artist") val artist: String = "",
+    @SerialName("ArtistId") val artistId: String = "",
+)
+
+@Serializable
+data class NewReleasesScanDto(
+    @SerialName("ScannedAt") val scannedAt: Long = 0,
+    @SerialName("ArtistCount") val artistCount: Int = 0,
+    @SerialName("FailedArtists") val failedArtists: Int = 0,
+    @SerialName("MinSongs") val minSongs: Int = 0,
+    @SerialName("FavoritesOnly") val favoritesOnly: Boolean = false,
+    @SerialName("Releases") val releases: List<NewReleaseDto> = emptyList(),
+)
+
+@Serializable
+data class NewReleasesStatusDto(
+    @SerialName("IsScanning") val isScanning: Boolean = false,
+    @SerialName("CheckedArtists") val checkedArtists: Int = 0,
+    /** How many artists the running scan looks at; null until that is known. */
+    @SerialName("ArtistCount") val artistCount: Int? = null,
+    /** Why the latest scan failed, if it did. */
+    @SerialName("Error") val error: String? = null,
+)
+
+@Serializable
+data class NewReleasesDto(
+    @SerialName("Status") val status: NewReleasesStatusDto = NewReleasesStatusDto(),
+    /** The latest finished scan; null if none finished yet. */
+    @SerialName("Scan") val scan: NewReleasesScanDto? = null,
+)
+
+@Serializable
+data class NewReleasesSettingsDto(
+    @SerialName("MinSongs") val minSongs: Int,
+    @SerialName("FavoritesOnly") val favoritesOnly: Boolean,
 )
 
 @Serializable

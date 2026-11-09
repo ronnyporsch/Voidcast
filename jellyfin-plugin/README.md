@@ -16,6 +16,11 @@ reads the YouTube URL in the comment tag of the files in the download folder (on
 and keeps the index in `<data dir>/voidcast/download-index.json`. The plugin also streams YouTube Music tracks for playback and
 reports the codec/bitrate a download would get.
 
+The *Scan for new releases* task (*Dashboard → Scheduled Tasks*, weekly by default, or *Scan now* in a client) looks on
+YouTube Music for releases of the library's artists that aren't in the library yet and keeps the result in
+`<data dir>/voidcast/new-releases.json`. Administrators choose the artists in the clients' settings: those with at
+least a number of songs in the library, or the favorites of all users.
+
 Requires Jellyfin 12.2. The plugin ships the standalone [yt-dlp](https://github.com/yt-dlp/yt-dlp) release for
 Linux x64 and arm64 (what the official Docker image runs on) and updates it daily; elsewhere install yt-dlp on the
 server's `PATH` or set *yt-dlp path*. It also ships [Deno](https://deno.com), the JavaScript runtime yt-dlp needs to
@@ -32,7 +37,8 @@ their SHA-256 checksums) into `.tools/` and bundles them; delete that folder to 
 ./build.sh [URL dist/ will be served from]
 ```
 
-This writes `dist/voidcast_<version>.zip` and `dist/manifest.json`, a Jellyfin plugin repository manifest.
+This writes `dist/voidcast_<version>.zip` and `dist/manifest.json`, a Jellyfin plugin repository manifest. Tests run
+with `dotnet test Jellyfin.Plugin.Voidcast.Tests`.
 
 The version comes from the latest `plugin-v<major>.<minor>.<patch>` git tag plus the number of commits since then
 (`plugin-v1.9.0` and 2 commits: 1.9.0.2), so every build after a new commit has a version Jellyfin installs over the
@@ -124,3 +130,7 @@ parameter).
 | `GET /Voidcast/YouTube/{videoId}/StreamInfo` | Codec and bitrate of the stream a download would get |
 | `POST /Voidcast/YouTube/Downloaded[/Details]` | Which of the given video ids (JSON array) are already downloaded; `Details` adds codec and bitrate of the files |
 | `GET /Voidcast/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |
+| `GET /Voidcast/NewReleases` | The latest scan for new releases as the user gets to see it, and the scan's status |
+| `GET /Voidcast/NewReleases/Status` | What a running scan got to |
+| `POST /Voidcast/NewReleases/Scan` | Starts a scan, unless one is running |
+| `POST /Voidcast/NewReleases/Settings` | Administrators: `{"MinSongs": 15, "FavoritesOnly": false}`, used from the next scan |

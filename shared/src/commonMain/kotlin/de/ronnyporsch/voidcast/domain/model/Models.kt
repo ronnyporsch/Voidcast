@@ -40,8 +40,6 @@ data class Album(
     val songs: List<Song> = emptyList(),
     /** E.g. "Album", "Single" or "EP"; only known for YouTube Music albums. */
     val releaseType: String? = null,
-    /** About when it came out, as yyyy-MM-dd; only known for YouTube Music albums whose date got looked up. */
-    val releaseDate: String? = null,
     /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
     val dateAdded: String? = null,
 )

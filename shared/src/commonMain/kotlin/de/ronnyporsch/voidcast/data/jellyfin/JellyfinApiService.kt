@@ -340,9 +340,16 @@ class JellyfinApiService {
 
     suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("Voidcast/YouTube/Albums/$albumId", emptyMap())
 
-    /** Needs [PluginInfoDto.albumReleaseDatesAvailable]. */
-    suspend fun getYouTubeAlbumReleaseDate(albumId: String): YouTubeAlbumReleaseDateDto =
-        get("Voidcast/YouTube/Albums/$albumId/ReleaseDate", emptyMap())
+    suspend fun getNewReleases(): NewReleasesDto = get("Voidcast/NewReleases", emptyMap())
+
+    suspend fun getNewReleasesStatus(): NewReleasesStatusDto = get("Voidcast/NewReleases/Status", emptyMap())
+
+    suspend fun startNewReleasesScan() {
+        client.post("${baseUrl()}/Voidcast/NewReleases/Scan") { authorize() }.ensureSuccess()
+    }
+
+    /** Needs [PluginInfoDto.canConfigureNewReleases]. */
+    suspend fun setNewReleasesSettings(settings: NewReleasesSettingsDto) = postJson("Voidcast/NewReleases/Settings", settings)
 
     /** Queues a download of [song], a result of [searchYouTube]. */
     suspend fun requestDownload(song: YouTubeSongDto): DownloadJobDto {

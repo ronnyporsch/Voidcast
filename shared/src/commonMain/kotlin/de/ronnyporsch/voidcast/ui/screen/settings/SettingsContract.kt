@@ -1,6 +1,5 @@
 package de.ronnyporsch.voidcast.ui.screen.settings
 
-import de.ronnyporsch.voidcast.domain.model.DEFAULT_NEW_RELEASES_MIN_SONGS
 import de.ronnyporsch.voidcast.domain.model.ServerType
 
 data class SettingsState(
@@ -14,8 +13,10 @@ data class SettingsState(
     val crossfadeDurationSeconds: Int = 5,
     val offlineMode: Boolean = false,
     val downloadOnlyOnWifi: Boolean = false,
-    val newReleasesMinSongs: Int = DEFAULT_NEW_RELEASES_MIN_SONGS,
+    val newReleasesMinSongs: Int = 0,
     val newReleasesFavoritesOnly: Boolean = false,
+    /** Whether this user may change the two settings above, which are stored by the plugin for the whole server. */
+    val canConfigureNewReleases: Boolean = false,
     /** Describes the YouTube Music support of the connected Jellyfin server's Voidcast plugin, if any. */
     val serverYouTubeInfo: String? = null,
     /** The connected Jellyfin server has no Voidcast plugin, so YouTube Music is unavailable. */

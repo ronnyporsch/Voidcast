@@ -2,7 +2,6 @@ package de.ronnyporsch.voidcast.platform
 
 import android.content.Context
 import de.ronnyporsch.voidcast.domain.model.AppSettings
-import de.ronnyporsch.voidcast.domain.model.DEFAULT_NEW_RELEASES_MIN_SONGS
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.ServerType
@@ -27,8 +26,6 @@ actual fun saveSettings(settings: AppSettings) {
         .putString("libraryView", settings.libraryView.encode())
         .putBoolean("offlineMode", settings.offlineMode)
         .putBoolean("downloadOnlyOnWifi", settings.downloadOnlyOnWifi)
-        .putInt("newReleasesMinSongs", settings.newReleasesMinSongs)
-        .putBoolean("newReleasesFavoritesOnly", settings.newReleasesFavoritesOnly)
         .apply()
 }
 
@@ -53,7 +50,5 @@ actual fun loadSettings(): AppSettings? {
         libraryView = decodeLibraryView(p.getString("libraryView", null)),
         offlineMode = p.getBoolean("offlineMode", false),
         downloadOnlyOnWifi = p.getBoolean("downloadOnlyOnWifi", false),
-        newReleasesMinSongs = p.getInt("newReleasesMinSongs", DEFAULT_NEW_RELEASES_MIN_SONGS),
-        newReleasesFavoritesOnly = p.getBoolean("newReleasesFavoritesOnly", false),
     )
 }

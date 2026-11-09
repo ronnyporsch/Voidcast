@@ -70,7 +70,6 @@ import de.ronnyporsch.voidcast.ui.screen.videos.MusicVideosScreen
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesEvent
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesScreen
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesViewModel
-import de.ronnyporsch.voidcast.data.youtube.NewReleasesCache
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
@@ -228,7 +227,7 @@ fun App() {
     }
     val searchViewModel = remember { SearchViewModel(repository, youTube) }
     val newReleasesViewModel = remember {
-        NewReleasesViewModel(repository, youTube, { settingsHolder.settings.value }, NewReleasesCache { settingsHolder.settings.value.serverKey })
+        NewReleasesViewModel(youTube)
     }
     val coverArtUrlProvider = remember { CoverArtUrlProvider(repository) }
     // Touch drags scroll, so songs can only be dragged with a mouse
@@ -360,7 +359,7 @@ fun App() {
                 }
                 Screen.FavoriteSongs -> connection.favorites.reload()
                 Screen.Search -> searchViewModel.onEvent(SearchEvent.Search)
-                Screen.NewReleases -> newReleasesViewModel.onEvent(NewReleasesEvent.Refresh)
+                Screen.NewReleases -> newReleasesViewModel.onEvent(NewReleasesEvent.Load)
                 // Their view models load everything again when created
                 else -> screenGeneration++
             }
@@ -817,7 +816,7 @@ fun App() {
                     }
 
                     is Screen.NewReleases -> {
-                        LaunchedEffect(Unit) { newReleasesViewModel.onEvent(NewReleasesEvent.Open) }
+                        LaunchedEffect(Unit) { newReleasesViewModel.onEvent(NewReleasesEvent.Load) }
                         NewReleasesScreen(
                             viewModel = newReleasesViewModel,
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },

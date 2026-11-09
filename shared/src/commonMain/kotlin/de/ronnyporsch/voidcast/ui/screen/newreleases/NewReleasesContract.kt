@@ -1,29 +1,24 @@
 package de.ronnyporsch.voidcast.ui.screen.newreleases
 
-import de.ronnyporsch.voidcast.data.youtube.NewReleasesCriteria
-import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.data.youtube.NewReleasesScan
 
 data class NewReleasesState(
+    val isLoading: Boolean = false,
+    /** Whether the server is scanning; what the latest scan found stays shown meanwhile. */
     val isScanning: Boolean = false,
-    /** Those of the shown or running search. */
-    val criteria: NewReleasesCriteria = NewReleasesCriteria(),
-    /** How many artists get looked at; null until that is known. */
-    val artistCount: Int? = null,
     val checkedArtists: Int = 0,
-    /** How many artists couldn't be looked up in the latest scan. */
-    val failedArtists: Int = 0,
-    /** Newest first. */
-    val releases: List<Album> = emptyList(),
-    /** When the shown [releases] got found, in milliseconds since the epoch; null if no scan finished yet. */
-    val scannedAt: Long? = null,
+    /** How many artists the running scan looks at; null until that is known. */
+    val artistsToCheck: Int? = null,
+    /** The latest finished scan; null if there is none. */
+    val scan: NewReleasesScan? = null,
     val error: String? = null,
 )
 
 sealed interface NewReleasesEvent {
-    /** The screen got opened: shows the stored releases, searching again if they are outdated or for other artists. */
-    data object Open : NewReleasesEvent
-    /** Searches again, unless a search is running. */
-    data object Refresh : NewReleasesEvent
+    /** Shows what the server's latest scan found, and follows the scan if one is running. */
+    data object Load : NewReleasesEvent
+    /** Has the server scan now, unless it already does. */
+    data object Scan : NewReleasesEvent
     /** A server got connected; what was found on another one is dropped. */
     data object Connected : NewReleasesEvent
 }

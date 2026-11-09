@@ -30,6 +30,7 @@ public class VoidcastController : ControllerBase
     private readonly YouTubeMusicClient _youTubeMusic;
     private readonly DownloadManager _downloads;
     private readonly IPlaylistManager _playlistManager;
+    private readonly NewReleasesService _newReleases;
     private readonly ILogger<VoidcastController> _logger;
 
     public VoidcastController(
@@ -37,6 +38,7 @@ public class VoidcastController : ControllerBase
         YouTubeMusicClient youTubeMusic,
         DownloadManager downloads,
         IPlaylistManager playlistManager,
+        NewReleasesService newReleases,
         ILogger<VoidcastController> logger)
     {
         _logger = logger;
@@ -44,6 +46,7 @@ public class VoidcastController : ControllerBase
         _youTubeMusic = youTubeMusic;
         _downloads = downloads;
         _playlistManager = playlistManager;
+        _newReleases = newReleases;
     }
 
     /// <summary>Tells clients the plugin is installed and whether the user may download.</summary>
@@ -62,7 +65,9 @@ public class VoidcastController : ControllerBase
             PlaylistAdditionAvailable = true,
             SongLookupAvailable = true,
             RadioAvailable = true,
-            AlbumReleaseDatesAvailable = true,
+            NewReleasesMinSongs = Plugin.Instance.Configuration.NewReleasesMinSongs,
+            NewReleasesFavoritesOnly = Plugin.Instance.Configuration.NewReleasesFavoritesOnly,
+            CanConfigureNewReleases = User.IsInRole("Administrator"),
         };
     }
 
@@ -188,26 +193,43 @@ public class VoidcastController : ControllerBase
         }
     }
 
-    /// <summary>About when a YouTube Music album came out, see <see cref="YouTubeMusicClient.GetAlbumReleaseDateAsync"/>.</summary>
-    [HttpGet("YouTube/Albums/{albumId}/ReleaseDate")]
-    public async Task<ActionResult<YouTubeAlbumReleaseDateDto>> GetAlbumReleaseDate([FromRoute] string albumId, CancellationToken cancellationToken)
+    /// <summary>The latest scan for new releases as the requesting user gets to see it.</summary>
+    [HttpGet("NewReleases")]
+    public ActionResult<NewReleasesDto> GetNewReleases() => _newReleases.GetReleases(UserId);
+
+    /// <summary>What a running scan for new releases got to; cheap, unlike <see cref="GetNewReleases"/>.</summary>
+    [HttpGet("NewReleases/Status")]
+    public ActionResult<NewReleasesStatusDto> GetNewReleasesStatus() => _newReleases.Status;
+
+    /// <summary>Starts a scan for new releases, unless one is running.</summary>
+    [HttpPost("NewReleases/Scan")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public ActionResult StartNewReleasesScan()
     {
-        if (!YouTubeMusicClient.IsValidAlbumId(albumId))
+        _newReleases.RequestScan();
+        return Accepted();
+    }
+
+    /// <summary>Changes which artists the next scans look at.</summary>
+    [HttpPost("NewReleases/Settings")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public ActionResult SetNewReleasesSettings([FromBody] NewReleasesSettingsDto settings)
+    {
+        if (!User.IsInRole("Administrator"))
         {
-            return BadRequest();
+            return Problem("Only administrators may change this", statusCode: StatusCodes.Status403Forbidden);
         }
 
-        try
+        if (settings.MinSongs < 1)
         {
-            return new YouTubeAlbumReleaseDateDto
-            {
-                ReleaseDate = await _youTubeMusic.GetAlbumReleaseDateAsync(albumId, cancellationToken).ConfigureAwait(false),
-            };
+            return Problem("At least one song is needed", statusCode: StatusCodes.Status400BadRequest);
         }
-        catch (HttpRequestException e)
-        {
-            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
-        }
+
+        var plugin = Plugin.Instance!;
+        plugin.Configuration.NewReleasesMinSongs = settings.MinSongs;
+        plugin.Configuration.NewReleasesFavoritesOnly = settings.FavoritesOnly;
+        plugin.SaveConfiguration();
+        return NoContent();
     }
 
     /// <summary>Queues a download of a YouTube Music track (a result of <see cref="Search"/>) into the music library.</summary>

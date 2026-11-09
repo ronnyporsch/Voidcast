@@ -2,6 +2,8 @@ package de.ronnyporsch.voidcast.data.youtube
 
 import de.ronnyporsch.voidcast.data.jellyfin.DownloadedTrackDto
 import de.ronnyporsch.voidcast.data.jellyfin.DownloadJobDto
+import de.ronnyporsch.voidcast.data.jellyfin.NewReleaseDto
+import de.ronnyporsch.voidcast.data.jellyfin.NewReleasesStatusDto
 import de.ronnyporsch.voidcast.data.jellyfin.PlaylistAdditionDto
 import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeAlbumDto
@@ -45,8 +47,6 @@ data class YouTubeCapabilities(
     val songLookup: Boolean = false,
     /** Whether songs' radios can be loaded, see [YouTubeService.getRadio]. */
     val radio: Boolean = false,
-    /** Whether albums' release dates can be loaded, see [YouTubeService.getAlbumReleaseDate]. */
-    val albumReleaseDates: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -73,6 +73,22 @@ data class YouTubeArtist(
     /** The most popular songs. */
     val songs: List<Song>,
 )
+
+/** A finished scan for new releases, see [YouTubeService.getNewReleases]. */
+data class NewReleasesScan(
+    /** When it finished, in milliseconds since the epoch. */
+    val scannedAt: Long,
+    /** How many artists got looked at. */
+    val artistCount: Int,
+    val failedArtists: Int,
+    /** The fewest songs in the library an artist needed; doesn't matter with [favoritesOnly]. */
+    val minSongs: Int,
+    val favoritesOnly: Boolean,
+    /** Newest first. */
+    val releases: List<Album>,
+)
+
+data class NewReleases(val status: NewReleasesStatusDto, val scan: NewReleasesScan?)
 
 /**
  * YouTube Music support, provided by the Voidcast plugin of the connected Jellyfin server: it searches, streams
@@ -121,7 +137,6 @@ class YouTubeService(private val connection: MusicServerConnection) {
             addToPlaylists = server?.playlistAdditionAvailable == true,
             songLookup = server?.songLookupAvailable == true,
             radio = server?.radioAvailable == true,
-            albumReleaseDates = server?.albumReleaseDatesAvailable == true,
         )
     }
 
@@ -191,32 +206,35 @@ class YouTubeService(private val connection: MusicServerConnection) {
         )
     }
 
-    /** The albums, singles and EPs of the artist, see [getArtist]; for looking at many artists without their songs. */
-    suspend fun getArtistReleases(artistId: String): List<Album> {
-        val channelId = artistId.youTubeId ?: throw IllegalArgumentException("Not a YouTube Music artist: $artistId")
-        val page = connection.jellyfinApi.getYouTubeArtist(channelId)
-        val artist = Artist(id = artistId, name = page.name, coverArtId = page.thumbnailUrl)
-        return page.albums.map { it.toAlbum(artist) }
-    }
-
     /** [albumId] is a YouTube Music album id, i.e. with [YOUTUBE_SONG_ID_PREFIX]. */
     suspend fun getAlbum(albumId: String): Album {
         val browseId = albumId.youTubeId ?: throw IllegalArgumentException("Not a YouTube Music album: $albumId")
         return connection.jellyfinApi.getYouTubeAlbum(browseId).toAlbum().also { checkDownloaded(it.songs) }
     }
 
-    /** The day (yyyy-MM-dd) the album with [albumId] (a YouTube Music one) about came out; null if unknown. */
-    suspend fun getAlbumReleaseDate(albumId: String): String? {
-        val browseId = albumId.youTubeId?.takeIf { currentCapabilities.albumReleaseDates } ?: return null
-        return try {
-            connection.jellyfinApi.getYouTubeAlbumReleaseDate(browseId).releaseDate
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            // Only for ordering
-            null
-        }
+    /** What the server's latest scan for new releases found, as far as it's still new to this user. */
+    suspend fun getNewReleases(): NewReleases {
+        val latest = connection.jellyfinApi.getNewReleases()
+        return NewReleases(
+            status = latest.status,
+            scan = latest.scan?.let { scan ->
+                NewReleasesScan(
+                    scannedAt = scan.scannedAt,
+                    artistCount = scan.artistCount,
+                    failedArtists = scan.failedArtists,
+                    minSongs = scan.minSongs,
+                    favoritesOnly = scan.favoritesOnly,
+                    releases = scan.releases.map { it.toAlbum() },
+                )
+            },
+        )
     }
+
+    /** What a running scan got to; cheaper than [getNewReleases]. */
+    suspend fun getNewReleasesStatus(): NewReleasesStatusDto = connection.jellyfinApi.getNewReleasesStatus()
+
+    /** Has the server scan for new releases now, unless it already does. */
+    suspend fun startNewReleasesScan() = connection.jellyfinApi.startNewReleasesScan()
 
     /** Marks those of [songs] that are already in the server's library, so they show as downloaded. */
     private fun checkDownloaded(songs: List<Song>) {
@@ -415,6 +433,17 @@ private fun YouTubeAlbumSummaryDto.toAlbum(artist: Artist) = Album(
     artist = artist.name,
     artistId = artist.id,
     artists = listOf(artist),
+    coverArtId = thumbnailUrl,
+    year = year,
+    releaseType = releaseType,
+)
+
+private fun NewReleaseDto.toAlbum() = Album(
+    id = YOUTUBE_SONG_ID_PREFIX + id,
+    name = title,
+    artist = artist,
+    artistId = prefixed(artistId),
+    artists = listOf(Artist(id = prefixed(artistId), name = artist)),
     coverArtId = thumbnailUrl,
     year = year,
     releaseType = releaseType,

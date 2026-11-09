@@ -36,4 +36,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool AllowNonAdminDownloads { get; set; }
 
     public int MaxConcurrentDownloads { get; set; } = 2;
+
+    /// <summary>Gets or sets how many songs in the library an artist needs for new releases to be looked for.</summary>
+    public int NewReleasesMinSongs { get; set; } = 15;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether new releases are looked for from the users' favorite artists instead,
+    /// whatever number of songs the library has of them.
+    /// </summary>
+    public bool NewReleasesFavoritesOnly { get; set; }
 }

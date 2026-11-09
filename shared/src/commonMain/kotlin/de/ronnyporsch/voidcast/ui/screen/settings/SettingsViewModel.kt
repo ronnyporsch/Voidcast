@@ -2,17 +2,22 @@ package de.ronnyporsch.voidcast.ui.screen.settings
 
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import androidx.lifecycle.viewModelScope
+import de.ronnyporsch.voidcast.data.jellyfin.NewReleasesSettingsDto
 import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.repository.MusicServerConnection
 import de.ronnyporsch.voidcast.domain.model.SettingsHolder
 import de.ronnyporsch.voidcast.mvi.MviStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val connection: MusicServerConnection,
     private val settingsHolder: SettingsHolder,
 ) : MviStore<SettingsState, SettingsEvent, SettingsEffect>(SettingsState()) {
+
+    private var savingNewReleasesSettings: Job? = null
 
     init {
         val current = settingsHolder.settings.value
@@ -28,12 +33,19 @@ class SettingsViewModel(
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
                 offlineMode = current.offlineMode,
                 downloadOnlyOnWifi = current.downloadOnlyOnWifi,
-                newReleasesMinSongs = current.newReleasesMinSongs,
-                newReleasesFavoritesOnly = current.newReleasesFavoritesOnly,
             )
         }
         viewModelScope.launch {
-            connection.plugin.collect { plugin -> setState { copy(serverYouTubeInfo = plugin?.let(::describe)) } }
+            connection.plugin.collect { plugin ->
+                setState {
+                    copy(
+                        serverYouTubeInfo = plugin?.let(::describe),
+                        newReleasesMinSongs = plugin?.newReleasesMinSongs ?: newReleasesMinSongs,
+                        newReleasesFavoritesOnly = plugin?.newReleasesFavoritesOnly ?: newReleasesFavoritesOnly,
+                        canConfigureNewReleases = plugin?.canConfigureNewReleases == true,
+                    )
+                }
+            }
         }
         viewModelScope.launch {
             connection.pluginMissing.collect { setState { copy(pluginMissing = it) } }
@@ -85,11 +97,11 @@ class SettingsViewModel(
             }
             is SettingsEvent.NewReleasesMinSongsChanged -> {
                 setState { copy(newReleasesMinSongs = event.minSongs) }
-                settingsHolder.update { copy(newReleasesMinSongs = event.minSongs) }
+                saveNewReleasesSettings()
             }
             is SettingsEvent.NewReleasesFavoritesOnlyToggled -> {
                 setState { copy(newReleasesFavoritesOnly = event.enabled) }
-                settingsHolder.update { copy(newReleasesFavoritesOnly = event.enabled) }
+                saveNewReleasesSettings()
             }
             is SettingsEvent.Reconnect -> reconnect()
             is SettingsEvent.Logout -> logout()
@@ -102,6 +114,22 @@ class SettingsViewModel(
         launch {
             connection.logout()
             emitEffect(SettingsEffect.LoggedOut)
+        }
+    }
+
+    private fun saveNewReleasesSettings() {
+        savingNewReleasesSettings?.cancel()
+        savingNewReleasesSettings = viewModelScope.launch {
+            // The number gets typed digit by digit
+            delay(500)
+            try {
+                val state = currentState
+                connection.jellyfinApi.setNewReleasesSettings(NewReleasesSettingsDto(state.newReleasesMinSongs, state.newReleasesFavoritesOnly))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emitEffect(SettingsEffect.ShowMessage("Couldn't save the new releases settings: ${e.message}"))
+            }
         }
     }
 
