@@ -296,8 +296,11 @@ class PlayerViewModel(
 
     private fun PlayerEvent.toRemoteCommand(): RemoteCommand? = when (this) {
         is PlayerEvent.PlaySongs -> RemoteCommand.PlaySongs(songs, startIndex, shuffle)
-        // Other devices play the songs loaded so far
-        is PlayerEvent.PlayRadio -> RemoteCommand.PlaySongs(songs, 0, false)
+        // Other devices play the songs loaded so far; there is no way to replace their queue without reloading the song
+        is PlayerEvent.PlayRadio -> RemoteCommand.PlaySongs(
+            songs, 0, false,
+            startPositionMs = if (isCurrentSong(songs.firstOrNull())) currentState.playback.positionMs else 0,
+        )
         PlayerEvent.PlayPause -> RemoteCommand.PlayPause
         PlayerEvent.Play -> RemoteCommand.Play
         PlayerEvent.Pause -> RemoteCommand.Pause
@@ -568,9 +571,20 @@ class PlayerViewModel(
     }
 
     private fun playRadio(songs: List<Song>, loadMore: suspend () -> List<Song>) {
-        playSongs(songs, 0, false)
+        if (isCurrentSong(songs.firstOrNull())) continueAsRadio(songs) else playSongs(songs, 0, false)
         radio = loadMore
         extendRadio()
+    }
+
+    private fun isCurrentSong(song: Song?) = song != null && song.id == currentState.playback.currentSong?.id
+
+    /** Makes [songs], the first of which is the current song, the queue without interrupting that song. */
+    private fun continueAsRadio(songs: List<Song>) {
+        endRadio()
+        unshuffledSongs = songs
+        setState { copy(playback = playback.copy(queue = songs, currentIndex = 0, queuedCount = 0, shuffle = false)) }
+        onUpcomingChanged()
+        if (currentState.playback.status == PlaybackStatus.Paused) audioPlayer.resume()
     }
 
     private fun endRadio() {
