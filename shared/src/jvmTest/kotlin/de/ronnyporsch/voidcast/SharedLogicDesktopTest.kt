@@ -2,7 +2,9 @@ package de.ronnyporsch.voidcast
 
 import de.ronnyporsch.voidcast.platform.VlcPlayer
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.sound.sampled.*
@@ -106,14 +108,15 @@ class SharedLogicDesktopTest {
         }
         assertTrue(started)
 
+        // The player's commands run on its own thread, the state follows shortly after
         player.pause()
-        assertTrue(!player.state.value.isPlaying)
+        withTimeout(2_000) { player.state.first { !it.isPlaying } }
 
         player.resume()
-        assertTrue(player.state.value.isPlaying)
+        withTimeout(2_000) { player.state.first { it.isPlaying } }
 
         player.seekTo(1500)
-        assertTrue(player.state.value.positionMs >= 1500)
+        withTimeout(2_000) { player.state.first { it.positionMs >= 1500 } }
 
         player.release()
         server.stop(0)

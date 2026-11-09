@@ -25,9 +25,8 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
-import java.io.File
 import java.nio.ByteBuffer
-import kotlin.concurrent.thread
+import java.util.concurrent.Executors
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -37,27 +36,15 @@ private object Vlc {
     val factory: MediaPlayerFactory? by lazy {
         try {
             if (NativeDiscovery().discover()) {
-                val args = listOf("--no-video-title-show", "--quiet") + (if (alsaGoesToPipeWire()) listOf("--aout=alsa") else emptyList())
-                MediaPlayerFactory(*args.toTypedArray())
+                // Not --aout=alsa: where ALSA goes to PipeWire, the end of every song hangs in pipewire-alsa (1.6.10) waiting
+                // for the output to drain, and then stopping or releasing the player never returns
+                MediaPlayerFactory("--no-video-title-show", "--quiet")
             } else null
         } catch (e: Throwable) {
             // E.g. an incompatible VLC version
             System.err.println("VLC not usable: $e")
             null
         }
-    }
-
-    /**
-     * VLC's PulseAudio output misjudges the latency of PipeWire's PulseAudio server: for the first seconds of every
-     * song it's ~100 ms off and VLC resamples back and forth to catch up, which stutters. Through ALSA into PipeWire
-     * it plays cleanly, and since VLC then sets the volume itself, each player still has its own (for crossfades).
-     * Only where ALSA's default device is PipeWire: plain ALSA would give the sound card to just one player.
-     */
-    private fun alsaGoesToPipeWire(): Boolean {
-        if (!System.getProperty("os.name").orEmpty().startsWith("Linux")) return false
-        val runtimeDir = System.getenv("XDG_RUNTIME_DIR") ?: return false
-        if (!File(runtimeDir, "pipewire-0").exists()) return false
-        return listOf("/etc/alsa/conf.d", "/usr/share/alsa/alsa.conf.d").any { File(it, "99-pipewire-default.conf").exists() }
     }
 }
 
@@ -73,6 +60,11 @@ class VlcPlayer : AudioPlayer {
     /** Null if VLC isn't installed. */
     private val player: EmbeddedMediaPlayer? by lazy { Vlc.factory?.let(::createPlayer) }
     private val lock = Any()
+    /**
+     * Runs everything that calls libVLC, in order. These calls can take long or never return (e.g. stopping a stream
+     * that stalled, or an audio output that hangs), which must not freeze the UI thread they're requested from.
+     */
+    private val commands = Executors.newSingleThreadExecutor { Thread(it, "VLC control").apply { isDaemon = true } }
 
     // libVLC only applies these once the media plays: pausing before would stop it, and a volume set
     // before there is an audio output may get lost
@@ -84,7 +76,7 @@ class VlcPlayer : AudioPlayer {
 
     init {
         // Finding and loading libVLC takes a moment, don't let the start of the app or the first song wait for it
-        thread(isDaemon = true, name = "VLC init") { player }
+        command { player }
     }
 
     private fun createPlayer(factory: MediaPlayerFactory): EmbeddedMediaPlayer =
@@ -123,18 +115,21 @@ class VlcPlayer : AudioPlayer {
             })
         }
 
+    private fun command(block: () -> Unit) = commands.execute(block)
+
     private fun update(transform: AudioPlayerState.() -> AudioPlayerState) {
         synchronized(lock) { _state.value = _state.value.transform() }
     }
 
     override val supportsVideo: Boolean get() = player != null
 
-    override fun play(url: String) = load(url, video = false, startPositionMs = 0)
+    override fun play(url: String) = command { load(url, video = false, startPositionMs = 0) }
 
     // Paused before any of it is played, so it starts at its beginning
-    override fun prepare(url: String) = load(url, video = false, startPositionMs = 0, paused = true)
+    override fun prepare(url: String) = command { load(url, video = false, startPositionMs = 0, paused = true) }
 
-    override fun playVideo(url: String, startPositionMs: Long) = load(url, video = true, startPositionMs = startPositionMs)
+    override fun playVideo(url: String, startPositionMs: Long) =
+        command { load(url, video = true, startPositionMs = startPositionMs) }
 
     private fun load(url: String, video: Boolean, startPositionMs: Long, paused: Boolean = false) {
         val player = player ?: return update { AudioPlayerState(error = "Playback needs VLC 3, see videolan.org") }
@@ -157,36 +152,36 @@ class VlcPlayer : AudioPlayer {
         player.media().play(url, *options.toTypedArray())
     }
 
-    override fun pause() {
+    override fun pause() = command {
         pauseRequested = true
-        val player = player ?: return
+        val player = player ?: return@command
         if (player.status().isPlaying) player.controls().setPause(true)
         update { copy(isPlaying = false, isBuffering = false) }
     }
 
-    override fun resume() {
+    override fun resume() = command {
         pauseRequested = false
-        val player = player ?: return
-        if (!player.status().isPlayable) return player.controls().play()
+        val player = player ?: return@command
+        if (!player.status().isPlayable) return@command player.controls().play()
         // Also when the pause hasn't taken effect yet, libVLC pauses asynchronously
         player.controls().setPause(false)
         // libVLC reports nothing if the pause was only requested while loading
         update { copy(isPlaying = true) }
     }
 
-    override fun seekTo(positionMs: Long) {
-        val player = player ?: return
+    override fun seekTo(positionMs: Long) = command {
+        val player = player ?: return@command
         val url = currentUrl
         // A stream the server transcodes while sending it can only be seeked forward (VLC reads up to the position),
         // so it's loaded again to go back
         if (url != null && !player.status().isSeekable && positionMs < player.status().time()) {
-            return load(url, currentIsVideo, startPositionMs = positionMs, paused = pauseRequested)
+            return@command load(url, currentIsVideo, startPositionMs = positionMs, paused = pauseRequested)
         }
         player.controls().setTime(positionMs)
         update { copy(positionMs = positionMs) }
     }
 
-    override fun stop() {
+    override fun stop() = command {
         pauseRequested = false
         currentUrl = null
         player?.controls()?.stop()
@@ -194,13 +189,14 @@ class VlcPlayer : AudioPlayer {
         update { AudioPlayerState() }
     }
 
-    override fun setVolume(volume: Float) {
+    override fun setVolume(volume: Float) = command {
         this.volume = (volume.coerceIn(0f, 1f) * 100).roundToInt()
         player?.audio()?.setVolume(this.volume)
     }
 
+    /** Waits for the commands before it; don't call it on the UI thread. */
     override fun release() {
-        player?.release()
+        commands.submit { player?.release() }.get()
     }
 }
 
@@ -215,7 +211,7 @@ internal class VideoFrames(private val onAspectRatio: (Float?) -> Unit) : Buffer
     private val bitmap = Bitmap()
     private var hasFrame = false
     /** The picture without the padding decoders add at the bottom/right of the buffer; null until known. */
-    private var visibleSize: IntSize? = null
+    @Volatile private var visibleSize: IntSize? = null
 
     /** Changes with every frame; reading it while drawing redraws for every frame. */
     val frameCount = mutableLongStateOf(0)
@@ -236,11 +232,13 @@ internal class VideoFrames(private val onAspectRatio: (Float?) -> Unit) : Buffer
     override fun display(mediaPlayer: MediaPlayer, nativeBuffers: Array<out ByteBuffer>, bufferFormat: BufferFormat) {
         val buffer = nativeBuffers.firstOrNull() ?: return
         var aspectRatio: Float? = null
+        // Not while holding the lock: this call into libVLC can wait for a stop in progress, and drawing needs the lock
+        val needsSize = visibleSize == null
+        val dimension = if (needsSize) mediaPlayer.video().videoDimension() else null
         synchronized(lock) {
             val info = info ?: return
-            if (visibleSize == null) {
+            if (needsSize && visibleSize == null) {
                 // The buffer size may include padding, e.g. 1280x738 for a 1280x720 video
-                val dimension = mediaPlayer.video().videoDimension()
                 val size = if (dimension != null && dimension.width > 0 && dimension.height > 0) {
                     IntSize(min(dimension.width, info.width), min(dimension.height, info.height))
                 } else {

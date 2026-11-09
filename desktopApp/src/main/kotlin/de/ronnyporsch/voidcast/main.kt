@@ -14,6 +14,9 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import org.jetbrains.skia.Image
+import kotlin.concurrent.thread
+
+private const val RELEASE_TIMEOUT_MS = 3_000L
 
 fun main() {
     if (!SingleInstance.acquire()) return
@@ -29,7 +32,8 @@ private fun app() = application {
     val windowState = rememberWindowState(placement = WindowPlacement.Maximized, width = 1024.dp, height = 768.dp)
     Window(
         onCloseRequest = {
-            AppSession.get().release()
+            // Releasing can hang (libVLC, D-Bus); the window must close anyway
+            thread(isDaemon = true, name = "release") { AppSession.release() }.join(RELEASE_TIMEOUT_MS)
             exitApplication()
         },
         title = currentSong?.let { if (it.artist.isBlank()) it.title else "${it.artist} - ${it.title}" } ?: "Voidcast",
