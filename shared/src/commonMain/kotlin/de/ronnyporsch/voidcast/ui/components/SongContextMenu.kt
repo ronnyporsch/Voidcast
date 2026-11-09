@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -448,6 +449,17 @@ fun SongContextMenu(
                         leadingIcon = { Icon(Icons.Default.FileDownloadOff, contentDescription = null) },
                         onClick = {
                             songDownloads.removeSongs(removable.map { it.id })
+                            finish()
+                        },
+                    )
+                }
+                val shareable = songs.filter { it.id in downloadedSongIds }
+                if (songDownloads.canShare && shareable.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        onClick = {
+                            songDownloads.shareSongs(shareable)
                             finish()
                         },
                     )

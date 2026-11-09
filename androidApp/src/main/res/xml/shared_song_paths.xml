@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Downloaded songs being shared with other apps -->
+<paths>
+    <cache-path name="shared_songs" path="shared_songs/" />
+</paths>

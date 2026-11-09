@@ -288,6 +288,12 @@ fun App() {
         }
     }
 
+    LaunchedEffect(connection) {
+        connection.downloads.shareErrors.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+
     LaunchedEffect(playerViewModel) {
         playerViewModel.effects.collect { effect ->
             when (effect) {

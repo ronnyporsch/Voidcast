@@ -33,6 +33,17 @@ interface SongFileStore {
 /** Null where songs can't be downloaded. */
 expect fun createSongFileStore(): SongFileStore?
 
+/** A downloaded song to give to another app: [uri] of its file, see [SongFileStore.uriOf], and its name without extension. */
+class SharedSongFile(val uri: String, val name: String)
+
+fun interface SongFileSharer {
+    /** Lets the user pick an app to send [files] to. Throws if that fails. */
+    suspend fun share(files: List<SharedSongFile>)
+}
+
+/** Null where songs can't be shared with other apps. */
+expect fun createSongFileSharer(): SongFileSharer?
+
 /** Name of the file of the downloaded song [songId]. */
 internal fun songFileName(songId: String) = songId.replace(Regex("[^A-Za-z0-9_-]"), "_")
 

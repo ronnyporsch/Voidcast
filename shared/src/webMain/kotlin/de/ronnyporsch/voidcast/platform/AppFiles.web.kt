@@ -35,6 +35,8 @@ import kotlin.io.encoding.Base64
 // The origin private file system only exists in secure contexts (HTTPS or localhost)
 actual fun createSongFileStore(): SongFileStore? = if (isSecureContext) songFileStore else null
 
+actual fun createSongFileSharer(): SongFileSharer? = null
+
 private val songFileStore by lazy { OpfsSongFileStore() }
 
 /**

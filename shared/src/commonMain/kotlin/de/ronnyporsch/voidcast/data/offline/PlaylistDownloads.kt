@@ -4,6 +4,8 @@ import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.platform.SharedSongFile
+import de.ronnyporsch.voidcast.platform.SongFileSharer
 import de.ronnyporsch.voidcast.platform.SongFileStore
 import de.ronnyporsch.voidcast.platform.readAppFile
 import de.ronnyporsch.voidcast.platform.writeAppFile
@@ -71,10 +73,14 @@ class PlaylistDownloads(
     private val repository: MusicRepository,
     private val files: SongFileStore?,
     private val serverKey: () -> String,
+    private val sharer: SongFileSharer? = null,
     /** Whether files may be downloaded right now, e.g. not over mobile data if the user wants that; checked before each. */
     private val canDownload: () -> Boolean = { true },
 ) {
     val isSupported: Boolean get() = files != null
+
+    /** Whether downloaded songs can be sent to other apps, see [shareSongs]. */
+    val canShare: Boolean get() = files != null && sharer != null
 
     // One thread, so the state below needs no locking; the downloads themselves run on the file store's dispatcher
     private val dispatcher = Dispatchers.Default.limitedParallelism(1)
@@ -119,6 +125,10 @@ class PlaylistDownloads(
     /** Emits when a download got requested while [canDownload] says no, so its files follow later. */
     val deferred: SharedFlow<Unit> = _deferred.asSharedFlow()
 
+    private val _shareErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** Why [shareSongs] failed. */
+    val shareErrors: SharedFlow<String> = _shareErrors.asSharedFlow()
+
     init {
         if (files != null) {
             scope.launch { publish() }
@@ -128,6 +138,26 @@ class PlaylistDownloads(
                     delay(SYNC_INTERVAL)
                     if (repository.isConfigured) syncAll()
                 }
+            }
+        }
+    }
+
+    /** Lets the user send the files of those of [songs] that are downloaded to another app. */
+    fun shareSongs(songs: List<Song>) {
+        val files = files ?: return
+        val sharer = sharer ?: return
+        val shared = songs.mapNotNull { song ->
+            val artist = song.artists.joinToString { it.name }.ifBlank { song.artist }
+            files.uriOf(song.id)?.let { SharedSongFile(it, if (artist.isBlank()) song.title else "$artist - ${song.title}") }
+        }
+        if (shared.isEmpty()) return
+        scope.launch {
+            try {
+                sharer.share(shared)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _shareErrors.tryEmit("Couldn't share: ${e.message}")
             }
         }
     }
