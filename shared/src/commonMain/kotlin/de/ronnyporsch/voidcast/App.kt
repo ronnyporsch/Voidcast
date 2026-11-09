@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.Refresh
@@ -78,6 +77,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import de.ronnyporsch.voidcast.ui.components.LocalFavorites
 import de.ronnyporsch.voidcast.ui.components.LocalPlaylistEditor
 import de.ronnyporsch.voidcast.ui.components.PendingYouTubeAdditionDialog
+import de.ronnyporsch.voidcast.ui.components.ClearSearchButton
 import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
 import de.ronnyporsch.voidcast.ui.components.LocalPlayNext
@@ -574,11 +574,7 @@ fun App() {
                             }),
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             trailingIcon = if (searchState.query.isEmpty()) null else {
-                                {
-                                    IconButton(onClick = { onSearchQueryChange("") }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear search")
-                                    }
-                                }
+                                { ClearSearchButton(onClick = { onSearchQueryChange("") }) }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentColor,

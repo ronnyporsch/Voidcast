@@ -22,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.platform.GlobalShortcuts
@@ -61,6 +63,14 @@ fun rememberSongFilterFocus(listState: LazyListState, itemIndex: Int): SongFilte
     return focus
 }
 
+/** The "x" at the end of search and filter fields; keeps the normal pointer rather than the text field's I-beam. */
+@Composable
+fun ClearSearchButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.pointerHoverIcon(PointerIcon.Default)) {
+        Icon(Icons.Default.Close, contentDescription = "Clear search")
+    }
+}
+
 /** Text field to search the songs of a list, e.g. a playlist, or another list such as the artists. */
 @Composable
 fun SongFilterField(
@@ -84,11 +94,7 @@ fun SongFilterField(
         placeholder = { Text(placeholder, color = SearchPlaceholderGray) },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = if (query.isEmpty()) null else {
-            {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search")
-                }
-            }
+            { ClearSearchButton(onClick = { onQueryChange("") }) }
         },
         singleLine = true,
         shape = RoundedCornerShape(0.dp),
