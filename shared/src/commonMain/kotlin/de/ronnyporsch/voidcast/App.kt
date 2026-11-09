@@ -637,7 +637,6 @@ fun App() {
                                 currentScreen,
                                 navigator,
                                 showVideos = (serverType ?: savedServerType) == ServerType.Jellyfin,
-                                showNewReleases = youTubeCapabilities.available,
                             )
                         }
                     }
@@ -975,7 +974,7 @@ private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, start
 }
 
 @Composable
-private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean, showNewReleases: Boolean) {
+private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1002,29 +1001,27 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, sho
             ),
         )
 
-        if (showNewReleases) {
-            NavigationBarItem(
-                selected = currentScreen is Screen.NewReleases,
-                onClick = {
-                    if (currentScreen !is Screen.NewReleases) {
-                        navigator.push(Screen.NewReleases)
-                    }
-                },
-                icon = {
-                    Icon(Icons.Default.NewReleases, contentDescription = null, tint = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray)
-                },
-                label = {
-                    Text(
-                        "Releases",
-                        color = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray,
-                        fontWeight = if (currentScreen is Screen.NewReleases) FontWeight.Bold else FontWeight.Normal,
-                    )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            )
-        }
+        NavigationBarItem(
+            selected = currentScreen is Screen.NewReleases,
+            onClick = {
+                if (currentScreen !is Screen.NewReleases) {
+                    navigator.push(Screen.NewReleases)
+                }
+            },
+            icon = {
+                Icon(Icons.Default.NewReleases, contentDescription = null, tint = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray)
+            },
+            label = {
+                Text(
+                    "Releases",
+                    color = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray,
+                    fontWeight = if (currentScreen is Screen.NewReleases) FontWeight.Bold else FontWeight.Normal,
+                )
+            },
+            colors = NavigationBarItemDefaults.colors(
+                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        )
 
         if (showVideos) {
             NavigationBarItem(
