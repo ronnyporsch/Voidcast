@@ -239,9 +239,15 @@ public partial class YtDlpService
 
         if (startTime != null || endTime != null)
         {
-            var start = (startTime ?? 0).ToString(CultureInfo.InvariantCulture);
             var end = endTime?.ToString(CultureInfo.InvariantCulture) ?? "inf";
-            args.AddRange(["--download-sections", $"*{start}-{end}"]);
+            args.AddRange(["--download-sections", $"*0-{end}"]);
+            if (startTime > 0)
+            {
+                // Not as the section's start: without re-encoding, ffmpeg would seek to the WebM cue point before it,
+                // up to 10 seconds early. As an output option it drops exactly the audio before the start
+                var start = startTime.Value.ToString(CultureInfo.InvariantCulture);
+                args.AddRange(["--downloader-args", $"ffmpeg_o:-ss {start}"]);
+            }
         }
 
         args.AddRange(["-o", Path.Combine(directory, "audio.%(ext)s"), YouTubeMusicClient.WatchUrl(videoId)]);
