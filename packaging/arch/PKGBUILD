@@ -25,6 +25,9 @@ sha256sums=('SKIP'
 
 build() {
     cd "$pkgname"
+    # makepkg keeps src/ between runs, and the jar name contains the version, so a jar from an
+    # older version would otherwise also match the glob in package().
+    rm -rf desktopApp/build/compose/jars
     ./gradlew --no-daemon :desktopApp:packageUberJarForCurrentOS
 }
 
