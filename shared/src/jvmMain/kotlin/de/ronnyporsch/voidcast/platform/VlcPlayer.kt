@@ -9,8 +9,6 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import com.sun.jna.NativeLibrary
-import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,29 +60,8 @@ private object Vlc {
         }
     }
 
-    @Volatile private var jackWorked = false
-
-    /**
-     * What's wrong if VLC's audio output can't be used, null if it can. VLC itself would only play silently then.
-     * That's without PipeWire's JACK, or with a real JACK whose server isn't running.
-     */
-    fun audioOutputError(): String? {
-        if (!onLinux || jackWorked) return null
-        try {
-            // The library VLC's JACK plugin uses. 1: don't start a server
-            val jack = NativeLibrary.getInstance("libjack.so.0")
-            val client = jack.getFunction("jack_client_open")
-                .invokePointer(arrayOf("Voidcast check", 1, IntByReference()))
-            if (client != null) {
-                jack.getFunction("jack_client_close").invokeInt(arrayOf(client))
-                jackWorked = true
-                return null
-            }
-        } catch (e: Throwable) {
-            // No JACK library installed
-        }
-        return "Playback needs pipewire-jack and a running PipeWire"
-    }
+    /** What's wrong if VLC's audio output can't be used, null if it can. */
+    fun audioOutputError(): String? = if (onLinux) JackOutput.error() else null
 
     /**
      * Whether VLC plays through JACK, where it sets the volume itself: on what it decodes, which is heard only after
@@ -101,13 +78,13 @@ private object Vlc {
      * - ALSA: the end of nearly every song hangs in pipewire-alsa waiting for the output to drain (it only finishes
      *   if the last samples exactly fill a period), and then stopping or releasing the player never returns.
      * JACK has neither problem: VLC knows the latency from the first sample on and waits out the end itself. It also
-     * follows a change of the default device.
+     * doesn't follow a change of the default device, which [JackOutput] does for it.
      */
     private val audioOutputArgs: List<String>
         get() = if (onLinux) {
             // "none": VLC doesn't fall back to another output if JACK can't be used.
             // Not saving the volume: VLC would start every song with the volume last set on any player
-            listOf("--aout=jack,none", "--jack-name=Voidcast", "--no-volume-save")
+            listOf("--aout=jack,none", "--jack-name=${JackOutput.NAME}", "--no-volume-save")
         } else emptyList()
 }
 
