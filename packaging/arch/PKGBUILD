@@ -13,7 +13,9 @@ pkgdesc='Music player for Jellyfin with a Youtube Integration'
 arch=('x86_64' 'aarch64')
 url='https://github.com/ronnyporsch/Voidcast'
 license=('custom')
-depends=('java-runtime>=21' 'hicolor-icon-theme' 'vlc')
+# pipewire-jack and vlc-plugin-jack: songs play through PipeWire's JACK, as VLC's PulseAudio output mutes moments at
+# the start of songs on Bluetooth headphones
+depends=('java-runtime>=21' 'hicolor-icon-theme' 'vlc' 'pipewire-jack' 'vlc-plugin-jack')
 makedepends=('git')
 options=('!debug')
 source=("$pkgname::git+file://$_repo"

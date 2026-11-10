@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import com.sun.jna.NativeLibrary
+import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,20 +34,81 @@ import kotlin.math.roundToInt
 
 /** libVLC of an installed VLC (3.x), which plays songs and videos. */
 private object Vlc {
-    /** Null if VLC isn't installed. */
+    private val onLinux = System.getProperty("os.name").orEmpty().startsWith("Linux")
+
+    /** What playback needs that isn't installed; null if nothing. */
+    @Volatile var missing: String? = null
+        private set
+
+    /** Null if something is [missing]. */
     val factory: MediaPlayerFactory? by lazy {
         try {
-            if (NativeDiscovery().discover()) {
-                // Not --aout=alsa: where ALSA goes to PipeWire, the end of every song hangs in pipewire-alsa (1.6.10) waiting
-                // for the output to drain, and then stopping or releasing the player never returns
-                MediaPlayerFactory("--no-video-title-show", "--quiet")
-            } else null
+            if (!NativeDiscovery().discover()) {
+                missing = "Playback needs VLC 3, see videolan.org"
+                return@lazy null
+            }
+            val factory = MediaPlayerFactory("--no-video-title-show", "--quiet", *audioOutputArgs.toTypedArray())
+            if (onLinux && factory.audio().audioOutputs().none { it.name == "jack" }) {
+                factory.release()
+                missing = "Playback needs VLC's JACK plugin and pipewire-jack"
+                return@lazy null
+            }
+            factory
         } catch (e: Throwable) {
             // E.g. an incompatible VLC version
             System.err.println("VLC not usable: $e")
+            missing = "Playback needs VLC 3, see videolan.org"
             null
         }
     }
+
+    @Volatile private var jackWorked = false
+
+    /**
+     * What's wrong if VLC's audio output can't be used, null if it can. VLC itself would only play silently then.
+     * That's without PipeWire's JACK, or with a real JACK whose server isn't running.
+     */
+    fun audioOutputError(): String? {
+        if (!onLinux || jackWorked) return null
+        try {
+            // The library VLC's JACK plugin uses. 1: don't start a server
+            val jack = NativeLibrary.getInstance("libjack.so.0")
+            val client = jack.getFunction("jack_client_open")
+                .invokePointer(arrayOf("Voidcast check", 1, IntByReference()))
+            if (client != null) {
+                jack.getFunction("jack_client_close").invokeInt(arrayOf(client))
+                jackWorked = true
+                return null
+            }
+        } catch (e: Throwable) {
+            // No JACK library installed
+        }
+        return "Playback needs pipewire-jack and a running PipeWire"
+    }
+
+    /**
+     * Whether VLC plays through JACK, where it sets the volume itself: on what it decodes, which is heard only after
+     * what VLC has buffered ahead.
+     */
+    val viaJack: Boolean get() = onLinux
+
+    /**
+     * On Linux, VLC plays through the JACK of PipeWire. VLC 3 has no output for PipeWire of its own, and the other
+     * ones each fail (seen with PipeWire 1.6.10):
+     * - PulseAudio (VLC's default): VLC starts every song without the latency of the device and corrects that
+     *   afterwards. Up to 180 ms it resamples, which stutters; above (Bluetooth headphones) it drops what it has
+     *   buffered and fills up with silence, which mutes moments in the first seconds of a song.
+     * - ALSA: the end of nearly every song hangs in pipewire-alsa waiting for the output to drain (it only finishes
+     *   if the last samples exactly fill a period), and then stopping or releasing the player never returns.
+     * JACK has neither problem: VLC knows the latency from the first sample on and waits out the end itself. It also
+     * follows a change of the default device.
+     */
+    private val audioOutputArgs: List<String>
+        get() = if (onLinux) {
+            // "none": VLC doesn't fall back to another output if JACK can't be used.
+            // Not saving the volume: VLC would start every song with the volume last set on any player
+            listOf("--aout=jack,none", "--jack-name=Voidcast", "--no-volume-save")
+        } else emptyList()
 }
 
 /**
@@ -57,7 +120,7 @@ class VlcPlayer : AudioPlayer {
     override val state: StateFlow<AudioPlayerState> = _state.asStateFlow()
 
     internal val frames = VideoFrames { aspectRatio -> _state.value = _state.value.copy(videoAspectRatio = aspectRatio) }
-    /** Null if VLC isn't installed. */
+    /** Null if VLC can't be used, see [Vlc.missing]. */
     private val player: EmbeddedMediaPlayer? by lazy { Vlc.factory?.let(::createPlayer) }
     private val lock = Any()
     /**
@@ -95,7 +158,15 @@ class VlcPlayer : AudioPlayer {
                 // would make a song that is prepared for a crossfade audible
                 override fun volumeChanged(mediaPlayer: MediaPlayer, volume: Float) {
                     if (volume >= 0 && (volume * 100).roundToInt() != this@VlcPlayer.volume) {
-                        mediaPlayer.submit { mediaPlayer.audio().setVolume(this@VlcPlayer.volume) }
+                        mediaPlayer.submit {
+                            // An audio output that just came up reports its volume before it can be set, and
+                            // reports nothing again. Where VLC sets the volume itself, it must be set before the
+                            // song's first samples are decoded, so it's tried again right away
+                            for (attempt in 1..100) {
+                                if (mediaPlayer.audio().setVolume(this@VlcPlayer.volume)) break
+                                Thread.sleep(1)
+                            }
+                        }
                     }
                 }
                 override fun paused(mediaPlayer: MediaPlayer) {
@@ -132,7 +203,8 @@ class VlcPlayer : AudioPlayer {
         command { load(url, video = true, startPositionMs = startPositionMs) }
 
     private fun load(url: String, video: Boolean, startPositionMs: Long, paused: Boolean = false) {
-        val player = player ?: return update { AudioPlayerState(error = "Playback needs VLC 3, see videolan.org") }
+        val player = player ?: return update { AudioPlayerState(error = Vlc.missing) }
+        Vlc.audioOutputError()?.let { return update { AudioPlayerState(error = it) } }
         pauseRequested = paused
         // Loading it again (see seekTo) doesn't change its length
         val durationMs = if (url == currentUrl) _state.value.durationMs else 0
@@ -146,6 +218,9 @@ class VlcPlayer : AudioPlayer {
             // VLC's own Ogg demuxer ignores seeking backwards in a stream (not in a file) and often finds no length;
             // FFmpeg's seeks every song format correctly
             if (!video) add(":demux=avformat")
+            // A change of the volume is only heard after what VLC has buffered ahead (1 s of a stream by default),
+            // which a crossfade would be late by
+            if (!video && Vlc.viaJack) add(":network-caching=300")
             if (startPositionMs > 0) add(":start-time=${startPositionMs / 1000.0}")
             if (paused) add(":start-paused")
         }

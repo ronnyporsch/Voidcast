@@ -62,7 +62,7 @@ class SharedLogicDesktopTest {
         val url = "http://127.0.0.1:$port/test.wav"
 
         val player = VlcPlayer()
-        // VLC isn't installed
+        // VLC (on Linux with its JACK plugin) isn't installed
         if (!player.supportsVideo) return@runBlocking server.stop(0)
         player.play(url)
 
@@ -93,7 +93,7 @@ class SharedLogicDesktopTest {
         val url = "http://127.0.0.1:$port/test_long.wav"
 
         val player = VlcPlayer()
-        // VLC isn't installed
+        // VLC (on Linux with its JACK plugin) isn't installed
         if (!player.supportsVideo) return@runBlocking server.stop(0)
         player.play(url)
 
