@@ -2,7 +2,9 @@ package de.ronnyporsch.voidcast.data.jellyfin
 
 import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.getPlatform
+import de.ronnyporsch.voidcast.platform.HeaderAuthorization
 import de.ronnyporsch.voidcast.platform.createHttpClient
+import de.ronnyporsch.voidcast.platform.headerAuthorization
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -45,7 +47,12 @@ class JellyfinApiService {
     }
 
     var session: JellyfinSession? = null
-        private set
+        private set(value) {
+            field = value
+            headerAuthorization = value?.let {
+                HeaderAuthorization(it.serverUrl, API_KEY_PARAMETER, it.accessToken, authorizationHeader(it.deviceId, it.accessToken))
+            }
+        }
 
     val isConfigured: Boolean get() = session != null
 
@@ -196,7 +203,7 @@ class JellyfinApiService {
             parameters.append("TranscodingProtocol", "http")
             parameters.append("AudioCodec", "mp3")
             parameters.append("MaxStreamingBitrate", "999999999")
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
         }.buildString()
     }
 
@@ -205,7 +212,7 @@ class JellyfinApiService {
         val s = requireSession()
         return URLBuilder("${s.serverUrl}/Audio/$itemId/stream").apply {
             parameters.append("static", "true")
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
         }.buildString()
     }
 
@@ -215,7 +222,7 @@ class JellyfinApiService {
         return URLBuilder("${s.serverUrl}/Videos/$itemId/stream").apply {
             parameters.append("static", "true")
             parameters.append("MediaSourceId", itemId)
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
         }.buildString()
     }
 
@@ -281,7 +288,7 @@ class JellyfinApiService {
         val url = URLBuilder(s.serverUrl).apply {
             protocol = if (protocol == URLProtocol.HTTPS) URLProtocol.WSS else URLProtocol.WS
             appendPathSegments("socket")
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
             parameters.append("deviceId", s.deviceId)
         }.buildString()
         client.webSocket(url) {
@@ -429,7 +436,7 @@ class JellyfinApiService {
         val s = requireSession()
         return URLBuilder("${s.serverUrl}/Voidcast/YouTube/$videoId/Audio").apply {
             if (mp3) parameters.append("format", "mp3")
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
         }.buildString()
     }
 
@@ -438,7 +445,7 @@ class JellyfinApiService {
         val s = requireSession()
         return URLBuilder("${s.serverUrl}/Voidcast/YouTube/$videoId/Video").apply {
             parameters.append("maxHeight", maxHeight.toString())
-            parameters.append("ApiKey", s.accessToken)
+            parameters.append(API_KEY_PARAMETER, s.accessToken)
         }.buildString()
     }
 
@@ -482,5 +489,7 @@ class JellyfinApiService {
 
     companion object {
         const val CLIENT_VERSION = AppVersion
+        /** The query parameter stream URLs carry the access token as. */
+        private const val API_KEY_PARAMETER = "ApiKey"
     }
 }

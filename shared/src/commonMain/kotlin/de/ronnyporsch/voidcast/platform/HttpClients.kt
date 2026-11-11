@@ -28,6 +28,20 @@ var offlineMode: Boolean = false
         if (value) cancelRequests()
     }
 
+/**
+ * How requests to the music server at [serverUrl] sign in: with the [header] (an `Authorization` header) instead of
+ * the [token] that stream URLs carry as [queryParameter].
+ */
+class HeaderAuthorization(val serverUrl: String, val queryParameter: String, val token: String, val header: String)
+
+/**
+ * Stream URLs carry the access token, as players can't set headers, and URLs end up in the logs of servers and
+ * proxies. Where the app loads them itself (playback on Android, downloads, not VLC on the desktop or browsers), it
+ * takes the token out of the address and sends this header instead. Null while not connected to a Jellyfin server.
+ */
+@Volatile
+var headerAuthorization: HeaderAuthorization? = null
+
 /** Cancels the requests in flight, see [offlineMode]. */
 internal expect fun cancelRequests()
 

@@ -3,7 +3,9 @@ package de.ronnyporsch.voidcast.platform
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import okhttp3.Dispatcher
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.IOException
 import java.net.Socket
 import java.security.KeyStore
@@ -36,10 +38,24 @@ val sharedOkHttpClient: OkHttpClient by lazy {
             if (offlineMode) throw IOException("Offline mode is on")
             chain.proceed(chain.request())
         }
+        .addInterceptor { chain -> chain.proceed(chain.request().withTokenInHeader()) }
         .sslSocketFactory(sslContext.socketFactory, UntrustedHostTrustManager)
         .hostnameVerifier { hostname, session ->
             hostname.isUntrusted() || defaultHostnameVerifier.verify(hostname, session)
         }
+        .build()
+}
+
+/** Moves the access token of a request to the music server from its address into a header, see [headerAuthorization]. */
+private fun Request.withTokenInHeader(): Request {
+    val authorization = headerAuthorization ?: return this
+    val server = authorization.serverUrl.toHttpUrlOrNull() ?: return this
+    val toServer = url.scheme == server.scheme && url.host == server.host && url.port == server.port
+    // The websocket keeps the token in its address, like the Jellyfin clients that can't set headers have it
+    if (!toServer || url.queryParameter(authorization.queryParameter) != authorization.token || header("Upgrade") != null) return this
+    return newBuilder()
+        .url(url.newBuilder().removeAllQueryParameters(authorization.queryParameter).build())
+        .header("Authorization", authorization.header)
         .build()
 }
 
