@@ -35,11 +35,6 @@ data class AppSettings(
     val serverUrl: String = "",
     val username: String = "",
     /**
-     * Only set by versions that kept the password: the next start logs in with it once and replaces it with the
-     * [accessToken].
-     */
-    val password: String = "",
-    /**
      * What the app signs in with instead of the password, which it doesn't keep: the access token of the session on
      * a Jellyfin server, on a Subsonic server the password hashed with the [subsonicSalt]. Unlike the password, it is
      * of no use anywhere else, and a Jellyfin server forgets it when logging out.
@@ -65,7 +60,7 @@ data class AppSettings(
     val downloadOnlyOnWifi: Boolean = false,
 ) {
     val hasSavedConnection: Boolean
-        get() = serverUrl.isNotBlank() && username.isNotBlank() && (hasSavedToken || password.isNotBlank())
+        get() = serverUrl.isNotBlank() && username.isNotBlank() && hasSavedToken
 
     /** Whether the [accessToken] and what belongs to it are there. */
     val hasSavedToken: Boolean

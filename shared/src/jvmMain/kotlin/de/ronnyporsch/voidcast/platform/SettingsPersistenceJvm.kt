@@ -9,13 +9,11 @@ import java.util.prefs.Preferences
 private val prefs = Preferences.userNodeForPackage(AppSettings::class.java)
 
 /**
- * The access token is kept by the operating system, see [SecretStore], the settings only note that it is there.
- * Only where that doesn't work (no keyring) it stays in the settings, as in the versions before.
+ * The access token is kept by the operating system instead of in the settings, see [SecretStore]. Where that doesn't
+ * work (no keyring, or the user doesn't unlock it) it isn't kept at all.
  */
 private object AccessToken {
-    private const val KEY = "accessToken"
-    private const val IN_STORE = "accessTokenInSecretStore"
-    private val store by lazy { secretStore(KEY, prefs) }
+    private val store by lazy { secretStore("accessToken", prefs) }
 
     /** What the store holds, as far as known, so saving unchanged settings doesn't ask it again. */
     private var stored: String? = null
@@ -24,28 +22,12 @@ private object AccessToken {
     private var refused: String? = null
 
     @Synchronized
-    fun load(): String {
-        val readable = prefs.get(KEY, "") ?: ""
-        if (readable.isNotEmpty()) return readable.also {
-            save(it)
-            runCatching { prefs.flush() }
-        }
-        if (!prefs.getBoolean(IN_STORE, false)) return ""
-        return (store.load() ?: "").also { stored = it }
-    }
+    fun load(): String = (store.load() ?: "").also { stored = it }
 
     @Synchronized
     fun save(token: String) {
-        val inStore = when {
-            token == stored -> true
-            // Nothing to remove from a store that never got anything
-            token.isEmpty() && !prefs.getBoolean(IN_STORE, false) -> true
-            token == refused -> false
-            else -> store.store(token)
-        }
-        if (inStore) stored = token else refused = token
-        prefs.put(KEY, if (inStore) "" else token)
-        prefs.putBoolean(IN_STORE, inStore && token.isNotEmpty())
+        if (token == stored || token == refused) return
+        if (store.store(token)) stored = token else refused = token
     }
 }
 
@@ -53,7 +35,6 @@ actual fun saveSettings(settings: AppSettings) {
     prefs.put("serverType", settings.serverType.name)
     prefs.put("serverUrl", settings.serverUrl)
     prefs.put("username", settings.username)
-    prefs.put("password", settings.password)
     AccessToken.save(settings.accessToken)
     prefs.put("jellyfinUserId", settings.jellyfinUserId)
     prefs.put("subsonicSalt", settings.subsonicSalt)
@@ -76,7 +57,6 @@ actual fun loadSettings(): AppSettings? {
         serverType = ServerType.entries.firstOrNull { it.name == prefs.get("serverType", "") } ?: ServerType.Subsonic,
         serverUrl = serverUrl,
         username = prefs.get("username", "") ?: "",
-        password = prefs.get("password", "") ?: "",
         accessToken = AccessToken.load(),
         jellyfinUserId = prefs.get("jellyfinUserId", "") ?: "",
         subsonicSalt = prefs.get("subsonicSalt", "") ?: "",

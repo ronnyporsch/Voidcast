@@ -15,7 +15,10 @@ url='https://github.com/ronnyporsch/Voidcast'
 license=('custom')
 # pipewire-jack and vlc-plugin-jack: songs play through PipeWire's JACK, as VLC's PulseAudio output mutes moments at
 # the start of songs on Bluetooth headphones
-depends=('java-runtime>=21' 'hicolor-icon-theme' 'vlc' 'pipewire-jack' 'vlc-plugin-jack')
+# libsecret (secret-tool) and org.freedesktop.secrets (a keyring like KWallet or GNOME Keyring): the login is kept in
+# the keyring, without one the app asks for it at every start
+depends=('java-runtime>=21' 'hicolor-icon-theme' 'vlc' 'pipewire-jack' 'vlc-plugin-jack' 'libsecret'
+         'org.freedesktop.secrets')
 makedepends=('git')
 options=('!debug')
 source=("$pkgname::git+file://$_repo"

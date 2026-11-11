@@ -95,7 +95,6 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
             serverType = type,
             serverUrl = url,
             username = username,
-            password = "",
             accessToken = accessToken,
             jellyfinUserId = jellyfinUserId,
             subsonicSalt = subsonicSalt,
@@ -131,10 +130,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
      */
     suspend fun resume() {
         val saved = settingsHolder.settings.value
-        if (!saved.hasSavedToken) {
-            // Saved by a version that kept the password; this replaces it with the token
-            return connect(saved.serverType, saved.serverUrl, saved.username, saved.password, saved.allowUntrustedCertificate)
-        }
+        if (!saved.hasSavedToken) throw InvalidCredentialsException("Please log in again")
         trustCertificate(saved.serverUrl, saved.allowUntrustedCertificate)
         when (saved.serverType) {
             ServerType.Subsonic -> connectSubsonic(ServerConfig(saved.serverUrl, saved.username, saved.accessToken, saved.subsonicSalt))
@@ -206,7 +202,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         _serverType.value = null
         _plugin.value = null
         _pluginMissing.value = false
-        settingsHolder.update { copy(password = "", accessToken = "", jellyfinUserId = "", subsonicSalt = "") }
+        settingsHolder.update { copy(accessToken = "", jellyfinUserId = "", subsonicSalt = "") }
     }
 
     /** Re-reads what the Voidcast Jellyfin plugin offers, e.g. after an admin changed its settings. */

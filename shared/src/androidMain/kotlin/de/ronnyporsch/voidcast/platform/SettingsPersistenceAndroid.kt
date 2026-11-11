@@ -12,25 +12,21 @@ private val prefs by lazy {
 }
 
 /**
- * Stores [secret] under [key] encrypted with the device's keystore, see [SecretCipher]. Only where the keystore
- * doesn't work it stays readable, as in the versions before.
+ * Stores [secret] under [key] encrypted with the device's keystore, see [SecretCipher]. Where the keystore doesn't
+ * work it isn't stored at all.
  */
 private fun SharedPreferences.Editor.putSecret(key: String, secret: String): SharedPreferences.Editor {
-    if (secret.isEmpty()) return remove("${key}Encrypted").remove(key)
-    val encrypted = SecretCipher.encrypt(secret)
-    return if (encrypted != null) putString("${key}Encrypted", encrypted).remove(key)
-    else remove("${key}Encrypted").putString(key, secret)
+    val encrypted = if (secret.isEmpty()) null else SecretCipher.encrypt(secret)
+    return if (encrypted != null) putString(key, encrypted) else remove(key)
 }
 
-private fun SharedPreferences.getSecret(key: String): String =
-    getString("${key}Encrypted", null)?.let { SecretCipher.decrypt(it) ?: "" } ?: getString(key, "") ?: ""
+private fun SharedPreferences.getSecret(key: String): String = getString(key, null)?.let { SecretCipher.decrypt(it) } ?: ""
 
 actual fun saveSettings(settings: AppSettings) {
     prefs.edit()
         .putString("serverType", settings.serverType.name)
         .putString("serverUrl", settings.serverUrl)
         .putString("username", settings.username)
-        .putSecret("password", settings.password)
         .putSecret("accessToken", settings.accessToken)
         .putString("jellyfinUserId", settings.jellyfinUserId)
         .putString("subsonicSalt", settings.subsonicSalt)
@@ -52,15 +48,10 @@ actual fun loadSettings(): AppSettings? {
     val p = prefs
     val serverUrl = p.getString("serverUrl", "") ?: ""
     if (serverUrl.isBlank()) return null
-    // Versions before kept these readable
-    if (p.contains("password") || p.contains("accessToken")) {
-        p.edit().putSecret("password", p.getString("password", "") ?: "").putSecret("accessToken", p.getString("accessToken", "") ?: "").apply()
-    }
     return AppSettings(
         serverType = ServerType.entries.firstOrNull { it.name == p.getString("serverType", "") } ?: ServerType.Subsonic,
         serverUrl = serverUrl,
         username = p.getString("username", "") ?: "",
-        password = p.getSecret("password"),
         accessToken = p.getSecret("accessToken"),
         jellyfinUserId = p.getString("jellyfinUserId", "") ?: "",
         subsonicSalt = p.getString("subsonicSalt", "") ?: "",

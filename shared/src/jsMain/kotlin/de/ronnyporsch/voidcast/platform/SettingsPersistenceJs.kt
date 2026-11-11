@@ -11,7 +11,6 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("serverType", settings.serverType.name)
     storage.setItem("serverUrl", settings.serverUrl)
     storage.setItem("username", settings.username)
-    storage.setItem("password", settings.password)
     storage.setItem("accessToken", settings.accessToken)
     storage.setItem("jellyfinUserId", settings.jellyfinUserId)
     storage.setItem("subsonicSalt", settings.subsonicSalt)
@@ -33,7 +32,6 @@ actual fun loadSettings(): AppSettings? {
         serverType = ServerType.entries.firstOrNull { it.name == storage.getItem("serverType") } ?: ServerType.Subsonic,
         serverUrl = serverUrl,
         username = storage.getItem("username") ?: "",
-        password = storage.getItem("password") ?: "",
         accessToken = storage.getItem("accessToken") ?: "",
         jellyfinUserId = storage.getItem("jellyfinUserId") ?: "",
         subsonicSalt = storage.getItem("subsonicSalt") ?: "",

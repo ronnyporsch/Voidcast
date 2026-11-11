@@ -17,7 +17,6 @@ class LoginViewModel(
             serverType = saved.serverType,
             serverUrl = saved.serverUrl,
             username = saved.username,
-            password = saved.password,
             allowUntrustedCertificate = saved.allowUntrustedCertificate,
             certificateFingerprint = saved.certificateFingerprint.takeIf { saved.allowUntrustedCertificate },
         )
