@@ -73,6 +73,9 @@ public partial class DownloadIndex
         }
     }
 
+    /// <summary>Whether the file at <paramref name="path"/> is a download of <paramref name="videoId"/>, going by its tags.</summary>
+    public bool IsDownloadOf(string path, string videoId) => ReadEntry(path, 0).VideoId == videoId;
+
     /// <summary>Records a finished download.</summary>
     public void Add(string videoId, string path)
     {

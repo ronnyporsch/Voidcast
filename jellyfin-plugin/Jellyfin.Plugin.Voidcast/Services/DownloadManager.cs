@@ -24,6 +24,8 @@ public partial class DownloadManager
 {
     private const int MaxRetainedJobs = 200;
     private const int MaxRetainedAdditions = 50;
+    private const int MaxTextLength = 500;
+    private const int MaxArtists = 50;
     /// <summary>Downloads a user can have waiting or running; more would only pile up in memory.</summary>
     private const int MaxPendingJobsPerUser = 1000;
     /// <summary>A download that takes longer hangs, and would keep others from starting forever.</summary>
@@ -48,6 +50,8 @@ public partial class DownloadManager
     /// <summary>Video ids of album tracks, by album id; albums rarely change, so look each up at most daily.</summary>
     private readonly ConcurrentDictionary<string, (DateTime Fetched, IReadOnlyList<string> VideoIds)> _albumTracks = new();
     private readonly SemaphoreSlim _albumLookups = new(4, 4);
+    /// <summary>Held while a download picks its file name and moves there, so two can't pick the same.</summary>
+    private readonly object _targetLock = new();
 
     public DownloadManager(
         ILogger<DownloadManager> logger,
@@ -137,6 +141,13 @@ public partial class DownloadManager
         if (song.StartTime < 0 || song.EndTime <= (song.StartTime ?? 0))
         {
             throw new ArgumentException("The end must be after the start");
+        }
+
+        // They end up in tags and file names
+        var texts = new[] { song.Title, song.Artist, song.Album, song.Genre }.Concat((song.Artists ?? []).Select(artist => artist?.Name));
+        if (song.Artists is { Count: > MaxArtists } || texts.Any(text => text is { Length: > MaxTextLength }))
+        {
+            throw new ArgumentException("The track's details are too long");
         }
     }
 
@@ -366,13 +377,33 @@ public partial class DownloadManager
 
             AudioTagger.Write(audio, tags, cover);
 
-            var target = Path.Combine(targetDir, GetRelativePath(tags) + Path.GetExtension(audio).ToLowerInvariant());
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            var path = Path.Combine(targetDir, GetRelativePath(tags));
+            var extension = Path.GetExtension(audio).ToLowerInvariant();
+            var directory = Path.GetDirectoryName(path)!;
+            // The names are sanitized, but they come from the client's request
+            var root = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!Path.GetFullPath(path).StartsWith(root, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("The track's details don't make a path inside the download folder");
+            }
+
+            Directory.CreateDirectory(directory);
             // Copy under a non-audio extension first so the library scan never picks up a half-written file
-            var partial = target + ".part";
-            File.Copy(audio, partial, true);
-            File.Move(partial, target, true);
-            return target;
+            var partial = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".part");
+            try
+            {
+                File.Copy(audio, partial, true);
+                lock (_targetLock)
+                {
+                    var target = FreeTarget(path, extension, song.VideoId);
+                    File.Move(partial, target, true);
+                    return target;
+                }
+            }
+            finally
+            {
+                File.Delete(partial);
+            }
         }
         finally
         {
@@ -416,6 +447,23 @@ public partial class DownloadManager
         parts.Add(trackPrefix + tags.Title);
 
         return Path.Combine(parts.Select(SanitizeFileName).ToArray());
+    }
+
+    /// <summary>
+    /// Returns <paramref name="path"/> with <paramref name="extension"/>, or with a number before it if that file exists
+    /// and isn't an earlier download of <paramref name="videoId"/>: title, artist and album come from the client's
+    /// request, which must not replace another track of the library that way.
+    /// </summary>
+    private string FreeTarget(string path, string extension, string videoId)
+    {
+        for (var number = 1; ; number++)
+        {
+            var target = (number == 1 ? path : $"{path} ({number.ToString(System.Globalization.CultureInfo.InvariantCulture)})") + extension;
+            if (!File.Exists(target) || _index.IsDownloadOf(target, videoId))
+            {
+                return target;
+            }
+        }
     }
 
     private async Task<YouTubeAlbum?> GetAlbumAsync(string albumId, CancellationToken cancellationToken)
