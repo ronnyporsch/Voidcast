@@ -850,6 +850,7 @@ fun App() {
                         LaunchedEffect(Unit) { newReleasesViewModel.onEvent(NewReleasesEvent.Load) }
                         NewReleasesScreen(
                             viewModel = newReleasesViewModel,
+                            canScan = connection.plugin.collectAsState().value?.canConfigureNewReleases == true,
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
                         )
                     }

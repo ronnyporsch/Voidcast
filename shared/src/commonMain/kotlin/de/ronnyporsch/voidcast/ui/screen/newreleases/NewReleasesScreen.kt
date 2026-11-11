@@ -44,6 +44,8 @@ import kotlin.time.ExperimentalTime
 @Composable
 fun NewReleasesScreen(
     viewModel: NewReleasesViewModel,
+    /** Whether the user may start a scan, which the server only lets administrators do. */
+    canScan: Boolean,
     onAlbumClick: (String) -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
@@ -63,7 +65,7 @@ fun NewReleasesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().touchSelection(albumTouchSelection, gridState),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Header(state, onScan = { viewModel.onEvent(NewReleasesEvent.Scan) }) }
+            item(span = { GridItemSpan(maxLineSpan) }) { Header(state, canScan, onScan = { viewModel.onEvent(NewReleasesEvent.Scan) }) }
 
             for ((year, releasesOfYear) in releases.groupBy { it.year }) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -97,7 +99,7 @@ fun NewReleasesScreen(
 }
 
 @Composable
-private fun Header(state: NewReleasesState, onScan: () -> Unit) {
+private fun Header(state: NewReleasesState, canScan: Boolean, onScan: () -> Unit) {
     val scan = state.scan
     val songsText = scan?.let { "${it.minSongs} ${if (it.minSongs == 1) "song" else "songs"}" }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -112,8 +114,10 @@ private fun Header(state: NewReleasesState, onScan: () -> Unit) {
             )
             Text("Last scan: ${daysAgo(scan.scannedAt)}", style = MaterialTheme.typography.bodySmall, color = SpotifyLightGray)
         }
-        OutlinedButton(onClick = onScan, enabled = !state.isScanning, shape = RoundedCornerShape(0.dp)) {
-            Text(if (state.isScanning) "Scanning…" else "Scan now", fontWeight = FontWeight.Bold)
+        if (canScan) {
+            OutlinedButton(onClick = onScan, enabled = !state.isScanning, shape = RoundedCornerShape(0.dp)) {
+                Text(if (state.isScanning) "Scanning…" else "Scan now", fontWeight = FontWeight.Bold)
+            }
         }
         if (state.isScanning) {
             val total = state.artistsToCheck

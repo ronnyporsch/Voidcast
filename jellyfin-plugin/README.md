@@ -16,7 +16,7 @@ reads the YouTube URL in the comment tag of the files in the download folder (on
 and keeps the index in `<data dir>/voidcast/download-index.json`. The plugin also streams YouTube Music tracks for playback and
 reports the codec/bitrate a download would get.
 
-The *Scan for new releases* task (*Dashboard → Scheduled Tasks*, weekly by default, or *Scan now* in a client) looks on
+The *Scan for new releases* task (*Dashboard → Scheduled Tasks*, weekly by default, or an administrator's *Scan now* in a client) looks on
 YouTube Music for releases of the library's artists that aren't in the library yet and keeps the result in
 `<data dir>/voidcast/new-releases.json`. Administrators choose the artists in the clients' settings: those with at
 least a number of songs in the library, or the favorites of all users.
@@ -132,5 +132,5 @@ parameter).
 | `GET /Voidcast/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |
 | `GET /Voidcast/NewReleases` | The latest scan for new releases as the user gets to see it, and the scan's status |
 | `GET /Voidcast/NewReleases/Status` | What a running scan got to |
-| `POST /Voidcast/NewReleases/Scan` | Starts a scan, unless one is running |
+| `POST /Voidcast/NewReleases/Scan` | Administrators: starts a scan, unless one is running |
 | `POST /Voidcast/NewReleases/Settings` | Administrators: `{"MinSongs": 15, "FavoritesOnly": false}`, used from the next scan |

@@ -206,6 +206,12 @@ public class VoidcastController : ControllerBase
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     public ActionResult StartNewReleasesScan()
     {
+        // A scan asks YouTube about every artist, from the IP that also streams and downloads
+        if (!User.IsInRole("Administrator"))
+        {
+            return Problem("Only administrators may start a scan", statusCode: StatusCodes.Status403Forbidden);
+        }
+
         _newReleases.RequestScan();
         return Accepted();
     }
