@@ -15,6 +15,7 @@ import de.ronnyporsch.voidcast.domain.model.LibrarySort
 import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
 import de.ronnyporsch.voidcast.platform.decodeLibraryView
 import de.ronnyporsch.voidcast.platform.encode
+import de.ronnyporsch.voidcast.util.isUnencryptedRemoteUrl
 import de.ronnyporsch.voidcast.util.sortedBy
 import de.ronnyporsch.voidcast.util.withSongCounts
 import de.ronnyporsch.voidcast.domain.model.formatTotals
@@ -381,6 +382,32 @@ class SharedCommonTest {
             "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
             "https://music.youtube.com/browse/MPREb_abc",
         ).forEach { assertNull(YouTubeLink.parse(it), it) }
+    }
+
+    @Test
+    fun unencrypted_addresses_outside_the_local_network_are_recognized() {
+        listOf(
+            "http://music.example.com",
+            "  HTTP://music.example.com:8096/jellyfin ",
+            "http://203.0.113.7:8096",
+            "http://172.32.0.1",
+            "http://[2001:db8::1]:8096",
+        ).forEach { assertTrue(isUnencryptedRemoteUrl(it), it) }
+        listOf(
+            "https://music.example.com",
+            "music.example.com",
+            "http://localhost:8096",
+            "http://127.0.0.1:8096",
+            "http://192.168.1.10:8096",
+            "http://10.0.0.2",
+            "http://172.16.5.1",
+            "http://100.100.1.2:8096",
+            "http://nas:4533",
+            "http://jellyfin.local",
+            "http://[::1]:8096",
+            "http://[fd12:3456::1]:8096",
+            "",
+        ).forEach { assertFalse(isUnencryptedRemoteUrl(it), it) }
     }
 
     @Test

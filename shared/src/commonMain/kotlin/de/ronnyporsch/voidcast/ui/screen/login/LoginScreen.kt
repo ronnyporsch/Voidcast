@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.ui.components.ServerTypeSelector
+import de.ronnyporsch.voidcast.ui.components.UnencryptedConnectionWarning
 import de.ronnyporsch.voidcast.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.voidcast.ui.components.urlPlaceholder
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -88,6 +89,8 @@ fun LoginScreen(viewModel: LoginViewModel) {
                 ),
                 shape = RoundedCornerShape(0.dp),
             )
+
+            UnencryptedConnectionWarning(state.serverUrl)
 
             OutlinedTextField(
                 value = state.username,

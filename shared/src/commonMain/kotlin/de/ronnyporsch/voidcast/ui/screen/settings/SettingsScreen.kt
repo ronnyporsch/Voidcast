@@ -21,6 +21,7 @@ import de.ronnyporsch.voidcast.ui.components.PluginMissingWarning
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.ServerTypeSelector
+import de.ronnyporsch.voidcast.ui.components.UnencryptedConnectionWarning
 import de.ronnyporsch.voidcast.ui.components.UntrustedCertificateSwitch
 import de.ronnyporsch.voidcast.ui.components.urlPlaceholder
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -108,6 +109,8 @@ fun SettingsScreen(
                     colors = settingsTextFieldColors(),
                     shape = RoundedCornerShape(0.dp),
                 )
+
+                UnencryptedConnectionWarning(state.serverUrl)
 
                 OutlinedTextField(
                     value = state.username,
