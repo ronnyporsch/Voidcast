@@ -42,6 +42,16 @@ public partial class YtDlpService
     private static readonly TimeSpan VideoCacheLifetime = TimeSpan.FromHours(2);
     // Beyond this, the least recently played videos get deleted
     private const long VideoCacheMaxBytes = 2L * 1024 * 1024 * 1024;
+    // Beyond this, the least recently played songs get deleted
+    private const long AudioCacheMaxBytes = 2L * 1024 * 1024 * 1024;
+    // Longer songs and videos aren't played or downloaded: any user could fill the disk with them
+    private const int MaxAudioHours = 6;
+    private const int MaxVideoHours = 3;
+    // yt-dlp processes downloading for playback at once, of all users and of one
+    private const int MaxPlaybackDownloads = 6;
+    private const int MaxPlaybackDownloadsPerUser = 3;
+    // The lookups are small, but there is one per video anyone ever asked for
+    private const int MaxCachedLookups = 5000;
     private static readonly TimeSpan SelfUpdateInterval = TimeSpan.FromDays(1);
 
     private readonly ILogger<YtDlpService> _logger;
@@ -53,7 +63,10 @@ public partial class YtDlpService
     private readonly ConcurrentDictionary<string, AudioStreamInfo> _streamInfoCache = new();
     private readonly ConcurrentDictionary<string, IReadOnlyList<int>> _videoHeightsCache = new();
     private readonly ConcurrentDictionary<string, VideoStreamInfo> _videoInfoCache = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _playbackLocks = new();
+    // Guarded by itself; an entry only exists while someone uses it
+    private readonly Dictionary<string, KeyLock> _playbackLocks = [];
+    private readonly SemaphoreSlim _playbackDownloads = new(MaxPlaybackDownloads, MaxPlaybackDownloads);
+    private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _userPlaybackDownloads = new();
     private readonly object _cookiesCopyLock = new();
     private string? _lastCookiesKey;
     private string? _cookiesCopySource;
@@ -201,7 +214,7 @@ public partial class YtDlpService
                 return null;
             }
 
-            _streamInfoCache[videoId] = info;
+            Remember(_streamInfoCache, videoId, info);
             return info;
         }
         finally
@@ -229,7 +242,7 @@ public partial class YtDlpService
         // length (it looks for the last page near the end of the file). Ignored by the other containers
         List<string> args =
         [
-            "--no-playlist", "--quiet", "--no-warnings", .. BestAudio, "-x",
+            "--no-playlist", "--quiet", "--no-warnings", .. Limits(MaxAudioHours, "1G"), .. BestAudio, "-x",
             "--postprocessor-args", "ExtractAudio+ffmpeg_o:-page_duration 100000",
         ];
         if (audioFormat != null)
@@ -253,19 +266,20 @@ public partial class YtDlpService
         args.AddRange(["-o", Path.Combine(directory, "audio.%(ext)s"), YouTubeMusicClient.WatchUrl(videoId)]);
         await RunAsync(args, cancellationToken).ConfigureAwait(false);
         return Directory.EnumerateFiles(directory, "audio.*").SingleOrDefault()
-            ?? throw new IOException("yt-dlp did not produce an audio file");
+            ?? throw new IOException($"yt-dlp did not produce an audio file (live streams and songs longer than {MaxAudioHours} hours aren't supported)");
     }
 
     /// <summary>
     /// Returns a cached audio file of <paramref name="videoId"/> for playback (in its original codec, or as MP3 for
     /// clients that can't decode Opus/AAC), downloading it first if necessary.
     /// </summary>
-    public Task<string> GetPlaybackFileAsync(string videoId, bool mp3, CancellationToken cancellationToken)
+    public Task<string> GetPlaybackFileAsync(string videoId, bool mp3, Guid userId, CancellationToken cancellationToken)
     {
         RequireValidId(videoId);
         return GetCachedFileAsync(
             videoId + (mp3 ? ".mp3" : string.Empty),
             "audio",
+            userId,
             dir => DownloadAudioAsync(videoId, dir, mp3 ? "mp3" : null, cancellationToken),
             cancellationToken);
     }
@@ -275,18 +289,19 @@ public partial class YtDlpService
     /// up to <paramref name="maxHeight"/> (H.264/AAC where available, which every player decodes), downloading it first
     /// if necessary.
     /// </summary>
-    public Task<string> GetVideoFileAsync(string videoId, int maxHeight, CancellationToken cancellationToken)
+    public Task<string> GetVideoFileAsync(string videoId, int maxHeight, Guid userId, CancellationToken cancellationToken)
     {
         RequireValidId(videoId);
         maxHeight = Math.Clamp(maxHeight, 144, 4320);
         return GetCachedFileAsync(
             VideoCacheKey(videoId, maxHeight),
             "video",
+            userId,
             async dir =>
             {
                 await RunAsync(
                     [
-                        "--no-playlist", "--quiet", "--no-warnings", .. VideoFormat(maxHeight),
+                        "--no-playlist", "--quiet", "--no-warnings", .. Limits(MaxVideoHours, "4G"), .. VideoFormat(maxHeight),
                         // Remembers which streams got picked, see GetVideoStreamInfoAsync
                         "--print-to-file", VideoInfoTemplate, Path.Combine(dir, VideoInfoFile),
                         "--merge-output-format", "mp4",
@@ -295,7 +310,7 @@ public partial class YtDlpService
                     ],
                     cancellationToken).ConfigureAwait(false);
                 return Directory.EnumerateFiles(dir, "video.*").SingleOrDefault(file => !file.EndsWith(".part", StringComparison.Ordinal))
-                    ?? throw new IOException("yt-dlp did not produce a video file");
+                    ?? throw new IOException($"yt-dlp did not produce a video file (live streams and videos longer than {MaxVideoHours} hours aren't supported)");
             },
             cancellationToken);
     }
@@ -321,16 +336,24 @@ public partial class YtDlpService
             return cached;
         }
 
-        var output = await RunAsync(
-            ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", .. VideoFormat(maxHeight), "--print", VideoInfoTemplate, YouTubeMusicClient.WatchUrl(videoId)],
-            cancellationToken).ConfigureAwait(false);
-        var info = ParseVideoInfo(output);
-        if (info != null)
+        await _streamInfoLookups.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            _videoInfoCache[key] = info;
-        }
+            var output = await RunAsync(
+                ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", .. VideoFormat(maxHeight), "--print", VideoInfoTemplate, YouTubeMusicClient.WatchUrl(videoId)],
+                cancellationToken).ConfigureAwait(false);
+            var info = ParseVideoInfo(output);
+            if (info != null)
+            {
+                Remember(_videoInfoCache, key, info);
+            }
 
-        return info;
+            return info;
+        }
+        finally
+        {
+            _streamInfoLookups.Release();
+        }
     }
 
     private static string VideoCacheKey(string videoId, int maxHeight) =>
@@ -389,9 +412,19 @@ public partial class YtDlpService
             return cached;
         }
 
-        var output = await RunAsync(
-            ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", "--print", "%(formats)j", YouTubeMusicClient.WatchUrl(videoId)],
-            cancellationToken).ConfigureAwait(false);
+        string output;
+        await _streamInfoLookups.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            output = await RunAsync(
+                ["--no-playlist", "--quiet", "--no-warnings", "--skip-download", "--print", "%(formats)j", YouTubeMusicClient.WatchUrl(videoId)],
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _streamInfoLookups.Release();
+        }
+
         var formats = JsonNode.Parse(output.Trim()) as JsonArray ?? [];
         var heights = formats
             .Where(format => format?["vcodec"]?.GetValue<string>() is { } vcodec && vcodec != "none"
@@ -402,56 +435,138 @@ public partial class YtDlpService
             .Distinct()
             .OrderDescending()
             .ToList();
-        _videoHeightsCache[videoId] = heights;
+        Remember(_videoHeightsCache, videoId, heights);
         return heights;
     }
 
     /// <summary>
     /// Returns the file named <paramref name="name"/>.* that <paramref name="download"/> put into the playback cache folder
-    /// <paramref name="key"/>, running it first if there is none.
+    /// <paramref name="key"/>, running it first if there is none. Only so many downloads run at once, of all users and
+    /// of <paramref name="userId"/>; the others wait.
     /// </summary>
-    private async Task<string> GetCachedFileAsync(string key, string name, Func<string, Task<string>> download, CancellationToken cancellationToken)
+    private async Task<string> GetCachedFileAsync(string key, string name, Guid userId, Func<string, Task<string>> download, CancellationToken cancellationToken)
     {
-        var semaphore = _playbackLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-        await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var dir = Path.Combine(_playbackCacheDir, key);
+        string? FindCached()
+        {
+            var existing = Directory.Exists(dir) ? Directory.EnumerateFiles(dir, name + ".*").FirstOrDefault() : null;
+            if (existing == null || existing.EndsWith(".part", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
+            return existing;
+        }
+
+        // What's cached is served without waiting for a download slot; waits if it is being downloaded right now
+        var cached = await WithKeyLockAsync(key, () => Task.FromResult(FindCached()), cancellationToken).ConfigureAwait(false);
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        var userDownloads = _userPlaybackDownloads.GetOrAdd(userId, _ => new SemaphoreSlim(MaxPlaybackDownloadsPerUser, MaxPlaybackDownloadsPerUser));
+        await userDownloads.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var dir = Path.Combine(_playbackCacheDir, key);
-            var existing = Directory.Exists(dir) ? Directory.EnumerateFiles(dir, name + ".*").FirstOrDefault() : null;
-            if (existing != null && !existing.EndsWith(".part", StringComparison.Ordinal))
-            {
-                Directory.SetLastWriteTimeUtc(dir, DateTime.UtcNow);
-                return existing;
-            }
-
-            CleanUpPlaybackCache();
-            if (Directory.Exists(dir))
-            {
-                Directory.Delete(dir, true);
-            }
-
-            Directory.CreateDirectory(dir);
+            await _playbackDownloads.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var file = await download(dir).ConfigureAwait(false);
-                if (key.Contains(".video", StringComparison.Ordinal))
-                {
-                    LimitVideoCacheSize(keep: dir);
-                }
+                return await WithKeyLockAsync(
+                    key,
+                    async () =>
+                    {
+                        // Someone else may have downloaded it meanwhile
+                        if (FindCached() is { } existing)
+                        {
+                            return existing;
+                        }
 
-                return file;
+                        CleanUpPlaybackCache();
+                        if (Directory.Exists(dir))
+                        {
+                            Directory.Delete(dir, true);
+                        }
+
+                        Directory.CreateDirectory(dir);
+                        try
+                        {
+                            var file = await download(dir).ConfigureAwait(false);
+                            LimitCacheSize(keep: dir);
+                            return file;
+                        }
+                        catch
+                        {
+                            Directory.Delete(dir, true);
+                            throw;
+                        }
+                    },
+                    cancellationToken).ConfigureAwait(false);
             }
-            catch
+            finally
             {
-                Directory.Delete(dir, true);
-                throw;
+                _playbackDownloads.Release();
             }
         }
         finally
         {
-            semaphore.Release();
+            userDownloads.Release();
         }
     }
+
+    /// <summary>Runs <paramref name="action"/> while no one else does for the same <paramref name="key"/>.</summary>
+    private async Task<T> WithKeyLockAsync<T>(string key, Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        KeyLock keyLock;
+        lock (_playbackLocks)
+        {
+            if (!_playbackLocks.TryGetValue(key, out keyLock!))
+            {
+                _playbackLocks[key] = keyLock = new KeyLock();
+            }
+
+            keyLock.Users++;
+        }
+
+        try
+        {
+            await keyLock.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await action().ConfigureAwait(false);
+            }
+            finally
+            {
+                keyLock.Semaphore.Release();
+            }
+        }
+        finally
+        {
+            lock (_playbackLocks)
+            {
+                if (--keyLock.Users == 0)
+                {
+                    _playbackLocks.Remove(key);
+                }
+            }
+        }
+    }
+
+    /// <summary>Keeps the lookups from growing forever; they are cheap to repeat.</summary>
+    private static void Remember<T>(ConcurrentDictionary<string, T> cache, string key, T value)
+    {
+        if (cache.Count >= MaxCachedLookups)
+        {
+            cache.Clear();
+        }
+
+        cache[key] = value;
+    }
+
+    /// <summary>Makes yt-dlp skip live streams (which never end) and what's longer than <paramref name="maxHours"/> or bigger than <paramref name="maxFileSize"/>.</summary>
+    private static string[] Limits(int maxHours, string maxFileSize) =>
+        ["--match-filter", $"!is_live & duration<?{(maxHours * 3600).ToString(CultureInfo.InvariantCulture)}", "--max-filesize", maxFileSize];
 
     /// <summary>Runs yt-dlp with <paramref name="args"/>, signed in via the configured cookies if possible.</summary>
     public async Task<string> RunAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
@@ -666,18 +781,20 @@ public partial class YtDlpService
     }
 
     /// <summary>
-    /// Deletes the least recently played videos until all of them fit into <see cref="VideoCacheMaxBytes"/>, except
-    /// <paramref name="keep"/> (just downloaded) and ones still downloading.
+    /// Deletes the least recently played videos until all of them fit into <see cref="VideoCacheMaxBytes"/>, and likewise
+    /// songs for <see cref="AudioCacheMaxBytes"/>, except <paramref name="keep"/> (just downloaded) and ones in use.
     /// </summary>
-    private void LimitVideoCacheSize(string keep)
+    private void LimitCacheSize(string keep)
     {
-        var videos = Directory.EnumerateDirectories(_playbackCacheDir)
-            .Where(dir => Path.GetFileName(dir).Contains(".video", StringComparison.Ordinal))
+        var isVideo = Path.GetFileName(keep).Contains(".video", StringComparison.Ordinal);
+        var maxBytes = isVideo ? VideoCacheMaxBytes : AudioCacheMaxBytes;
+        var cached = Directory.EnumerateDirectories(_playbackCacheDir)
+            .Where(dir => Path.GetFileName(dir).Contains(".video", StringComparison.Ordinal) == isVideo)
             .Select(dir => new DirectoryInfo(dir))
             .OrderByDescending(dir => dir.LastWriteTimeUtc)
             .ToList();
         long total = 0;
-        foreach (var dir in videos)
+        foreach (var dir in cached)
         {
             long size;
             try
@@ -690,8 +807,13 @@ public partial class YtDlpService
             }
 
             total += size;
-            var downloading = _playbackLocks.TryGetValue(dir.Name, out var semaphore) && semaphore.CurrentCount == 0;
-            if (total <= VideoCacheMaxBytes || dir.FullName == Path.GetFullPath(keep) || downloading)
+            bool inUse;
+            lock (_playbackLocks)
+            {
+                inUse = _playbackLocks.ContainsKey(dir.Name);
+            }
+
+            if (total <= maxBytes || dir.FullName == Path.GetFullPath(keep) || inUse)
             {
                 continue;
             }
@@ -701,7 +823,7 @@ public partial class YtDlpService
                 // Clients still streaming it keep their open file
                 dir.Delete(true);
                 total -= size;
-                _logger.LogDebug("Deleted cached video {Dir} ({Size} bytes) to stay below the cache limit", dir.Name, size);
+                _logger.LogDebug("Deleted cached {Dir} ({Size} bytes) to stay below the cache limit", dir.Name, size);
             }
             catch (IOException e)
             {
@@ -779,4 +901,12 @@ public partial class YtDlpService
 
     [GeneratedRegex("^[A-Za-z0-9_-]{1,64}$")]
     private static partial Regex VideoIdRegex();
+
+    private sealed class KeyLock
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        /// <summary>Gets or sets how many hold or wait for the lock.</summary>
+        public int Users { get; set; }
+    }
 }

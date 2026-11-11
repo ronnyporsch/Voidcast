@@ -375,13 +375,17 @@ public class VoidcastController : ControllerBase
 
         try
         {
-            var path = await _ytDlp.GetPlaybackFileAsync(videoId, format == "mp3", cancellationToken).ConfigureAwait(false);
+            var path = await _ytDlp.GetPlaybackFileAsync(videoId, format == "mp3", UserId, cancellationToken).ConfigureAwait(false);
             return PhysicalFile(path, ContentTypeOf(path), enableRangeProcessing: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // The client skipped the track before it was ready
             return new EmptyResult();
+        }
+        catch (IOException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
         }
     }
 
@@ -399,7 +403,7 @@ public class VoidcastController : ControllerBase
 
         try
         {
-            var path = await _ytDlp.GetVideoFileAsync(videoId, maxHeight ?? 1080, cancellationToken).ConfigureAwait(false);
+            var path = await _ytDlp.GetVideoFileAsync(videoId, maxHeight ?? 1080, UserId, cancellationToken).ConfigureAwait(false);
             return PhysicalFile(path, Path.GetExtension(path) == ".webm" ? "video/webm" : "video/mp4", enableRangeProcessing: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

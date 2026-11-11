@@ -24,6 +24,10 @@ public partial class DownloadManager
 {
     private const int MaxRetainedJobs = 200;
     private const int MaxRetainedAdditions = 50;
+    /// <summary>Downloads a user can have waiting or running; more would only pile up in memory.</summary>
+    private const int MaxPendingJobsPerUser = 1000;
+    /// <summary>A download that takes longer hangs, and would keep others from starting forever.</summary>
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan ImportTimeout = TimeSpan.FromMinutes(3);
     /// <summary>How long a track to add to a playlist may take to show up in the library (large libraries scan slowly).</summary>
     private static readonly TimeSpan PlaylistImportTimeout = TimeSpan.FromMinutes(30);
@@ -96,6 +100,11 @@ public partial class DownloadManager
         if (running != null)
         {
             return running;
+        }
+
+        if (_jobs.Values.Count(job => job.UserId == userId && job.Dto.State is DownloadState.Queued or DownloadState.Downloading) >= MaxPendingJobsPerUser)
+        {
+            throw new InvalidOperationException("Too many downloads are waiting, try again once some have finished");
         }
 
         var dto = new DownloadJobDto
@@ -293,7 +302,15 @@ public partial class DownloadManager
             try
             {
                 job.Dto.State = DownloadState.Downloading;
-                target = await DownloadAsync(song, targetDir, CancellationToken.None).ConfigureAwait(false);
+                using var timeout = new CancellationTokenSource(DownloadTimeout);
+                try
+                {
+                    target = await DownloadAsync(song, targetDir, timeout.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"The download took longer than {DownloadTimeout.TotalMinutes:0} minutes");
+                }
             }
             finally
             {
