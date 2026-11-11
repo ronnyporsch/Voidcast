@@ -6,6 +6,7 @@ import de.ronnyporsch.voidcast.data.dto.ArtistDto
 import de.ronnyporsch.voidcast.data.dto.SongDto
 import de.ronnyporsch.voidcast.data.repository.collectAppearsOnAlbumIds
 import de.ronnyporsch.voidcast.data.youtube.YouTubeLink
+import de.ronnyporsch.voidcast.data.youtube.isYouTubeImageUrl
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
@@ -31,6 +32,7 @@ import de.ronnyporsch.voidcast.ui.navigation.Screen
 import de.ronnyporsch.voidcast.util.md5
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -379,5 +381,26 @@ class SharedCommonTest {
             "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
             "https://music.youtube.com/browse/MPREb_abc",
         ).forEach { assertNull(YouTubeLink.parse(it), it) }
+    }
+
+    @Test
+    fun only_youtube_image_hosts_are_loaded_as_cover_art() {
+        listOf(
+            "https://lh3.googleusercontent.com/abc=w60-h60-l90-rj",
+            "https://yt3.ggpht.com/abc=s88",
+            "https://yt3.googleusercontent.com/abc",
+            "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=abc",
+            "https://i9.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        ).forEach { assertTrue(isYouTubeImageUrl(it), it) }
+        listOf(
+            "https://example.com/cover.jpg",
+            "http://lh3.googleusercontent.com/abc",
+            "https://storage.googleusercontent.com/abc",
+            "https://lh3.googleusercontent.com.example.com/abc",
+            "https://lh3.googleusercontent.com@example.com/abc",
+            "https://example.com/@lh3.googleusercontent.com/abc",
+            "https://lh3.googleusercontent.com:8443/abc",
+            "https://192.168.1.1/admin",
+        ).forEach { assertFalse(isYouTubeImageUrl(it), it) }
     }
 }

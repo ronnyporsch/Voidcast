@@ -8,6 +8,7 @@ import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.offline.OfflineMusicRepository
 import de.ronnyporsch.voidcast.data.offline.PlaylistCache
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
+import de.ronnyporsch.voidcast.data.youtube.isYouTubeImageUrl
 import de.ronnyporsch.voidcast.data.youtube.resizeYouTubeThumbnail
 import de.ronnyporsch.voidcast.domain.model.*
 import de.ronnyporsch.voidcast.getPlatform
@@ -268,6 +269,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         // YouTube Music songs carry their thumbnail URL as cover art id
         override fun getCoverArtUrl(coverArtId: String, size: Int): String =
             if (coverArtId.startsWith("https://")) {
+                require(isYouTubeImageUrl(coverArtId)) { "Not a YouTube image: $coverArtId" }
                 resizeYouTubeThumbnail(coverArtId, size)
             } else {
                 active.getCoverArtUrl(coverArtId, size)

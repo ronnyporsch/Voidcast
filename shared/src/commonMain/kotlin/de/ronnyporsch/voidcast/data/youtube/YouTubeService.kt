@@ -200,7 +200,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return YouTubeArtist(
             artist = artist,
             // The header image is a wide banner; a square crop of it fits the artist header
-            info = ArtistInfo(biography = page.description, largeImageUrl = page.thumbnailUrl?.let { resizeYouTubeThumbnail(it, 544) }),
+            info = ArtistInfo(biography = page.description, largeImageUrl = page.thumbnailUrl?.takeIf(::isYouTubeImageUrl)?.let { resizeYouTubeThumbnail(it, 544) }),
             albums = page.albums.map { it.toAlbum(artist) },
             songs = page.songs.map { it.toSong() }.also(::checkDownloaded),
         )
@@ -408,6 +408,17 @@ class YouTubeService(private val connection: MusicServerConnection) {
 /** YouTube thumbnail URLs encode their size (e.g. `=w60-h60-l90-rj`); request a specific one instead. */
 fun resizeYouTubeThumbnail(url: String, size: Int): String =
     url.replace(Regex("""=w\d+-h\d+"""), "=w$size-h$size")
+
+// The host right after the scheme and then a path: nothing a URL parser could read as another host
+private val youTubeImageUrlRegex =
+    Regex("""^https://((lh|yt)\d+\.(googleusercontent|ggpht)\.com|i\d*\.ytimg\.com)(/[^\s\\]*)?$""", RegexOption.IGNORE_CASE)
+
+/**
+ * Whether [url] is on one of the hosts YouTube (Music) serves thumbnails from, e.g. lh3.googleusercontent.com,
+ * yt3.ggpht.com or i.ytimg.com. Thumbnail URLs come from the server and from other devices (remote control) and get
+ * loaded as they are, so anything else could make the app call any address.
+ */
+fun isYouTubeImageUrl(url: String): Boolean = youTubeImageUrlRegex.matches(url)
 
 private fun prefixed(id: String) = if (id.isEmpty()) "" else YOUTUBE_SONG_ID_PREFIX + id
 
