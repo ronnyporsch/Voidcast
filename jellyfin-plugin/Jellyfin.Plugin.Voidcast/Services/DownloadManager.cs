@@ -34,7 +34,8 @@ public partial class DownloadManager
     /// <summary>How long a track to add to a playlist may take to show up in the library (large libraries scan slowly).</summary>
     private static readonly TimeSpan PlaylistImportTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan AlbumTracksLifetime = TimeSpan.FromDays(1);
-    private static readonly string[] CoverHostSuffixes = [".googleusercontent.com", ".ytimg.com", ".ggpht.com"];
+    /// <summary>Covers are a few hundred kilobytes; what's bigger isn't one.</summary>
+    private const int MaxCoverBytes = 10 * 1024 * 1024;
 
     private readonly ILogger<DownloadManager> _logger;
     private readonly YtDlpService _ytDlp;
@@ -375,7 +376,7 @@ public partial class DownloadManager
                 song.ThumbnailUrl != null ? YouTubeMusicClient.ResizeThumbnail(song.ThumbnailUrl, 544) : null,
                 cancellationToken).ConfigureAwait(false);
 
-            AudioTagger.Write(audio, tags, cover);
+            AudioTagger.Write(audio, tags, cover?.Data, cover?.MimeType);
 
             var path = Path.Combine(targetDir, GetRelativePath(tags));
             var extension = Path.GetExtension(audio).ToLowerInvariant();
@@ -485,12 +486,14 @@ public partial class DownloadManager
         }
     }
 
-    private async Task<byte[]?> DownloadCoverAsync(string? url, CancellationToken cancellationToken)
+    /// <summary>Returns the image at <paramref name="url"/> and its MIME type, or null if it can't be used as cover.</summary>
+    private async Task<(byte[] Data, string MimeType)?> DownloadCoverAsync(string? url, CancellationToken cancellationToken)
     {
         // Only fetch from YouTube's image hosts: the URL is part of the client's request
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
-            || !CoverHostSuffixes.Any(suffix => uri.Host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
+            || !uri.IsDefaultPort
+            || !CoverHostRegex().IsMatch(uri.Host))
         {
             return null;
         }
@@ -498,13 +501,61 @@ public partial class DownloadManager
         try
         {
             var client = _httpClientFactory.CreateClient(NamedClient.Default);
-            return await client.GetByteArrayAsync(uri, cancellationToken).ConfigureAwait(false);
+            using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength > MaxCoverBytes)
+            {
+                _logger.LogWarning("Cover {Url} is too big", url);
+                return null;
+            }
+
+            // The length isn't always announced
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[81920];
+            int read;
+            while ((read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + read > MaxCoverBytes)
+                {
+                    _logger.LogWarning("Cover {Url} is too big", url);
+                    return null;
+                }
+
+                buffer.Write(chunk, 0, read);
+            }
+
+            var data = buffer.ToArray();
+            var mimeType = ImageMimeType(data);
+            if (mimeType == null)
+            {
+                _logger.LogWarning("Cover {Url} is not an image", url);
+                return null;
+            }
+
+            return (data, mimeType);
         }
-        catch (HttpRequestException e)
+        catch (Exception e) when (e is HttpRequestException or IOException)
         {
             _logger.LogWarning(e, "Could not download cover {Url}", url);
             return null;
         }
+    }
+
+    /// <summary>The MIME type of an image going by its first bytes, or null if it is none that tags can hold.</summary>
+    internal static string? ImageMimeType(ReadOnlySpan<byte> data)
+    {
+        if (data.StartsWith<byte>([0xFF, 0xD8, 0xFF]))
+        {
+            return "image/jpeg";
+        }
+
+        if (data.StartsWith<byte>([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
+        {
+            return "image/png";
+        }
+
+        return data.Length >= 12 && data[..4].SequenceEqual("RIFF"u8) && data[8..12].SequenceEqual("WEBP"u8) ? "image/webp" : null;
     }
 
     /// <summary>Queues a library scan and waits (bounded) for the track to show up. Returns its item id if it did.</summary>
@@ -579,6 +630,13 @@ public partial class DownloadManager
 
     [GeneratedRegex(@"[\\/:*?""<>|\p{Cc}]")]
     private static partial Regex InvalidFileNameChars();
+
+    /// <summary>
+    /// The hosts YouTube (Music) serves thumbnails from, e.g. lh3.googleusercontent.com, yt3.ggpht.com and i.ytimg.com.
+    /// Not all of googleusercontent.com: other subdomains serve what Google's users uploaded.
+    /// </summary>
+    [GeneratedRegex(@"^((lh|yt)\d+\.(googleusercontent|ggpht)\.com|i\d*\.ytimg\.com)$", RegexOptions.IgnoreCase)]
+    private static partial Regex CoverHostRegex();
 
     /// <summary><paramref name="Imported"/> completes with the library item id (null if the scan didn't find it in time).</summary>
     private sealed record Job(DownloadJobDto Dto, Guid UserId, TaskCompletionSource<Guid?> Imported);

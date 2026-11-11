@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.Voidcast.Services;
 /// <summary>Writes <see cref="TrackTags"/> the way MusicBrainz Picard would, using the server's TagLibSharp.</summary>
 internal static class AudioTagger
 {
-    public static void Write(string path, TrackTags tags, byte[]? jpegCover)
+    public static void Write(string path, TrackTags tags, byte[]? cover, string? coverMimeType)
     {
         using var file = TagLib.File.Create(path);
         var tag = file.Tag;
@@ -21,14 +21,14 @@ internal static class AudioTagger
         tag.TrackCount = (uint)(tags.TotalTracks ?? 0);
         tag.Year = (uint)(tags.Year ?? 0);
         tag.Comment = tags.Comment;
-        if (jpegCover != null)
+        if (cover != null)
         {
             tag.Pictures =
             [
-                new Picture(new ByteVector(jpegCover))
+                new Picture(new ByteVector(cover))
                 {
                     Type = PictureType.FrontCover,
-                    MimeType = "image/jpeg",
+                    MimeType = coverMimeType ?? "image/jpeg",
                     Description = "Album cover",
                 },
             ];
