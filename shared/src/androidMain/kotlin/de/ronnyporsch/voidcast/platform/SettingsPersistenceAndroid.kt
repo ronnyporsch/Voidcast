@@ -1,6 +1,7 @@
 package de.ronnyporsch.voidcast.platform
 
 import android.content.Context
+import android.content.SharedPreferences
 import de.ronnyporsch.voidcast.domain.model.AppSettings
 import de.ronnyporsch.voidcast.domain.model.PlaybackSettings
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
@@ -10,13 +11,27 @@ private val prefs by lazy {
     AppContextHolder.context.getSharedPreferences("voidcast_settings", Context.MODE_PRIVATE)
 }
 
+/**
+ * Stores [secret] under [key] encrypted with the device's keystore, see [SecretCipher]. Only where the keystore
+ * doesn't work it stays readable, as in the versions before.
+ */
+private fun SharedPreferences.Editor.putSecret(key: String, secret: String): SharedPreferences.Editor {
+    if (secret.isEmpty()) return remove("${key}Encrypted").remove(key)
+    val encrypted = SecretCipher.encrypt(secret)
+    return if (encrypted != null) putString("${key}Encrypted", encrypted).remove(key)
+    else remove("${key}Encrypted").putString(key, secret)
+}
+
+private fun SharedPreferences.getSecret(key: String): String =
+    getString("${key}Encrypted", null)?.let { SecretCipher.decrypt(it) ?: "" } ?: getString(key, "") ?: ""
+
 actual fun saveSettings(settings: AppSettings) {
     prefs.edit()
         .putString("serverType", settings.serverType.name)
         .putString("serverUrl", settings.serverUrl)
         .putString("username", settings.username)
-        .putString("password", settings.password)
-        .putString("accessToken", settings.accessToken)
+        .putSecret("password", settings.password)
+        .putSecret("accessToken", settings.accessToken)
         .putString("jellyfinUserId", settings.jellyfinUserId)
         .putString("subsonicSalt", settings.subsonicSalt)
         .putBoolean("allowUntrustedCertificate", settings.allowUntrustedCertificate)
@@ -37,12 +52,16 @@ actual fun loadSettings(): AppSettings? {
     val p = prefs
     val serverUrl = p.getString("serverUrl", "") ?: ""
     if (serverUrl.isBlank()) return null
+    // Versions before kept these readable
+    if (p.contains("password") || p.contains("accessToken")) {
+        p.edit().putSecret("password", p.getString("password", "") ?: "").putSecret("accessToken", p.getString("accessToken", "") ?: "").apply()
+    }
     return AppSettings(
         serverType = ServerType.entries.firstOrNull { it.name == p.getString("serverType", "") } ?: ServerType.Subsonic,
         serverUrl = serverUrl,
         username = p.getString("username", "") ?: "",
-        password = p.getString("password", "") ?: "",
-        accessToken = p.getString("accessToken", "") ?: "",
+        password = p.getSecret("password"),
+        accessToken = p.getSecret("accessToken"),
         jellyfinUserId = p.getString("jellyfinUserId", "") ?: "",
         subsonicSalt = p.getString("subsonicSalt", "") ?: "",
         allowUntrustedCertificate = p.getBoolean("allowUntrustedCertificate", false),
