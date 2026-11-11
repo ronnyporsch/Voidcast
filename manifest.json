@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.10.0.0",
+        "changelog": "Security fixes: a user can no longer make the server download without limits, downloads no longer replace other songs of the library, only administrators can start a scan for new releases, and covers are only taken from YouTube's image hosts",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.10.0/voidcast_1.10.0.0.zip",
+        "checksum": "f1bfece42dad4a27e4bd4e1e0a8595e9",
+        "timestamp": "2026-11-11T18:43:10Z"
+      },
+      {
         "version": "1.8.0.0",
         "changelog": "Release Discovery is now done by the server plugin",
         "targetAbi": "12.2.0.0",
