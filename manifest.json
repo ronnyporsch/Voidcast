@@ -11,9 +11,9 @@
         "version": "1.10.0.0",
         "changelog": "The access token is only ever saved protected, and logins saved by earlier versions are no longer taken over\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>",
         "targetAbi": "12.2.0.0",
-        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.10.0/voidcast_1.10.0.0.zip",
-        "checksum": "a69cc1870fa07af5a07b57e6de694dfd",
-        "timestamp": "2026-11-11T18:21:11Z"
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.11.0/voidcast_1.10.0.0.zip",
+        "checksum": "4afcc39f2e3e1b9e8698c8bb3820f484",
+        "timestamp": "2026-11-11T18:23:15Z"
       },
       {
         "version": "1.9.0.0",
