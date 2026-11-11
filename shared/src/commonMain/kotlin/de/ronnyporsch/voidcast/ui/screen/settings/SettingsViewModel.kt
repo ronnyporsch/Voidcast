@@ -26,7 +26,6 @@ class SettingsViewModel(
                 serverType = current.serverType,
                 serverUrl = current.serverUrl,
                 username = current.username,
-                password = current.password,
                 allowUntrustedCertificate = current.allowUntrustedCertificate,
                 gaplessEnabled = current.playback.gaplessEnabled,
                 crossfadeEnabled = current.playback.crossfadeEnabled,
@@ -140,8 +139,16 @@ class SettingsViewModel(
 
     private fun reconnect() {
         val state = currentState
-        if (state.serverUrl.isBlank() || state.username.isBlank() || state.password.isBlank()) {
-            setState { copy(error = "All fields are required") }
+        val saved = settingsHolder.settings.value
+        // The password isn't kept: without it, only the saved login can be connected again
+        val sameLogin = state.serverType == saved.serverType && state.username == saved.username &&
+            state.serverUrl.trim().trimEnd('/') == saved.serverUrl && saved.hasSavedToken
+        if (state.serverUrl.isBlank() || state.username.isBlank()) {
+            setState { copy(error = "Server URL and username are required") }
+            return
+        }
+        if (state.password.isBlank() && !sameLogin) {
+            setState { copy(error = "Enter the password to connect to another server or as another user") }
             return
         }
 
@@ -149,13 +156,19 @@ class SettingsViewModel(
 
         launch {
             try {
-                connection.connect(
-                    state.serverType,
-                    state.serverUrl,
-                    state.username,
-                    state.password,
-                    state.allowUntrustedCertificate,
-                )
+                if (state.password.isBlank()) {
+                    settingsHolder.update { copy(allowUntrustedCertificate = state.allowUntrustedCertificate) }
+                    connection.resume()
+                } else {
+                    connection.connect(
+                        state.serverType,
+                        state.serverUrl,
+                        state.username,
+                        state.password,
+                        state.allowUntrustedCertificate,
+                    )
+                    setState { copy(password = "") }
+                }
                 setState { copy(isReconnecting = false, reconnectSuccess = true) }
                 emitEffect(SettingsEffect.ShowMessage("Connected successfully"))
             } catch (e: CancellationException) {

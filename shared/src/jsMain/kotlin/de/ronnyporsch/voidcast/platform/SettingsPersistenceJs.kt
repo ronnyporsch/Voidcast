@@ -12,6 +12,9 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("serverUrl", settings.serverUrl)
     storage.setItem("username", settings.username)
     storage.setItem("password", settings.password)
+    storage.setItem("accessToken", settings.accessToken)
+    storage.setItem("jellyfinUserId", settings.jellyfinUserId)
+    storage.setItem("subsonicSalt", settings.subsonicSalt)
     storage.setItem("allowUntrustedCertificate", settings.allowUntrustedCertificate.toString())
     storage.setItem("gaplessEnabled", settings.playback.gaplessEnabled.toString())
     storage.setItem("crossfadeEnabled", settings.playback.crossfadeEnabled.toString())
@@ -31,6 +34,9 @@ actual fun loadSettings(): AppSettings? {
         serverUrl = serverUrl,
         username = storage.getItem("username") ?: "",
         password = storage.getItem("password") ?: "",
+        accessToken = storage.getItem("accessToken") ?: "",
+        jellyfinUserId = storage.getItem("jellyfinUserId") ?: "",
+        subsonicSalt = storage.getItem("subsonicSalt") ?: "",
         allowUntrustedCertificate = storage.getItem("allowUntrustedCertificate")?.toBooleanStrictOrNull() ?: false,
         playback = PlaybackSettings(
             gaplessEnabled = storage.getItem("gaplessEnabled")?.toBooleanStrictOrNull() ?: false,

@@ -9,7 +9,7 @@ class LoginViewModel(
     private val connection: MusicServerConnection,
     saved: AppSettings,
 ) : MviStore<LoginState, LoginEvent, LoginEffect>(
-    // Pre-fill the last login, e.g. when the server rejected the saved password
+    // Pre-fill the last login, e.g. when the server rejected the saved one; the password isn't kept
     if (saved.serverUrl.isBlank()) {
         LoginState()
     } else {

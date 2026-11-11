@@ -89,6 +89,17 @@ class JellyfinApiService {
         return JellyfinSession(url, result.user.id, result.accessToken, deviceId).also { session = it }
     }
 
+    /**
+     * Continues the session of an earlier [authenticate], whose access token got saved. Throws a
+     * [JellyfinApiException] with [HttpStatusCode.Unauthorized] if the server doesn't know the token any more.
+     */
+    suspend fun resume(saved: JellyfinSession) {
+        client.get("${saved.serverUrl}/Users/Me") {
+            header(HttpHeaders.Authorization, authorizationHeader(saved.deviceId, saved.accessToken))
+        }.ensureSuccess()
+        session = saved
+    }
+
     /** Ends the session on the server, which revokes its access token; forgets it locally even if that fails. */
     suspend fun logout() {
         try {

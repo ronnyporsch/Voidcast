@@ -4,6 +4,7 @@ import de.ronnyporsch.voidcast.data.api.SubsonicApiService
 import de.ronnyporsch.voidcast.data.jellyfin.JellyfinApiException
 import de.ronnyporsch.voidcast.data.jellyfin.JellyfinApiService
 import de.ronnyporsch.voidcast.data.jellyfin.JellyfinMusicRepository
+import de.ronnyporsch.voidcast.data.jellyfin.JellyfinSession
 import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.offline.OfflineMusicRepository
 import de.ronnyporsch.voidcast.data.offline.PlaylistCache
@@ -75,8 +76,9 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
     private fun serverKey(): String = settingsHolder.settings.value.serverKey
 
     /**
-     * Connects to the server (and remembers the connection if [save]). Throws with a user-facing message on failure,
-     * an [InvalidCredentialsException] if the server rejected the login.
+     * Logs in to the server and remembers the connection: not the password, but the token the app signs in with from
+     * then on, see [resume]. Throws with a user-facing message on failure, an [InvalidCredentialsException] if the
+     * server rejected the login.
      */
     suspend fun connect(
         type: ServerType,
@@ -84,56 +86,90 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         username: String,
         password: String,
         allowUntrustedCertificate: Boolean,
-        save: Boolean = true,
     ) {
         val url = serverUrl.trim().trimEnd('/')
         untrustedCertificateHost = if (allowUntrustedCertificate) parseUrl(url)?.host else null
-        var deviceId = settingsHolder.settings.value.jellyfinDeviceId
+        // Only the login: other settings may change while the server is being asked
+        fun AppSettings.withLogin(accessToken: String, jellyfinUserId: String = "", subsonicSalt: String = "") = copy(
+            serverType = type,
+            serverUrl = url,
+            username = username,
+            password = "",
+            accessToken = accessToken,
+            jellyfinUserId = jellyfinUserId,
+            subsonicSalt = subsonicSalt,
+            allowUntrustedCertificate = allowUntrustedCertificate,
+        )
         when (type) {
             ServerType.Subsonic -> {
                 val salt = generateSalt()
-                subsonicApi.configure(ServerConfig(url, username, md5(password + salt), salt))
-                val error = subsonicApi.checkCredentials()
-                // 40: wrong username or password, 41: token authentication not supported for this user
-                if (error != null && error.code in 40..41) throw InvalidCredentialsException(error.message)
-                if (error != null) throw IllegalStateException(error.message.ifBlank { "Connection failed" })
-                active = subsonic
-                _plugin.value = null
-                _pluginMissing.value = false
+                val token = md5(password + salt)
+                connectSubsonic(ServerConfig(url, username, token, salt))
+                settingsHolder.update { withLogin(token, subsonicSalt = salt) }
             }
             ServerType.Jellyfin -> {
-                if (deviceId.isBlank()) deviceId = "voidcast-" + generateSalt(24)
-                try {
+                val deviceId = settingsHolder.settings.value.jellyfinDeviceId.ifBlank { "voidcast-" + generateSalt(24) }
+                val session = try {
                     jellyfinApi.authenticate(url, username, password, deviceId)
                 } catch (e: JellyfinApiException) {
                     if (e.status == HttpStatusCode.Unauthorized) throw InvalidCredentialsException(e.message ?: "")
+                    throw e
+                }
+                settingsHolder.update { withLogin(session.accessToken, jellyfinUserId = session.userId).copy(jellyfinDeviceId = deviceId) }
+                active = jellyfin
+                refreshPlugin()
+            }
+        }
+        connected(type)
+    }
+
+    /**
+     * Connects with what [connect] remembered, e.g. when the app starts. Throws like [connect]; an
+     * [InvalidCredentialsException] means the server doesn't accept the saved token any more, e.g. because the
+     * session was ended there or the password changed.
+     */
+    suspend fun resume() {
+        val saved = settingsHolder.settings.value
+        if (!saved.hasSavedToken) {
+            // Saved by a version that kept the password; this replaces it with the token
+            return connect(saved.serverType, saved.serverUrl, saved.username, saved.password, saved.allowUntrustedCertificate)
+        }
+        untrustedCertificateHost = if (saved.allowUntrustedCertificate) parseUrl(saved.serverUrl)?.host else null
+        when (saved.serverType) {
+            ServerType.Subsonic -> connectSubsonic(ServerConfig(saved.serverUrl, saved.username, saved.accessToken, saved.subsonicSalt))
+            ServerType.Jellyfin -> {
+                try {
+                    jellyfinApi.resume(JellyfinSession(saved.serverUrl, saved.jellyfinUserId, saved.accessToken, saved.jellyfinDeviceId))
+                } catch (e: JellyfinApiException) {
+                    if (e.status == HttpStatusCode.Unauthorized) throw InvalidCredentialsException("Your login has expired, please log in again")
                     throw e
                 }
                 active = jellyfin
                 refreshPlugin()
             }
         }
+        connected(saved.serverType)
+    }
+
+    private suspend fun connectSubsonic(config: ServerConfig) {
+        subsonicApi.configure(config)
+        val error = subsonicApi.checkCredentials()
+        // 40: wrong username or password, 41: token authentication not supported for this user
+        if (error != null && error.code in 40..41) throw InvalidCredentialsException(error.message)
+        if (error != null) throw IllegalStateException(error.message.ifBlank { "Connection failed" })
+        active = subsonic
+        _plugin.value = null
+        _pluginMissing.value = false
+    }
+
+    private suspend fun connected(type: ServerType) {
         _serverType.value = type
-        if (save) {
-            settingsHolder.update {
-                copy(
-                    serverType = type,
-                    serverUrl = url,
-                    username = username,
-                    password = password,
-                    allowUntrustedCertificate = allowUntrustedCertificate,
-                    jellyfinDeviceId = deviceId,
-                )
-            }
-        } else if (deviceId != settingsHolder.settings.value.jellyfinDeviceId) {
-            settingsHolder.update { copy(jellyfinDeviceId = deviceId) }
-        }
         _connections.value++
         favorites.reload()
         downloads.syncAll()
     }
 
-    /** Ends the session with the server and forgets the saved password, so the next start asks for the login. */
+    /** Ends the session with the server and forgets the saved token, so the next start asks for the login. */
     suspend fun logout() {
         if (jellyfinApi.isConfigured) {
             // Still log out locally if the server can't be reached
@@ -148,7 +184,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         _serverType.value = null
         _plugin.value = null
         _pluginMissing.value = false
-        settingsHolder.update { copy(password = "") }
+        settingsHolder.update { copy(password = "", accessToken = "", jellyfinUserId = "", subsonicSalt = "") }
     }
 
     /** Re-reads what the Voidcast Jellyfin plugin offers, e.g. after an admin changed its settings. */

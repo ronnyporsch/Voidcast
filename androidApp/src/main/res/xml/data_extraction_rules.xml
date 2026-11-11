@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backups and transfers to another device (Android 12 and newer) leave out the settings, which hold the token the
+     app signs in to the server with -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="voidcast_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="voidcast_settings.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backups (up to Android 11) leave out the settings, which hold the token the app signs in to the server with -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="voidcast_settings.xml" />
+</full-backup-content>

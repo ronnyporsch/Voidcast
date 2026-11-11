@@ -126,6 +126,8 @@ fun SettingsScreen(
                     value = state.password,
                     onValueChange = { viewModel.onEvent(SettingsEvent.PasswordChanged(it)) },
                     label = { Text("Password") },
+                    // It isn't kept, so there is none to show
+                    placeholder = { Text("Only needed to change the login") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),

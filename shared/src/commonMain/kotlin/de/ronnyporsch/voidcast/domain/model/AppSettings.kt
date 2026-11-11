@@ -34,7 +34,20 @@ data class AppSettings(
     val serverType: ServerType = ServerType.Subsonic,
     val serverUrl: String = "",
     val username: String = "",
+    /**
+     * Only set by versions that kept the password: the next start logs in with it once and replaces it with the
+     * [accessToken].
+     */
     val password: String = "",
+    /**
+     * What the app signs in with instead of the password, which it doesn't keep: the access token of the session on
+     * a Jellyfin server, on a Subsonic server the password hashed with the [subsonicSalt]. Unlike the password, it is
+     * of no use anywhere else, and a Jellyfin server forgets it when logging out.
+     */
+    val accessToken: String = "",
+    /** The Jellyfin user the [accessToken] belongs to. */
+    val jellyfinUserId: String = "",
+    val subsonicSalt: String = "",
     /** Accept the server's TLS certificate even if it isn't trusted, e.g. because it's self-signed. */
     val allowUntrustedCertificate: Boolean = false,
     val playback: PlaybackSettings = PlaybackSettings(),
@@ -47,7 +60,14 @@ data class AppSettings(
     val downloadOnlyOnWifi: Boolean = false,
 ) {
     val hasSavedConnection: Boolean
-        get() = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+        get() = serverUrl.isNotBlank() && username.isNotBlank() && (hasSavedToken || password.isNotBlank())
+
+    /** Whether the [accessToken] and what belongs to it are there. */
+    val hasSavedToken: Boolean
+        get() = accessToken.isNotBlank() && when (serverType) {
+            ServerType.Jellyfin -> jellyfinUserId.isNotBlank()
+            ServerType.Subsonic -> subsonicSalt.isNotBlank()
+        }
 
     /** Identifies the saved server for the data stored on the device. */
     val serverKey: String

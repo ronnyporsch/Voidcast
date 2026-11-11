@@ -105,14 +105,7 @@ class AppSession private constructor() {
             // An attempt is about to start anyway
             retryRequests.tryReceive()
             try {
-                connection.connect(
-                    saved.serverType,
-                    saved.serverUrl,
-                    saved.username,
-                    saved.password,
-                    saved.allowUntrustedCertificate,
-                    save = false,
-                )
+                connection.resume()
                 return
             } catch (e: CancellationException) {
                 throw e
