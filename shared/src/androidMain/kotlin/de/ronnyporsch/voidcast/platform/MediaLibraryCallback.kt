@@ -49,6 +49,9 @@ internal class MediaLibraryCallback(private val connection: MusicServerConnectio
         scope.cancel()
     }
 
+    override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
+        if (mayControl(AppContextHolder.context, controller)) super.onConnect(session, controller) else MediaSession.ConnectionResult.reject()
+
     override fun onGetLibraryRoot(
         session: MediaLibrarySession,
         browser: MediaSession.ControllerInfo,

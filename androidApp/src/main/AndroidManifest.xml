@@ -8,6 +8,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+    <!-- The apps besides the system that may browse the library and control playback, see MediaControllerCheck.kt:
+         the app checks that they are genuine, for which it has to be able to see them -->
+    <queries>
+        <package android:name="com.google.android.projection.gearhead" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <package android:name="com.google.android.wearable.app" />
+        <package android:name="com.google.android.carassistant" />
+    </queries>
+
     <application
             android:allowBackup="true"
             android:icon="@mipmap/ic_launcher"
