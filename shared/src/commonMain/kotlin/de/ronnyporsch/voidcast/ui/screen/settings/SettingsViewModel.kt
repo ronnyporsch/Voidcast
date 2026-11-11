@@ -27,6 +27,7 @@ class SettingsViewModel(
                 serverUrl = current.serverUrl,
                 username = current.username,
                 allowUntrustedCertificate = current.allowUntrustedCertificate,
+                certificateFingerprint = current.certificateFingerprint.takeIf { current.allowUntrustedCertificate },
                 gaplessEnabled = current.playback.gaplessEnabled,
                 crossfadeEnabled = current.playback.crossfadeEnabled,
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
@@ -72,8 +73,11 @@ class SettingsViewModel(
             is SettingsEvent.ServerUrlChanged -> setState { copy(serverUrl = event.url, error = null) }
             is SettingsEvent.UsernameChanged -> setState { copy(username = event.username, error = null) }
             is SettingsEvent.PasswordChanged -> setState { copy(password = event.password, error = null) }
-            is SettingsEvent.AllowUntrustedCertificateToggled ->
-                setState { copy(allowUntrustedCertificate = event.allow, error = null) }
+            is SettingsEvent.AllowUntrustedCertificateToggled -> {
+                // Turning it on (again) trusts the certificate the server shows at the next connection
+                connection.forgetCertificate()
+                setState { copy(allowUntrustedCertificate = event.allow, certificateFingerprint = null, error = null) }
+            }
             is SettingsEvent.GaplessToggled -> {
                 setState { copy(gaplessEnabled = event.enabled) }
                 updatePlaybackSettings { copy(gaplessEnabled = event.enabled) }
@@ -169,7 +173,14 @@ class SettingsViewModel(
                     )
                     setState { copy(password = "") }
                 }
-                setState { copy(isReconnecting = false, reconnectSuccess = true) }
+                val connected = settingsHolder.settings.value
+                setState {
+                    copy(
+                        isReconnecting = false,
+                        reconnectSuccess = true,
+                        certificateFingerprint = connected.certificateFingerprint.takeIf { connected.allowUntrustedCertificate },
+                    )
+                }
                 emitEffect(SettingsEffect.ShowMessage("Connected successfully"))
             } catch (e: CancellationException) {
                 throw e

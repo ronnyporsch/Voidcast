@@ -139,6 +139,7 @@ fun SettingsScreen(
                 UntrustedCertificateSwitch(
                     checked = state.allowUntrustedCertificate,
                     onCheckedChange = { viewModel.onEvent(SettingsEvent.AllowUntrustedCertificateToggled(it)) },
+                    fingerprint = state.certificateFingerprint,
                 )
 
                 if (state.error != null) {

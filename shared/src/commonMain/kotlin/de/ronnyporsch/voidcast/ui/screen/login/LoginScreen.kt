@@ -125,6 +125,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
             UntrustedCertificateSwitch(
                 checked = state.allowUntrustedCertificate,
                 onCheckedChange = { viewModel.onEvent(LoginEvent.AllowUntrustedCertificateToggled(it)) },
+                fingerprint = state.certificateFingerprint,
             )
 
             if (state.error != null) {

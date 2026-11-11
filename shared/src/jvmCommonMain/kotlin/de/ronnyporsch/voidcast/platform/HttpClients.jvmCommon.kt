@@ -9,6 +9,8 @@ import okhttp3.Request
 import java.io.IOException
 import java.net.Socket
 import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 
@@ -41,7 +43,9 @@ val sharedOkHttpClient: OkHttpClient by lazy {
         .addInterceptor { chain -> chain.proceed(chain.request().withTokenInHeader()) }
         .sslSocketFactory(sslContext.socketFactory, UntrustedHostTrustManager)
         .hostnameVerifier { hostname, session ->
-            hostname.isUntrusted() || defaultHostnameVerifier.verify(hostname, session)
+            // The accepted certificate needn't match the host name; any other one has to, like for every other host
+            val leaf = runCatching { session.peerCertificates.firstOrNull() as? X509Certificate }.getOrNull()
+            (leaf != null && acceptedCertificateOf(hostname)?.accepts(leaf) == true) || defaultHostnameVerifier.verify(hostname, session)
         }
         .build()
 }
@@ -59,11 +63,20 @@ private fun Request.withTokenInHeader(): Request {
         .build()
 }
 
-private fun String?.isUntrusted() = this != null && equals(untrustedCertificateHost, ignoreCase = true)
+private fun acceptedCertificateOf(host: String?): UntrustedCertificate? =
+    untrustedCertificate?.takeIf { host != null && it.host.equals(host, ignoreCase = true) }
+
+/** Whether [certificate] is the one the user accepted for the host; the first one the host shows becomes it. */
+private fun UntrustedCertificate.accepts(certificate: X509Certificate): Boolean = synchronized(this) {
+    val shown = MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") { "%02x".format(it) }
+    val accepted = fingerprint ?: shown.also { fingerprint = it }
+    accepted == shown
+}
 
 /**
- * Verifies certificates like the platform does, except for [untrustedCertificateHost]. JSSE (and Android's
- * Conscrypt) pass the socket to an [X509ExtendedTrustManager], which tells the host being connected to.
+ * Verifies certificates like the platform does, except that it also takes the one accepted for the host of
+ * [untrustedCertificate]. JSSE (and Android's Conscrypt) pass the socket to an [X509ExtendedTrustManager], which
+ * tells the host being connected to.
  */
 private object UntrustedHostTrustManager : X509ExtendedTrustManager() {
     private val system: X509ExtendedTrustManager =
@@ -71,13 +84,25 @@ private object UntrustedHostTrustManager : X509ExtendedTrustManager() {
             .apply { init(null as KeyStore?) }
             .trustManagers.filterIsInstance<X509ExtendedTrustManager>().first()
 
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, socket: Socket?) {
-        val host = (socket as? SSLSocket)?.handshakeSession?.peerHost
-        if (!host.isUntrusted()) system.checkServerTrusted(chain, authType, socket)
-    }
+    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, socket: Socket?) =
+        check(chain, (socket as? SSLSocket)?.handshakeSession?.peerHost) { system.checkServerTrusted(chain, authType, socket) }
 
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, engine: SSLEngine?) {
-        if (!engine?.peerHost.isUntrusted()) system.checkServerTrusted(chain, authType, engine)
+    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, engine: SSLEngine?) =
+        check(chain, engine?.peerHost) { system.checkServerTrusted(chain, authType, engine) }
+
+    /** Passes if [chain] starts with the certificate accepted for [host], or else if [verify] (the usual check) does. */
+    private fun check(chain: Array<X509Certificate>, host: String?, verify: () -> Unit) {
+        val accepted = acceptedCertificateOf(host) ?: return verify()
+        if (chain.isNotEmpty() && accepted.accepts(chain[0])) return
+        try {
+            verify()
+        } catch (e: CertificateException) {
+            throw CertificateException(
+                "${accepted.host} shows another certificate than the one trusted so far. If the server got a new one, turn " +
+                    "\"Allow self-signed certificate\" off and on again; if not, someone may be intercepting the connection.",
+                e,
+            )
+        }
     }
 
     // Without a socket the host is unknown, so verify

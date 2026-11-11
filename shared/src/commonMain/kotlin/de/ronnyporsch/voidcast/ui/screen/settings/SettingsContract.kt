@@ -8,6 +8,8 @@ data class SettingsState(
     val username: String = "",
     val password: String = "",
     val allowUntrustedCertificate: Boolean = false,
+    /** SHA-256 of the certificate the server is trusted with, if [allowUntrustedCertificate]; null if none yet. */
+    val certificateFingerprint: String? = null,
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,

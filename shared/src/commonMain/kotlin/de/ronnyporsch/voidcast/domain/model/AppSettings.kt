@@ -50,6 +50,11 @@ data class AppSettings(
     val subsonicSalt: String = "",
     /** Accept the server's TLS certificate even if it isn't trusted, e.g. because it's self-signed. */
     val allowUntrustedCertificate: Boolean = false,
+    /**
+     * SHA-256 (lowercase hex) of the certificate the server showed when [allowUntrustedCertificate] got used first,
+     * the only one it is trusted with since; blank until then. See [de.ronnyporsch.voidcast.platform.UntrustedCertificate].
+     */
+    val certificateFingerprint: String = "",
     val playback: PlaybackSettings = PlaybackSettings(),
     /** Identifies this installation to Jellyfin, so logging in again replaces the previous session. */
     val jellyfinDeviceId: String = "",

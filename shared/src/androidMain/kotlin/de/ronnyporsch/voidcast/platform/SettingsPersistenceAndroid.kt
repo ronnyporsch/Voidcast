@@ -20,6 +20,7 @@ actual fun saveSettings(settings: AppSettings) {
         .putString("jellyfinUserId", settings.jellyfinUserId)
         .putString("subsonicSalt", settings.subsonicSalt)
         .putBoolean("allowUntrustedCertificate", settings.allowUntrustedCertificate)
+        .putString("certificateFingerprint", settings.certificateFingerprint)
         .putBoolean("gaplessEnabled", settings.playback.gaplessEnabled)
         .putBoolean("crossfadeEnabled", settings.playback.crossfadeEnabled)
         .putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
@@ -45,6 +46,7 @@ actual fun loadSettings(): AppSettings? {
         jellyfinUserId = p.getString("jellyfinUserId", "") ?: "",
         subsonicSalt = p.getString("subsonicSalt", "") ?: "",
         allowUntrustedCertificate = p.getBoolean("allowUntrustedCertificate", false),
+        certificateFingerprint = p.getString("certificateFingerprint", "") ?: "",
         playback = PlaybackSettings(
             gaplessEnabled = p.getBoolean("gaplessEnabled", false),
             crossfadeEnabled = p.getBoolean("crossfadeEnabled", false),

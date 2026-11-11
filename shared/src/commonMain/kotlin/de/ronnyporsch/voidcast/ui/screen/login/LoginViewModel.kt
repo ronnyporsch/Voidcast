@@ -19,6 +19,7 @@ class LoginViewModel(
             username = saved.username,
             password = saved.password,
             allowUntrustedCertificate = saved.allowUntrustedCertificate,
+            certificateFingerprint = saved.certificateFingerprint.takeIf { saved.allowUntrustedCertificate },
         )
     }
 ) {
@@ -29,8 +30,11 @@ class LoginViewModel(
             is LoginEvent.ServerUrlChanged -> setState { copy(serverUrl = event.url, error = null) }
             is LoginEvent.UsernameChanged -> setState { copy(username = event.username, error = null) }
             is LoginEvent.PasswordChanged -> setState { copy(password = event.password, error = null) }
-            is LoginEvent.AllowUntrustedCertificateToggled ->
-                setState { copy(allowUntrustedCertificate = event.allow, error = null) }
+            is LoginEvent.AllowUntrustedCertificateToggled -> {
+                // Turning it on (again) trusts the certificate the server shows at the next connection
+                connection.forgetCertificate()
+                setState { copy(allowUntrustedCertificate = event.allow, certificateFingerprint = null, error = null) }
+            }
             is LoginEvent.ConnectClicked -> connect()
         }
     }

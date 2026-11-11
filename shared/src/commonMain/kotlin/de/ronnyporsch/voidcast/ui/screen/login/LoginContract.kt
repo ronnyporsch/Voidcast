@@ -8,6 +8,8 @@ data class LoginState(
     val username: String = "",
     val password: String = "",
     val allowUntrustedCertificate: Boolean = false,
+    /** SHA-256 of the certificate the server is trusted with, if [allowUntrustedCertificate]; null if none yet. */
+    val certificateFingerprint: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
 )

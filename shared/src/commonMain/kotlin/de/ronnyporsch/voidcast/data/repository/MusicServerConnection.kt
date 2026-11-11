@@ -16,7 +16,8 @@ import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.platform.createSongFileSharer
 import de.ronnyporsch.voidcast.platform.createSongFileStore
 import de.ronnyporsch.voidcast.platform.isOnWifi
-import de.ronnyporsch.voidcast.platform.untrustedCertificateHost
+import de.ronnyporsch.voidcast.platform.UntrustedCertificate
+import de.ronnyporsch.voidcast.platform.untrustedCertificate
 import de.ronnyporsch.voidcast.util.generateSalt
 import de.ronnyporsch.voidcast.util.md5
 import io.ktor.http.HttpStatusCode
@@ -88,7 +89,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         allowUntrustedCertificate: Boolean,
     ) {
         val url = serverUrl.trim().trimEnd('/')
-        untrustedCertificateHost = if (allowUntrustedCertificate) parseUrl(url)?.host else null
+        trustCertificate(url, allowUntrustedCertificate)
         // Only the login: other settings may change while the server is being asked
         fun AppSettings.withLogin(accessToken: String, jellyfinUserId: String = "", subsonicSalt: String = "") = copy(
             serverType = type,
@@ -134,7 +135,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
             // Saved by a version that kept the password; this replaces it with the token
             return connect(saved.serverType, saved.serverUrl, saved.username, saved.password, saved.allowUntrustedCertificate)
         }
-        untrustedCertificateHost = if (saved.allowUntrustedCertificate) parseUrl(saved.serverUrl)?.host else null
+        trustCertificate(saved.serverUrl, saved.allowUntrustedCertificate)
         when (saved.serverType) {
             ServerType.Subsonic -> connectSubsonic(ServerConfig(saved.serverUrl, saved.username, saved.accessToken, saved.subsonicSalt))
             ServerType.Jellyfin -> {
@@ -162,7 +163,28 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         _pluginMissing.value = false
     }
 
+    /**
+     * If [allow], the server at [url] is trusted with the certificate remembered for it; without one, with the
+     * certificate it shows next, which [connected] then remembers.
+     */
+    private fun trustCertificate(url: String, allow: Boolean) {
+        val host = parseUrl(url)?.host?.takeIf { allow }
+        val saved = settingsHolder.settings.value
+        val fingerprint = saved.certificateFingerprint.takeIf { it.isNotBlank() && parseUrl(saved.serverUrl)?.host == host }
+        untrustedCertificate = host?.let { UntrustedCertificate(it, fingerprint) }
+    }
+
+    /**
+     * Forgets the certificate the server is trusted with, so the next connection trusts the one it shows then, e.g.
+     * after the server got a new one.
+     */
+    fun forgetCertificate() {
+        if (settingsHolder.settings.value.certificateFingerprint.isNotEmpty()) settingsHolder.update { copy(certificateFingerprint = "") }
+    }
+
     private suspend fun connected(type: ServerType) {
+        val fingerprint = untrustedCertificate?.fingerprint.orEmpty()
+        if (fingerprint != settingsHolder.settings.value.certificateFingerprint) settingsHolder.update { copy(certificateFingerprint = fingerprint) }
         _serverType.value = type
         _connections.value++
         favorites.reload()

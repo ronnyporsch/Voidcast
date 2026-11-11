@@ -4,14 +4,26 @@ import io.ktor.client.*
 import kotlin.concurrent.Volatile
 
 /**
- * The host whose TLS certificate is accepted even if it isn't trusted (e.g. self-signed) or doesn't match the host
- * name, or null to verify all certificates. Only the music server gets this, everything else (e.g. YouTube
- * thumbnails) is still verified. Browsers verify certificates themselves, so this has no effect on the web.
+ * The one TLS certificate [host] is trusted with even though nobody vouches for it (e.g. it is self-signed) or it
+ * doesn't match the host name. [fingerprint] is its SHA-256 (lowercase hex); while it is null, the certificate the
+ * host shows next is trusted and becomes it (trust on first use). Any other certificate the host shows later is only
+ * accepted if it is valid like for every other host, so nobody in between can pass off their own.
+ */
+class UntrustedCertificate(val host: String, fingerprint: String?) {
+    @Volatile
+    var fingerprint: String? = fingerprint
+        internal set
+}
+
+/**
+ * The certificate the user accepted for the music server, or null to verify all certificates the usual way. Only the
+ * music server gets this, everything else (e.g. YouTube thumbnails) is still verified. Browsers verify certificates
+ * themselves, so this has no effect on the web.
  */
 @Volatile
-var untrustedCertificateHost: String? = null
+var untrustedCertificate: UntrustedCertificate? = null
     set(value) {
-        if (field == value) return
+        if (field === value) return
         field = value
         closeIdleConnections()
     }
@@ -45,11 +57,11 @@ var headerAuthorization: HeaderAuthorization? = null
 /** Cancels the requests in flight, see [offlineMode]. */
 internal expect fun cancelRequests()
 
-/** Drops pooled connections, which were established under the previous [untrustedCertificateHost]. */
+/** Drops pooled connections, which were established under the previous [untrustedCertificate]. */
 internal expect fun closeIdleConnections()
 
-/** Whether the platform honors [untrustedCertificateHost]. */
+/** Whether the platform honors [untrustedCertificate]. */
 expect val canAcceptUntrustedCertificates: Boolean
 
-/** Creates an HTTP client that honors [untrustedCertificateHost]. */
+/** Creates an HTTP client that honors [untrustedCertificate]. */
 expect fun createHttpClient(block: HttpClientConfig<*>.() -> Unit = {}): HttpClient
