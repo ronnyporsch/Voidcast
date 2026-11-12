@@ -36,6 +36,12 @@ interface AudioPlayer {
      * [de.ronnyporsch.voidcast.domain.model.normalizationGain]), on top of [setVolume]; 0 plays it as it is.
      */
     fun setGain(gainDb: Float)
+
+    /**
+     * Plays everything [boostDb] decibels louder than it is, beyond the full volume of the device, on top of
+     * [setVolume] and [setGain]; at most [de.ronnyporsch.voidcast.Platform.maxVolumeBoostDb], 0 plays it as it is.
+     */
+    fun setBoost(boostDb: Int) {}
     fun release()
 
     /** Whether [playVideo] shows the picture (see [VideoSurface]); if not, videos are played as audio only. */

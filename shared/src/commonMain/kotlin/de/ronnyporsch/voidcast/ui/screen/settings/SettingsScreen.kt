@@ -202,6 +202,32 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.onEvent(SettingsEvent.NormalizationToggled(it)) },
                 )
 
+                val maxVolumeBoostDb = remember { getPlatform().maxVolumeBoostDb }
+                if (maxVolumeBoostDb > 0) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            text = if (state.volumeBoostDb > 0) "Volume Boost: +${state.volumeBoostDb} dB" else "Volume Boost: off",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Play louder than the full volume of the device; loud songs may sound distorted",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SpotifyLightGray,
+                        )
+                        Slider(
+                            value = state.volumeBoostDb.toFloat(),
+                            onValueChange = { viewModel.onEvent(SettingsEvent.VolumeBoostChanged(it.roundToInt())) },
+                            valueRange = 0f..maxVolumeBoostDb.toFloat(),
+                            steps = maxVolumeBoostDb - 1,
+                            colors = SliderDefaults.colors(
+                                thumbColor = AccentColor,
+                                activeTrackColor = AccentColor,
+                                inactiveTrackColor = SpotifySurface,
+                            ),
+                        )
+                    }
+                }
+
                 SettingsSwitch(
                     title = "Gapless Playback",
                     subtitle = "Pre-buffer the next track for seamless transitions",

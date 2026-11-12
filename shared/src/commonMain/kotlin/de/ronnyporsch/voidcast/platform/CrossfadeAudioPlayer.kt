@@ -261,6 +261,11 @@ class CrossfadeAudioPlayer(
         (if (isCrossfading) nextPlayer else currentPlayer).setGain(gainDb)
     }
 
+    override fun setBoost(boostDb: Int) {
+        playerA.setBoost(boostDb)
+        playerB.setBoost(boostDb)
+    }
+
     override fun release() {
         crossfadeJob?.cancel()
         stateCollectionJob?.cancel()

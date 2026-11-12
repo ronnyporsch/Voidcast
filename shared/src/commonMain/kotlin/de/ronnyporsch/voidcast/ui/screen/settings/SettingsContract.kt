@@ -14,6 +14,7 @@ data class SettingsState(
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
     val normalizationEnabled: Boolean = true,
+    val volumeBoostDb: Int = 0,
     val offlineMode: Boolean = false,
     val downloadOnlyOnWifi: Boolean = false,
     val newReleasesMinSongs: Int = 0,
@@ -40,6 +41,7 @@ sealed class SettingsEvent {
     data class CrossfadeToggled(val enabled: Boolean) : SettingsEvent()
     data class CrossfadeDurationChanged(val seconds: Int) : SettingsEvent()
     data class NormalizationToggled(val enabled: Boolean) : SettingsEvent()
+    data class VolumeBoostChanged(val boostDb: Int) : SettingsEvent()
     data class OfflineModeToggled(val enabled: Boolean) : SettingsEvent()
     data class DownloadOnlyOnWifiToggled(val enabled: Boolean) : SettingsEvent()
     data class NewReleasesMinSongsChanged(val minSongs: Int) : SettingsEvent()

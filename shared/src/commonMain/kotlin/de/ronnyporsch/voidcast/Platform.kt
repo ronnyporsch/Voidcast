@@ -10,6 +10,12 @@ interface Platform {
 
     /** Audio containers the platform's [de.ronnyporsch.voidcast.platform.AudioPlayer] can decode; servers transcode everything else. */
     val audioContainers: List<String>
+
+    /**
+     * By how many dB songs can be played louder than they are, see
+     * [de.ronnyporsch.voidcast.platform.AudioPlayer.setBoost]; 0 where the platform can't amplify.
+     */
+    val maxVolumeBoostDb: Int get() = 0
 }
 
 /** What browsers (and Android's ExoPlayer) commonly decode. */

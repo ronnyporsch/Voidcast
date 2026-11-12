@@ -32,6 +32,7 @@ class SettingsViewModel(
                 crossfadeEnabled = current.playback.crossfadeEnabled,
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
                 normalizationEnabled = current.playback.normalizationEnabled,
+                volumeBoostDb = current.playback.volumeBoostDb,
                 offlineMode = current.offlineMode,
                 downloadOnlyOnWifi = current.downloadOnlyOnWifi,
             )
@@ -94,6 +95,10 @@ class SettingsViewModel(
             is SettingsEvent.NormalizationToggled -> {
                 setState { copy(normalizationEnabled = event.enabled) }
                 updatePlaybackSettings { copy(normalizationEnabled = event.enabled) }
+            }
+            is SettingsEvent.VolumeBoostChanged -> {
+                setState { copy(volumeBoostDb = event.boostDb) }
+                updatePlaybackSettings { copy(volumeBoostDb = event.boostDb) }
             }
             is SettingsEvent.OfflineModeToggled -> {
                 setState { copy(offlineMode = event.enabled) }

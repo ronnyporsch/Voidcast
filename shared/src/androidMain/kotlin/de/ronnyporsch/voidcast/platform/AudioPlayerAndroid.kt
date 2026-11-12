@@ -1,6 +1,8 @@
 package de.ronnyporsch.voidcast.platform
 
 import de.ronnyporsch.voidcast.domain.model.gainToAmplitude
+import android.media.audiofx.LoudnessEnhancer
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -20,7 +22,7 @@ class AudioPlayerAndroid : AudioPlayer {
     private val _state = MutableStateFlow(AudioPlayerState())
     override val state: StateFlow<AudioPlayerState> = _state.asStateFlow()
 
-    private val player: ExoPlayer by lazy {
+    private val lazyPlayer = lazy {
         val context = AppContextHolder.context
         // Streams over OkHttp, so a self-signed server certificate can be accepted. The server only answers once it has
         // downloaded a YouTube video, which may take longer than OkHttp's default timeout of 10 s
@@ -29,7 +31,12 @@ class AudioPlayerAndroid : AudioPlayer {
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build().also { exo ->
+                applyBoost(exo.audioSessionId)
                 exo.addListener(object : Player.Listener {
+                    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                        applyBoost(audioSessionId)
+                    }
+
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         updateState()
                     }
@@ -58,6 +65,8 @@ class AudioPlayerAndroid : AudioPlayer {
                 })
             }
     }
+
+    private val player: ExoPlayer by lazyPlayer
 
     private var positionJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -132,6 +141,36 @@ class AudioPlayerAndroid : AudioPlayer {
         player.volume = volume * gain
     }
 
+    private var boostDb = 0
+    /** Amplifies what the audio session [boostSessionId] plays; null until there is something to amplify. */
+    private var booster: LoudnessEnhancer? = null
+    private var boostSessionId = C.AUDIO_SESSION_ID_UNSET
+
+    // The player's volume ends at 1, which plays the song as it is
+    override fun setBoost(boostDb: Int) {
+        this.boostDb = boostDb.coerceIn(0, MAX_BOOST_DB)
+        // A player not created yet gets it once it is
+        if (lazyPlayer.isInitialized()) applyBoost(player.audioSessionId)
+    }
+
+    private fun applyBoost(sessionId: Int) {
+        if (sessionId != boostSessionId) {
+            booster?.release()
+            booster = null
+            boostSessionId = sessionId
+        }
+        if (sessionId == C.AUDIO_SESSION_ID_UNSET || (boostDb == 0 && booster == null)) return
+        try {
+            val effect = booster ?: LoudnessEnhancer(sessionId).also { booster = it }
+            effect.setTargetGain(boostDb * 100) // in millibel
+            effect.enabled = boostDb > 0
+        } catch (_: RuntimeException) {
+            // The device has no such effect (or no more of them); plays without boost
+            booster?.release()
+            booster = null
+        }
+    }
+
     override fun stop() {
         player.stop()
         positionJob?.cancel()
@@ -141,8 +180,13 @@ class AudioPlayerAndroid : AudioPlayer {
     override fun release() {
         positionJob?.cancel()
         scope.cancel()
+        booster?.release()
+        booster = null
         player.release()
     }
 }
+
+/** See [de.ronnyporsch.voidcast.Platform.maxVolumeBoostDb]. */
+internal const val MAX_BOOST_DB = 18
 
 actual fun createAudioPlayer(): AudioPlayer = AudioPlayerAndroid()

@@ -227,6 +227,11 @@ class PlayerViewModel(
             }
         }
         launch {
+            settingsHolder.settings.map { it.playback.volumeBoostDb }.distinctUntilChanged().collect {
+                audioPlayer.setBoost(it)
+            }
+        }
+        launch {
             // Turning normalization on or off is heard right away, in the current song and the pre-buffered one
             settingsHolder.settings.map { it.playback.normalizationEnabled }.distinctUntilChanged().drop(1).collect {
                 if (remoteSessionId != null || currentState.playback.currentSong == null || currentState.isVideo) return@collect

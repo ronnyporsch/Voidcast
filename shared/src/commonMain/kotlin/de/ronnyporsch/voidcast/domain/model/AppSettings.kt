@@ -14,6 +14,8 @@ data class PlaybackSettings(
     val crossfadeDurationSeconds: Int = 5,
     /** Play songs equally loud, see [normalizationGain]. */
     val normalizationEnabled: Boolean = true,
+    /** By how many dB everything is played louder, see [de.ronnyporsch.voidcast.platform.AudioPlayer.setBoost]. */
+    val volumeBoostDb: Int = 0,
     /** Highest video resolution (height in pixels) to stream, e.g. 1080 for 1080p. */
     val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
     /** The player's shuffle and repeat mode, kept across app restarts. */
