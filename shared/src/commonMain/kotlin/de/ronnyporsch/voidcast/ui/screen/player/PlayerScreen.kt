@@ -91,11 +91,10 @@ fun PlayerScreen(
     val coverArt = LocalCoverArtUrlProvider.current
     val isMobile = remember { getPlatform().isMobile }
     // 6 buttons + play/pause must fit a 360dp-wide phone
-    val controlModifier = if (isMobile) Modifier.size(42.dp) else Modifier
-    // IconButton enforces a 48dp minimum touch target on desktop
     val controlSlotSize = if (isMobile) 42.dp else 48.dp
-    val toggleIconSize = if (isMobile) 32.dp else 24.dp
-    val skipIconSize = if (isMobile) 40.dp else 24.dp
+    val controlModifier = Modifier.size(controlSlotSize)
+    val toggleIconSize = 32.dp
+    val skipIconSize = 40.dp
 
     // Mobile: swipe left/right anywhere to skip to the next/previous song, like in the mini player.
     // The seek bar consumes its own drags, so it still seeks.

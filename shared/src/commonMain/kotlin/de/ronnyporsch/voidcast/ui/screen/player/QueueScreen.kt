@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import de.ronnyporsch.voidcast.domain.model.Song
@@ -70,6 +71,7 @@ fun QueueButtons(
     openTab: QueueTab?,
     onClick: (QueueTab) -> Unit,
     buttonModifier: Modifier = Modifier,
+    iconSize: Dp = 24.dp,
 ) {
     TooltipIconButton(
         onClick = { onClick(QueueTab.Queue) },
@@ -77,6 +79,7 @@ fun QueueButtons(
         contentDescription = "Queue",
         tint = if (openTab == QueueTab.Queue) AccentColor else SpotifyLightGray,
         modifier = buttonModifier,
+        iconSize = iconSize,
     )
     TooltipIconButton(
         onClick = { onClick(QueueTab.RecentlyPlayed) },
@@ -84,6 +87,7 @@ fun QueueButtons(
         contentDescription = "Recently played",
         tint = if (openTab == QueueTab.RecentlyPlayed) AccentColor else SpotifyLightGray,
         modifier = buttonModifier,
+        iconSize = iconSize,
     )
 }
 

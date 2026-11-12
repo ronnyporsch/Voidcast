@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
 import de.ronnyporsch.voidcast.getPlatform
@@ -45,6 +47,7 @@ import de.ronnyporsch.voidcast.ui.components.songDragSource
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifySurface
+import de.ronnyporsch.voidcast.ui.theme.SpotifyWhite
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.ui.navigation.QueueTab
 
@@ -66,8 +69,11 @@ fun MiniPlayer(
     val coverArt = LocalCoverArtUrlProvider.current
     val isMobile = remember { getPlatform().isMobile }
     val isDraggable = LocalPlaylistEditor.current?.canAdd(song) == true
-    val iconSize = if (isMobile) 32.dp else 24.dp
-    val buttonSize = if (isMobile) 48.dp else 32.dp
+    val iconSize = if (isMobile) 32.dp else 28.dp
+    val buttonSize = if (isMobile) 48.dp else 40.dp
+    // Desktop: previous, play/pause and next
+    val mainIconSize = 32.dp
+    val progressBarHeight = if (isMobile) 4.dp else 6.dp
     // Mobile: swipe the song info left/right to skip to the next/previous song.
     val swipeOffset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -101,21 +107,31 @@ fun MiniPlayer(
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp))
             .background(SpotifySurface)
-            .clickable(onClick = onClick),
+            // Mobile: a tap anywhere opens the big player; desktop: only the cover does
+            .then(if (isMobile) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
+        // Desktop: the player's own surface above the progress bar, so the bar doesn't sit on the content above
+        if (!isMobile) Spacer(Modifier.fillMaxWidth().height(8.dp).background(SpotifySurface))
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
             Slider(
                 value = progress,
                 onValueChange = {
                     viewModel.onEvent(PlayerEvent.SeekTo((it * playback.durationMs).toLong()))
                 },
-                modifier = Modifier.fillMaxWidth().height(4.dp),
+                modifier = Modifier.fillMaxWidth().height(progressBarHeight),
                 // Mobile: taps open the big player instead of seeking
                 enabled = !isMobile,
                 thumb = {
                     // Empty thumb to keep it looking like a progress bar
                 },
-                track = { PlainSliderTrack(it, MaterialTheme.colorScheme.surfaceVariant) },
+                // Desktop: a visible backdrop shows where to click to seek; the surface color would blend into the player
+                track = {
+                    PlainSliderTrack(
+                        it,
+                        if (isMobile) MaterialTheme.colorScheme.surfaceVariant else SpotifyWhite.copy(alpha = 0.25f),
+                        progressBarHeight,
+                    )
+                },
             )
         }
 
@@ -156,7 +172,10 @@ fun MiniPlayer(
             ) {
                 CoverArtImage(
                     url = coverArt.getUrl(song.coverArtId),
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(40.dp).then(
+                        if (isMobile) Modifier
+                        else Modifier.pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onClick)
+                    ),
                     cornerRadius = 0.dp,
                     placeholderFontSize = 16.sp,
                 )
@@ -192,7 +211,7 @@ fun MiniPlayer(
 
                 // Mobile: the big player has it
                 if (song.isYouTube) YouTubeIcon(Modifier.padding(start = 8.dp), size = 16.dp)
-                if (!isMobile) FavoriteButton(FavoriteKind.Song, song.id, iconSize = 20.dp)
+                if (!isMobile) FavoriteButton(FavoriteKind.Song, song.id, iconSize = 24.dp)
             }
 
             Row(
@@ -206,7 +225,8 @@ fun MiniPlayer(
                         icon = Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
                         tint = if (playback.shuffle) AccentColor else SpotifyLightGray,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(buttonSize),
+                        iconSize = iconSize,
                     )
 
                     TooltipIconButton(
@@ -214,7 +234,8 @@ fun MiniPlayer(
                         icon = Icons.Default.GraphicEq,
                         contentDescription = "Crossfade",
                         tint = if (playback.crossfadeEnabled) AccentColor else SpotifyLightGray,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(buttonSize),
+                        iconSize = iconSize,
                     )
 
                     TooltipIconButton(
@@ -222,6 +243,7 @@ fun MiniPlayer(
                         icon = Icons.Default.SkipPrevious,
                         contentDescription = "Previous song",
                         tint = MaterialTheme.colorScheme.onSurface,
+                        iconSize = mainIconSize,
                     )
                 }
 
@@ -239,7 +261,7 @@ fun MiniPlayer(
                     },
                     contentDescription = "Play or pause",
                     tint = MaterialTheme.colorScheme.onSurface,
-                    iconSize = if (isMobile) 36.dp else 24.dp,
+                    iconSize = if (isMobile) 36.dp else mainIconSize,
                     modifier = if (isMobile) Modifier.size(buttonSize) else Modifier,
                 )
 
@@ -249,6 +271,7 @@ fun MiniPlayer(
                         icon = Icons.Default.SkipNext,
                         contentDescription = "Next song",
                         tint = MaterialTheme.colorScheme.onSurface,
+                        iconSize = mainIconSize,
                     )
 
                     TooltipIconButton(
@@ -260,7 +283,8 @@ fun MiniPlayer(
                         },
                         contentDescription = "Repeat",
                         tint = if (playback.repeatMode != RepeatMode.Off) AccentColor else SpotifyLightGray,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(buttonSize),
+                        iconSize = iconSize,
                     )
 
                     lyricsButton()
@@ -283,8 +307,8 @@ fun MiniPlayer(
                         maxLines = 1,
                         modifier = Modifier.padding(horizontal = 8.dp),
                     )
-                    DevicesButton(state, viewModel::onEvent, Modifier.size(32.dp))
-                    QueueButtons(openQueueTab, onQueueClick, Modifier.size(32.dp))
+                    DevicesButton(state, viewModel::onEvent, Modifier.size(buttonSize), iconSize = iconSize)
+                    QueueButtons(openQueueTab, onQueueClick, Modifier.size(buttonSize), iconSize)
                 }
             }
         }
