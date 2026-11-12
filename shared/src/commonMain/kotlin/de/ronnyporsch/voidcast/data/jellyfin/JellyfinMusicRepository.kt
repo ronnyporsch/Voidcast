@@ -381,6 +381,8 @@ internal fun BaseItemDto.toSong() = Song(
     size = mediaSources.firstOrNull()?.size,
     isVideo = type == "MusicVideo",
     dateAdded = dateCreated,
+    trackGain = normalizationGain,
+    albumGain = albumNormalizationGain,
 )
 
 private fun BaseItemDto.toPlaylist() = Playlist(

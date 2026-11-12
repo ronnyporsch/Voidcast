@@ -31,6 +31,7 @@ class SettingsViewModel(
                 gaplessEnabled = current.playback.gaplessEnabled,
                 crossfadeEnabled = current.playback.crossfadeEnabled,
                 crossfadeDurationSeconds = current.playback.crossfadeDurationSeconds,
+                normalizationEnabled = current.playback.normalizationEnabled,
                 offlineMode = current.offlineMode,
                 downloadOnlyOnWifi = current.downloadOnlyOnWifi,
             )
@@ -89,6 +90,10 @@ class SettingsViewModel(
             is SettingsEvent.CrossfadeDurationChanged -> {
                 setState { copy(crossfadeDurationSeconds = event.seconds) }
                 updatePlaybackSettings { copy(crossfadeDurationSeconds = event.seconds) }
+            }
+            is SettingsEvent.NormalizationToggled -> {
+                setState { copy(normalizationEnabled = event.enabled) }
+                updatePlaybackSettings { copy(normalizationEnabled = event.enabled) }
             }
             is SettingsEvent.OfflineModeToggled -> {
                 setState { copy(offlineMode = event.enabled) }

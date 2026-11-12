@@ -12,6 +12,8 @@ data class PlaybackSettings(
     val gaplessEnabled: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val crossfadeDurationSeconds: Int = 5,
+    /** Play songs equally loud, see [normalizationGain]. */
+    val normalizationEnabled: Boolean = true,
     /** Highest video resolution (height in pixels) to stream, e.g. 1080 for 1080p. */
     val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
     /** The player's shuffle and repeat mode, kept across app restarts. */

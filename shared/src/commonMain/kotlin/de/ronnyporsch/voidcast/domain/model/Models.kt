@@ -69,6 +69,13 @@ data class Song(
     val isVideo: Boolean = false,
     /** When it got added to the library, as an ISO 8601 timestamp; null if the server doesn't tell. */
     val dateAdded: String? = null,
+    /**
+     * By how many dB the song is to be amplified (negative: turned down) to be as loud as every other song; null if
+     * the server doesn't tell. See [normalizationGain].
+     */
+    val trackGain: Float? = null,
+    /** The same for its album as a whole, which keeps its songs as loud compared to each other as they are. */
+    val albumGain: Float? = null,
 )
 
 /** What kind of item a favorite is; servers mark them through different endpoints. */

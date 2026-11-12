@@ -30,6 +30,12 @@ interface AudioPlayer {
     fun seekTo(positionMs: Long)
     fun stop()
     fun setVolume(volume: Float)
+
+    /**
+     * Plays what's loaded or loaded next [gainDb] decibels quieter (it is never amplified, see
+     * [de.ronnyporsch.voidcast.domain.model.normalizationGain]), on top of [setVolume]; 0 plays it as it is.
+     */
+    fun setGain(gainDb: Float)
     fun release()
 
     /** Whether [playVideo] shows the picture (see [VideoSurface]); if not, videos are played as audio only. */

@@ -18,6 +18,7 @@ actual fun saveSettings(settings: AppSettings) {
     storage.setItem("gaplessEnabled", settings.playback.gaplessEnabled.toString())
     storage.setItem("crossfadeEnabled", settings.playback.crossfadeEnabled.toString())
     storage.setItem("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds.toString())
+    storage.setItem("normalizationEnabled", settings.playback.normalizationEnabled.toString())
     storage.setItem("shuffle", settings.playback.shuffle.toString())
     storage.setItem("repeatMode", settings.playback.repeatMode.name)
     storage.setItem("jellyfinDeviceId", settings.jellyfinDeviceId)
@@ -40,6 +41,7 @@ actual fun loadSettings(): AppSettings? {
             gaplessEnabled = storage.getItem("gaplessEnabled")?.toBooleanStrictOrNull() ?: false,
             crossfadeEnabled = storage.getItem("crossfadeEnabled")?.toBooleanStrictOrNull() ?: false,
             crossfadeDurationSeconds = storage.getItem("crossfadeDurationSeconds")?.toIntOrNull() ?: 5,
+            normalizationEnabled = storage.getItem("normalizationEnabled")?.toBooleanStrictOrNull() ?: true,
             shuffle = storage.getItem("shuffle")?.toBooleanStrictOrNull() ?: false,
             repeatMode = RepeatMode.entries.firstOrNull { it.name == storage.getItem("repeatMode") } ?: RepeatMode.Off,
         ),

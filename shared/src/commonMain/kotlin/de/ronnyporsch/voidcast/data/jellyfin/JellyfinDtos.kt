@@ -68,6 +68,10 @@ data class BaseItemDto(
     @SerialName("MediaSources") val mediaSources: List<MediaSourceDto> = emptyList(),
     /** Identifies the entry within a playlist (the same song can be in it more than once). */
     @SerialName("PlaylistItemId") val playlistItemId: String? = null,
+    /** In dB, what makes the song (or album) as loud as the others; only if the server worked it out. */
+    @SerialName("NormalizationGain") val normalizationGain: Float? = null,
+    /** Of songs: the [normalizationGain] of their album. */
+    @SerialName("AlbumNormalizationGain") val albumNormalizationGain: Float? = null,
 )
 
 @Serializable

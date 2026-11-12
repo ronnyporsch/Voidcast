@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.platform
 
+import de.ronnyporsch.voidcast.domain.model.gainToAmplitude
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableLongStateOf
@@ -27,6 +28,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
+import kotlin.math.cbrt
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -109,6 +111,9 @@ class VlcPlayer : AudioPlayer {
     // libVLC only applies these once the media plays: pausing before would stop it, and a volume set
     // before there is an audio output may get lost
     @Volatile private var volume = 100
+    /** What [volume] is made of: what [setVolume] and [setGain] asked for, both as VLC volumes from 0 to 1. */
+    private var level = 1f
+    private var gainLevel = 1f
     @Volatile private var pauseRequested = false
     /** What's loaded, to start it again; null after [stop]. */
     @Volatile private var currentUrl: String? = null
@@ -242,8 +247,19 @@ class VlcPlayer : AudioPlayer {
     }
 
     override fun setVolume(volume: Float) = command {
-        this.volume = (volume.coerceIn(0f, 1f) * 100).roundToInt()
-        player?.audio()?.setVolume(this.volume)
+        level = volume.coerceIn(0f, 1f)
+        applyVolume()
+    }
+
+    // VLC amplifies by the cube of its volume
+    override fun setGain(gainDb: Float) = command {
+        gainLevel = cbrt(gainToAmplitude(gainDb))
+        applyVolume()
+    }
+
+    private fun applyVolume() {
+        volume = (level * gainLevel * 100).roundToInt()
+        player?.audio()?.setVolume(volume)
     }
 
     /** Waits for the commands before it; don't call it on the UI thread. */

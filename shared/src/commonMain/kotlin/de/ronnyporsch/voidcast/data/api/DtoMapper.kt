@@ -59,6 +59,8 @@ fun SongDto.toDomain() = Song(
     codec = suffix?.takeIf { it.isNotBlank() }?.let(::codecDisplayName),
     size = size,
     dateAdded = created,
+    trackGain = replayGain?.trackGain,
+    albumGain = replayGain?.albumGain,
 )
 
 fun PlaylistDto.toDomain() = Playlist(

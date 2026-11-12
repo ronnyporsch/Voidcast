@@ -118,6 +118,15 @@ data class SongDto(
     val size: Long? = null,
     /** When it got added to the library, ISO 8601. */
     val created: String? = null,
+    /** OpenSubsonic. */
+    val replayGain: ReplayGainDto? = null,
+)
+
+/** In dB; a server sends only the values the file is tagged with. */
+@Serializable
+data class ReplayGainDto(
+    val trackGain: Float? = null,
+    val albumGain: Float? = null,
 )
 
 @Serializable

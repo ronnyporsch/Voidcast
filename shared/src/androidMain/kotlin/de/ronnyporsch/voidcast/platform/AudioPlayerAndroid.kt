@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.platform
 
+import de.ronnyporsch.voidcast.domain.model.gainToAmplitude
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -118,8 +119,17 @@ class AudioPlayerAndroid : AudioPlayer {
         updateState()
     }
 
+    private var volume = 1f
+    private var gain = 1f
+
     override fun setVolume(volume: Float) {
-        player.volume = volume.coerceIn(0f, 1f)
+        this.volume = volume.coerceIn(0f, 1f)
+        player.volume = this.volume * gain
+    }
+
+    override fun setGain(gainDb: Float) {
+        gain = gainToAmplitude(gainDb)
+        player.volume = volume * gain
     }
 
     override fun stop() {

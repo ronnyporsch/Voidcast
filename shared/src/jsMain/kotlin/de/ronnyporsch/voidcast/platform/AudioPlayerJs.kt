@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.platform
 
+import de.ronnyporsch.voidcast.domain.model.gainToAmplitude
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -142,8 +143,17 @@ class AudioPlayerJs : AudioPlayer {
         updateState(isPlaying = !media.paused)
     }
 
+    private var volume = 1.0
+    private var gain = 1.0
+
     override fun setVolume(volume: Float) {
-        media.volume = volume.toDouble().coerceIn(0.0, 1.0)
+        this.volume = volume.toDouble().coerceIn(0.0, 1.0)
+        media.volume = this.volume * gain
+    }
+
+    override fun setGain(gainDb: Float) {
+        gain = gainToAmplitude(gainDb).toDouble()
+        media.volume = volume * gain
     }
 
     override fun stop() {

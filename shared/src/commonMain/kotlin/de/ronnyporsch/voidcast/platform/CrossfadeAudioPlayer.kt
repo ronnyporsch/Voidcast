@@ -32,6 +32,7 @@ class CrossfadeAudioPlayer(
     private var nextPreparedUrl: String? = null
     /** Given to [prepareNext] during a crossfade, while the next player is the incoming one; prepared after it. */
     private var preparedAfterCrossfadeUrl: String? = null
+    private var preparedAfterCrossfadeGainDb = 0f
     @Volatile
     private var isCrossfading = false
     @Volatile
@@ -52,11 +53,15 @@ class CrossfadeAudioPlayer(
         }
     }
 
-    fun prepareNext(url: String) {
+    /** [gainDb] is what the song is played with, see [AudioPlayer.setGain]. */
+    fun prepareNext(url: String, gainDb: Float) {
         if (isCrossfading) {
             preparedAfterCrossfadeUrl = url
+            preparedAfterCrossfadeGainDb = gainDb
             return
         }
+        // Also of a song that is prepared already: what it follows or is followed by may have changed
+        nextPlayer.setGain(gainDb)
         if (nextPreparedUrl == url) return
         nextPreparedUrl = url
         val player = nextPlayer
@@ -76,11 +81,12 @@ class CrossfadeAudioPlayer(
      * Plays [url] from the start on the player [prepareNext] loaded it on, so it doesn't have to be loaded again.
      * Returns false if it isn't prepared (or failed to load); then nothing changed.
      */
-    fun playPrepared(url: String): Boolean {
+    fun playPrepared(url: String, gainDb: Float): Boolean {
         if (isCrossfading || nextPreparedUrl != url || nextPlayer.state.value.error != null) return false
         prepareJob?.cancel()
         val inPlayer = nextPlayer
         val outPlayer = currentPlayer
+        inPlayer.setGain(gainDb)
 
         outPlayer.stop()
         outPlayer.setVolume(1f)
@@ -157,7 +163,7 @@ class CrossfadeAudioPlayer(
         collectCurrentPlayerState()
         preparedAfterCrossfadeUrl?.let {
             preparedAfterCrossfadeUrl = null
-            prepareNext(it)
+            prepareNext(it, preparedAfterCrossfadeGainDb)
         }
     }
 
@@ -247,6 +253,12 @@ class CrossfadeAudioPlayer(
 
     override fun setVolume(volume: Float) {
         currentPlayer.setVolume(volume)
+    }
+
+    /** Of what [play] and [playVideo] play; the next song's is given to [prepareNext]. */
+    override fun setGain(gainDb: Float) {
+        // During a crossfade the incoming song is the one shown already
+        (if (isCrossfading) nextPlayer else currentPlayer).setGain(gainDb)
     }
 
     override fun release() {

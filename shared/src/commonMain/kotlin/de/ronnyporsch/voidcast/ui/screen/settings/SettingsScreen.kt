@@ -196,6 +196,13 @@ fun SettingsScreen(
                 SectionHeader("Playback")
 
                 SettingsSwitch(
+                    title = "Volume Normalization",
+                    subtitle = "Play songs equally loud, albums keep their loud and quiet songs",
+                    checked = state.normalizationEnabled,
+                    onCheckedChange = { viewModel.onEvent(SettingsEvent.NormalizationToggled(it)) },
+                )
+
+                SettingsSwitch(
                     title = "Gapless Playback",
                     subtitle = "Pre-buffer the next track for seamless transitions",
                     checked = state.gaplessEnabled,

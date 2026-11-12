@@ -43,6 +43,7 @@ actual fun saveSettings(settings: AppSettings) {
     prefs.putBoolean("gaplessEnabled", settings.playback.gaplessEnabled)
     prefs.putBoolean("crossfadeEnabled", settings.playback.crossfadeEnabled)
     prefs.putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
+    prefs.putBoolean("normalizationEnabled", settings.playback.normalizationEnabled)
     prefs.putBoolean("shuffle", settings.playback.shuffle)
     prefs.put("repeatMode", settings.playback.repeatMode.name)
     prefs.put("jellyfinDeviceId", settings.jellyfinDeviceId)
@@ -66,6 +67,7 @@ actual fun loadSettings(): AppSettings? {
             gaplessEnabled = prefs.getBoolean("gaplessEnabled", false),
             crossfadeEnabled = prefs.getBoolean("crossfadeEnabled", false),
             crossfadeDurationSeconds = prefs.getInt("crossfadeDurationSeconds", 5),
+            normalizationEnabled = prefs.getBoolean("normalizationEnabled", true),
             shuffle = prefs.getBoolean("shuffle", false),
             repeatMode = RepeatMode.entries.firstOrNull { it.name == prefs.get("repeatMode", "") } ?: RepeatMode.Off,
         ),

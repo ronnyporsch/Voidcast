@@ -7,6 +7,7 @@ import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.data.repository.PlayHistory
 import de.ronnyporsch.voidcast.domain.model.PlaybackState
 import de.ronnyporsch.voidcast.domain.model.audioFormat
+import de.ronnyporsch.voidcast.domain.model.normalizationGain
 import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.SettingsHolder
@@ -23,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 
 class PlayerViewModel(
@@ -130,7 +132,7 @@ class PlayerViewModel(
                         }
                         if (positionMs >= PREFETCH_AFTER_MS || remainingMs <= transitionLeadMs) {
                             hasPreparedNext = true
-                            streamUrl(nextSong)?.let { crossfadePlayer?.prepareNext(it) }
+                            streamUrl(nextSong)?.let { crossfadePlayer?.prepareNext(it, nextGain()) }
                         }
                     }
 
@@ -222,6 +224,14 @@ class PlayerViewModel(
                 if (remoteSessionId == null && (saved.shuffle != shuffle || saved.repeatMode != repeatMode)) {
                     settingsHolder.update { copy(playback = playback.copy(shuffle = shuffle, repeatMode = repeatMode)) }
                 }
+            }
+        }
+        launch {
+            // Turning normalization on or off is heard right away, in the current song and the pre-buffered one
+            settingsHolder.settings.map { it.playback.normalizationEnabled }.distinctUntilChanged().drop(1).collect {
+                if (remoteSessionId != null || currentState.playback.currentSong == null || currentState.isVideo) return@collect
+                audioPlayer.setGain(gainAt(currentState.playback.currentIndex))
+                onUpcomingChanged()
             }
         }
         launch {
@@ -498,15 +508,25 @@ class PlayerViewModel(
         }
     }
 
-    private fun getNextSong(): Song? {
+    private fun getNextSong(): Song? = nextIndex()?.let { currentState.playback.queue.getOrNull(it) }
+
+    /** Where in the queue the song is that plays after the current one, null if none does. */
+    private fun nextIndex(): Int? {
         val state = currentState.playback
         return when {
-            state.repeatMode == RepeatMode.One -> state.currentSong
-            state.currentIndex + 1 < state.queue.size -> state.queue[state.currentIndex + 1]
-            state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> state.queue[0]
+            state.repeatMode == RepeatMode.One -> state.currentIndex.takeIf { it in state.queue.indices }
+            state.currentIndex + 1 < state.queue.size -> state.currentIndex + 1
+            state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> 0
             else -> null
         }
     }
+
+    /** What makes the next song as loud as the others. */
+    private fun nextGain(): Float = nextIndex()?.let(::gainAt) ?: 0f
+
+    /** What makes the song at [index] of the queue as loud as the others, see [normalizationGain]; 0 if turned off. */
+    private fun gainAt(index: Int): Float =
+        if (settingsHolder.settings.value.playback.normalizationEnabled) normalizationGain(currentState.playback.queue, index) else 0f
 
     private fun advanceToNextSong() {
         val state = currentState.playback
@@ -763,7 +783,7 @@ class PlayerViewModel(
     private fun onUpcomingChanged() {
         if (!hasPreparedNext || hasCrossfadeStarted || remoteSessionId != null) return
         val url = getNextSong()?.takeIf { !playsAsVideo(it) }?.let { streamUrl(it) } ?: return
-        crossfadePlayer?.prepareNext(url)
+        crossfadePlayer?.prepareNext(url, nextGain())
     }
 
     /** Videos play with picture where the player can show it, otherwise as songs. */
@@ -806,6 +826,7 @@ class PlayerViewModel(
         val videoUrl = videoUrl(song)
         setState { copy(isVideo = videoUrl != null) }
         if (videoUrl != null) {
+            audioPlayer.setGain(0f)
             audioPlayer.playVideo(videoUrl)
             loadVideoFormat(song)
             return
@@ -816,7 +837,11 @@ class PlayerViewModel(
             emitEffect(PlayerEffect.PlaybackError("\"${song.title}\" isn't available offline"))
             return
         }
-        if (crossfadePlayer?.playPrepared(url) != true) audioPlayer.play(url)
+        val gain = gainAt(currentState.playback.currentIndex)
+        if (crossfadePlayer?.playPrepared(url, gain) != true) {
+            audioPlayer.setGain(gain)
+            audioPlayer.play(url)
+        }
     }
 
     /** Null if the song can't be played, i.e. while not connected to the server it isn't downloaded. */
