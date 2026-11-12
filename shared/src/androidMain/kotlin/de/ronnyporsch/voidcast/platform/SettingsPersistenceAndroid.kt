@@ -37,6 +37,7 @@ actual fun saveSettings(settings: AppSettings) {
         .putInt("crossfadeDurationSeconds", settings.playback.crossfadeDurationSeconds)
         .putBoolean("normalizationEnabled", settings.playback.normalizationEnabled)
         .putInt("volumeBoostDb", settings.playback.volumeBoostDb)
+        .apply { settings.playback.typicalGainDb?.let { putFloat("typicalGainDb", it) } ?: remove("typicalGainDb") }
         .putBoolean("shuffle", settings.playback.shuffle)
         .putString("repeatMode", settings.playback.repeatMode.name)
         .putString("jellyfinDeviceId", settings.jellyfinDeviceId)
@@ -65,6 +66,7 @@ actual fun loadSettings(): AppSettings? {
             crossfadeDurationSeconds = p.getInt("crossfadeDurationSeconds", 5),
             normalizationEnabled = p.getBoolean("normalizationEnabled", true),
             volumeBoostDb = p.getInt("volumeBoostDb", 0),
+            typicalGainDb = if (p.contains("typicalGainDb")) p.getFloat("typicalGainDb", 0f) else null,
             shuffle = p.getBoolean("shuffle", false),
             repeatMode = RepeatMode.entries.firstOrNull { it.name == p.getString("repeatMode", "") } ?: RepeatMode.Off,
         ),

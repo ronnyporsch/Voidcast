@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Of how many songs [MusicServerConnection.refreshTypicalGain] takes the median; what Subsonic servers give at most. */
+private const val TYPICAL_GAIN_SAMPLE_SIZE = 500
+
 /** The server rejected the username or password, as opposed to e.g. not being reachable. */
 class InvalidCredentialsException(message: String) : Exception(message.ifBlank { "Wrong username or password" })
 
@@ -224,6 +227,20 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         }
     }
 
+    /**
+     * Finds out what gain the songs of the library usually have, for those without one (see [typicalGain]), from a
+     * random sample of them: cheap enough for every connect, and as good as asking for all. Keeps what is known if
+     * the server can't be asked.
+     */
+    suspend fun refreshTypicalGain() {
+        val key = serverKey()
+        val songs = online.getRandomSongs(TYPICAL_GAIN_SAMPLE_SIZE).getOrNull() ?: return
+        val gain = typicalGain(songs)
+        // Not another server's, if the user logged in elsewhere meanwhile
+        if (key != serverKey() || gain == settingsHolder.settings.value.playback.typicalGainDb) return
+        settingsHolder.update { copy(playback = playback.copy(typicalGainDb = gain)) }
+    }
+
     private inner class ActiveRepository : MusicRepository {
         override val isConfigured: Boolean get() = active.isConfigured
         override suspend fun ping() = active.ping()
@@ -235,6 +252,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun getAlbum(albumId: String) = active.getAlbum(albumId)
         override suspend fun getAlbums() = active.getAlbums()
         override suspend fun getAllSongs() = active.getAllSongs()
+        override suspend fun getRandomSongs(count: Int) = active.getRandomSongs(count)
         override suspend fun getGenres() = active.getGenres()
         override suspend fun getGenreSongs(genre: Genre) = active.getGenreSongs(genre)
         override suspend fun getPlaylists() = active.getPlaylists()

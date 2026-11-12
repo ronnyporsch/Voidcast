@@ -33,6 +33,8 @@ interface MusicRepository {
     suspend fun getAlbums(): Result<List<Album>>
     /** Every song of the library. */
     suspend fun getAllSongs(): Result<List<Song>>
+    /** Up to [count] songs of the library picked at random, with little more than what they are to be played with. */
+    suspend fun getRandomSongs(count: Int): Result<List<Song>>
     suspend fun getGenres(): Result<List<Genre>>
     /** The songs of [genre]. */
     suspend fun getGenreSongs(genre: Genre): Result<List<Song>>
@@ -168,6 +170,12 @@ class MusicRepositoryImpl(
             if (page.size < PAGE_SIZE) break
         }
         songs
+    }
+
+    override suspend fun getRandomSongs(count: Int): Result<List<Song>> = runCatching {
+        val body = api.getRandomSongs(count).subsonicResponse
+        if (body.status != "ok") throw IllegalStateException(body.error?.message ?: "Error loading songs")
+        body.randomSongs?.song.orEmpty().map { it.toDomain() }
     }
 
     override suspend fun getGenres(): Result<List<Genre>> = runCatching {

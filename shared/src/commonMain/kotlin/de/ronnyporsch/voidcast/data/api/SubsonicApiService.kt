@@ -163,6 +163,14 @@ class SubsonicApiService {
         }.body()
     }
 
+    /** Songs picked at random; servers give 500 at most. */
+    suspend fun getRandomSongs(size: Int): SubsonicResponse {
+        return client.get("${baseUrl()}/rest/getRandomSongs.view") {
+            addAuthParams()
+            parameter("size", size)
+        }.body()
+    }
+
     /** A page of albums; [type] is e.g. "alphabeticalByName" or "byGenre" (with [genre]). */
     suspend fun getAlbumList2(type: String, genre: String? = null, size: Int = 500, offset: Int = 0): SubsonicResponse {
         return client.get("${baseUrl()}/rest/getAlbumList2.view") {

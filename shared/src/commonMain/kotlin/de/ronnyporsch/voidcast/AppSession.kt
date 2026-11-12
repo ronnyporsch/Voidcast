@@ -91,7 +91,12 @@ class AppSession private constructor() {
         if (autoLogin) scope.launch { runAutoLogin() }
         // Also after logging in by hand, e.g. once the saved login got rejected
         scope.launch {
-            connection.connections.collect { if (it > 0) _autoLoginStatus.value = AutoLoginStatus.Connected }
+            connection.connections.collect {
+                if (it == 0) return@collect
+                _autoLoginStatus.value = AutoLoginStatus.Connected
+                // In the background, playback doesn't wait for it
+                launch { connection.refreshTypicalGain() }
+            }
         }
     }
 

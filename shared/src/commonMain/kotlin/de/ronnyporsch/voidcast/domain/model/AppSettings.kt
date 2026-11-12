@@ -16,6 +16,11 @@ data class PlaybackSettings(
     val normalizationEnabled: Boolean = true,
     /** By how many dB everything is played louder, see [de.ronnyporsch.voidcast.platform.AudioPlayer.setBoost]. */
     val volumeBoostDb: Int = 0,
+    /**
+     * The gain the songs of the server's library usually have, which songs without one are played with; null while
+     * not known. Re-read on every connect, see [de.ronnyporsch.voidcast.data.repository.MusicServerConnection.refreshTypicalGain].
+     */
+    val typicalGainDb: Float? = null,
     /** Highest video resolution (height in pixels) to stream, e.g. 1080 for 1080p. */
     val videoQuality: Int = DEFAULT_VIDEO_QUALITY,
     /** The player's shuffle and repeat mode, kept across app restarts. */

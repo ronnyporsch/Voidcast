@@ -19,6 +19,7 @@ data class SubsonicResponseBody(
     val playlists: PlaylistsDto? = null,
     val playlist: PlaylistWithSongsDto? = null,
     val searchResult3: SearchResult3Dto? = null,
+    val randomSongs: RandomSongsDto? = null,
     val artistInfo2: ArtistInfo2Dto? = null,
     val lyricsList: LyricsListDto? = null,
     val lyrics: LyricsDto? = null,
@@ -170,6 +171,11 @@ data class ArtistInfo2Dto(
 data class SearchResult3Dto(
     val artist: List<ArtistDto> = emptyList(),
     val album: List<AlbumDto> = emptyList(),
+    val song: List<SongDto> = emptyList(),
+)
+
+@Serializable
+data class RandomSongsDto(
     val song: List<SongDto> = emptyList(),
 )
 

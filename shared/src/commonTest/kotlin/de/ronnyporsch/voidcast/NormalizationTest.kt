@@ -3,6 +3,7 @@ package de.ronnyporsch.voidcast
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.gainToAmplitude
 import de.ronnyporsch.voidcast.domain.model.normalizationGain
+import de.ronnyporsch.voidcast.domain.model.typicalGain
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,6 +44,22 @@ class NormalizationTest {
         assertEquals(0f, normalizationGain(listOf(song("a", 1, trackGain = null)), 0))
         assertEquals(0f, normalizationGain(listOf(song("a", 1, trackGain = 4f)), 0))
         assertEquals(0f, normalizationGain(emptyList(), 0))
+    }
+
+    @Test
+    fun songsWithoutGainGetTheTypicalOne() {
+        assertEquals(-7f, normalizationGain(listOf(song("a", 1, trackGain = null, albumGain = null)), 0, typicalGain = -7f))
+        assertEquals(0f, normalizationGain(listOf(song("a", 1, trackGain = null, albumGain = null)), 0, typicalGain = 3f))
+        assertEquals(-8f, normalizationGain(listOf(song("a", 1)), 0, typicalGain = -7f))
+    }
+
+    @Test
+    fun typicalGainIsTheMedianOfTheKnownGains() {
+        fun songs(vararg gains: Float?) = gains.mapIndexed { index, gain -> song("a", index, trackGain = gain) }
+        assertEquals(-8f, typicalGain(songs(-2f, null, -30f, -8f)))
+        assertEquals(-6f, typicalGain(songs(-4f, -8f, -1f, -9f)))
+        assertEquals(null, typicalGain(songs(null)))
+        assertEquals(null, typicalGain(emptyList()))
     }
 
     @Test

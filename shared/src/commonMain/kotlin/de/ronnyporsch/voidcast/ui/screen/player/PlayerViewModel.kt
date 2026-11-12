@@ -232,8 +232,9 @@ class PlayerViewModel(
             }
         }
         launch {
-            // Turning normalization on or off is heard right away, in the current song and the pre-buffered one
-            settingsHolder.settings.map { it.playback.normalizationEnabled }.distinctUntilChanged().drop(1).collect {
+            // Turning normalization on or off is heard right away, in the current song and the pre-buffered one; so
+            // is the gain of songs without one, once it is known
+            settingsHolder.settings.map { it.playback.normalizationEnabled to it.playback.typicalGainDb }.distinctUntilChanged().drop(1).collect {
                 if (remoteSessionId != null || currentState.playback.currentSong == null || currentState.isVideo) return@collect
                 audioPlayer.setGain(gainAt(currentState.playback.currentIndex))
                 onUpcomingChanged()
@@ -530,8 +531,10 @@ class PlayerViewModel(
     private fun nextGain(): Float = nextIndex()?.let(::gainAt) ?: 0f
 
     /** What makes the song at [index] of the queue as loud as the others, see [normalizationGain]; 0 if turned off. */
-    private fun gainAt(index: Int): Float =
-        if (settingsHolder.settings.value.playback.normalizationEnabled) normalizationGain(currentState.playback.queue, index) else 0f
+    private fun gainAt(index: Int): Float {
+        val settings = settingsHolder.settings.value.playback
+        return if (settings.normalizationEnabled) normalizationGain(currentState.playback.queue, index, settings.typicalGainDb) else 0f
+    }
 
     private fun advanceToNextSong() {
         val state = currentState.playback

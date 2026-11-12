@@ -59,6 +59,20 @@ class JellyfinMusicRepository(
 
     override suspend fun getAllSongs(): Result<List<Song>> = runCatching { songs("sortBy" to "SortName") }
 
+    override suspend fun getRandomSongs(count: Int): Result<List<Song>> = runCatching {
+        api.getItems(
+            mapOf(
+                "includeItemTypes" to "Audio",
+                "recursive" to true,
+                "sortBy" to "Random",
+                "limit" to count,
+                "enableUserData" to false,
+                "enableImages" to false,
+                "enableTotalRecordCount" to false,
+            )
+        ).items.map { it.toSong() }
+    }
+
     override suspend fun getGenres(): Result<List<Genre>> = runCatching {
         api.getMusicGenres(mapOf("sortBy" to "SortName", "fields" to "ItemCounts", "enableUserData" to false))
             .items.map { Genre(id = it.id, name = it.name, albumCount = it.albumCount ?: 0, songCount = it.songCount ?: 0) }
