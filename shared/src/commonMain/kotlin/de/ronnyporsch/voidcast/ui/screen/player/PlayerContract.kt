@@ -48,7 +48,8 @@ sealed interface LyricsState {
 sealed class PlayerEvent {
     /**
      * Plays [songs] from [startIndex]. [shuffle] true shuffles all of them (ignoring [startIndex]), null keeps the
-     * shuffle mode and, if it's on, plays the song at [startIndex] first.
+     * shuffle mode and, if it's on, plays the song at [startIndex] first. The songs added to the queue that are yet to
+     * play stay, right after the first song played.
      */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
     /**

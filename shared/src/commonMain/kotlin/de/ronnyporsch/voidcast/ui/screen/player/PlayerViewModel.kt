@@ -556,8 +556,9 @@ class PlayerViewModel(
     private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?, start: PendingStart? = null) {
         endRadio()
         val targetShuffle = shuffle ?: currentState.playback.shuffle
+        val queued = currentState.playback.queuedSongs()
         unshuffledSongs = songs
-        val queue: List<Song>
+        val ordered: List<Song>
         val index: Int
 
         // A "Shuffle" button shuffles everything; a song clicked while shuffle is on gets played first
@@ -566,16 +567,19 @@ class PlayerViewModel(
             if (clickedSong != null) {
                 val otherSongs = songs.toMutableList()
                 otherSongs.removeAt(startIndex)
-                queue = listOf(clickedSong) + otherSongs.shuffled()
+                ordered = listOf(clickedSong) + otherSongs.shuffled()
                 index = 0
             } else {
-                queue = songs.shuffled()
+                ordered = songs.shuffled()
                 index = 0
             }
         } else {
-            queue = songs
+            ordered = songs
             index = startIndex
         }
+        // The songs added to the queue stay, and play after the first of the new ones
+        val keptQueued = if (index in ordered.indices) queued else emptyList()
+        val queue = ordered.take(index + 1) + keptQueued + ordered.drop(index + 1)
 
         hasAutoAdvanced = false
         hasPreparedNext = false
@@ -586,7 +590,7 @@ class PlayerViewModel(
                     queue = queue,
                     currentIndex = index,
                     currentSong = queue.getOrNull(index),
-                    queuedCount = 0,
+                    queuedCount = keptQueued.size,
                     shuffle = targetShuffle,
                     status = PlaybackStatus.Buffering,
                 )
@@ -603,11 +607,24 @@ class PlayerViewModel(
 
     private fun isCurrentSong(song: Song?) = song != null && song.id == currentState.playback.currentSong?.id
 
-    /** Makes [songs], the first of which is the current song, the queue without interrupting that song. */
+    /**
+     * Makes [songs], the first of which is the current song, the queue without interrupting that song; the songs added
+     * to the queue stay next.
+     */
     private fun continueAsRadio(songs: List<Song>) {
         endRadio()
+        val queued = currentState.playback.queuedSongs()
         unshuffledSongs = songs
-        setState { copy(playback = playback.copy(queue = songs, currentIndex = 0, queuedCount = 0, shuffle = false)) }
+        setState {
+            copy(
+                playback = playback.copy(
+                    queue = songs.take(1) + queued + songs.drop(1),
+                    currentIndex = 0,
+                    queuedCount = queued.size,
+                    shuffle = false,
+                )
+            )
+        }
         onUpcomingChanged()
         if (currentState.playback.status == PlaybackStatus.Paused) audioPlayer.resume()
     }
@@ -669,6 +686,10 @@ class PlayerViewModel(
             }
         }
     }
+
+    /** The songs added to the queue that are yet to play, see [PlaybackState.queuedCount]. */
+    private fun PlaybackState.queuedSongs(): List<Song> =
+        if (currentIndex in queue.indices) queue.drop(currentIndex + 1).take(queuedCount) else emptyList()
 
     /** Current song at [index]; skipping forward past queued songs counts them as played. */
     private fun PlaybackState.movedTo(index: Int) = copy(
