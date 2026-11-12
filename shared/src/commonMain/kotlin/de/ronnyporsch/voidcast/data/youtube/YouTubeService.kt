@@ -212,6 +212,29 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return connection.jellyfinApi.getYouTubeAlbum(browseId).toAlbum().also { checkDownloaded(it.songs) }
     }
 
+    /** Release years of YouTube Music albums looked up by [albumYear], by album id; null if the album tells none. */
+    private val albumYears = MutableStateFlow<Map<String, Int?>>(emptyMap())
+
+    /**
+     * The year [song]'s album came out, or null if unknown. Only songs of album pages carry their year; for the
+     * others (from searches, radios, links etc.) this looks up their album.
+     */
+    suspend fun albumYear(song: Song): Int? {
+        val albumId = song.albumId
+        val browseId = albumId.youTubeId ?: return null
+        albumYears.value.let { if (albumId in it) return it[albumId] }
+        val year = try {
+            connection.jellyfinApi.getYouTubeAlbum(browseId).year
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Only informational; the next song of the album tries again
+            return null
+        }
+        albumYears.value += albumId to year
+        return year
+    }
+
     /** What the server's latest scan for new releases found, as far as it's still new to this user. */
     suspend fun getNewReleases(): NewReleases {
         val latest = connection.jellyfinApi.getNewReleases()
@@ -236,8 +259,11 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** Has the server scan for new releases now, unless it already does. */
     suspend fun startNewReleasesScan() = connection.jellyfinApi.startNewReleasesScan()
 
-    /** Marks those of [songs] that are already in the server's library, so they show as downloaded. */
-    private fun checkDownloaded(songs: List<Song>) {
+    /**
+     * Marks those of [songs] that are already in the server's library, so they show as downloaded. Songs from
+     * searches, albums etc. are checked already; this is for those from elsewhere, e.g. a restored queue.
+     */
+    fun checkDownloaded(songs: List<Song>) {
         if (!currentCapabilities.canDownload) return
         val videoIds = songs.mapNotNull { song -> song.youTubeVideoId?.takeIf { _downloads.value[song.id] == null } }
         if (videoIds.isEmpty()) return

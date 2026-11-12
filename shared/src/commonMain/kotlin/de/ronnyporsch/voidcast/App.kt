@@ -817,6 +817,7 @@ fun App() {
                     is Screen.Player -> {
                         PlayerScreen(
                             viewModel = playerViewModel,
+                            youTube = youTube,
                             isVideoFullscreen = showVideoFullscreen,
                             onToggleVideoFullscreen = { setVideoFullscreen(!videoFullscreen) },
                             onArtistClick = { name ->

@@ -1,5 +1,7 @@
 package de.ronnyporsch.voidcast.ui.screen.player
 
+import de.ronnyporsch.voidcast.data.youtube.YouTubeService
+import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.HighQuality
 import de.ronnyporsch.voidcast.domain.model.STANDARD_VIDEO_QUALITIES
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -77,6 +80,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
+    youTube: YouTubeService,
     onArtistClick: (artistName: String) -> Unit,
     onAlbumClick: (albumId: String) -> Unit,
     onBack: () -> Unit,
@@ -88,7 +92,18 @@ fun PlayerScreen(
     val state by viewModel.state.collectAsState()
     val playback = state.playback
     val song = playback.currentSong
+    // YouTube Music songs only know their year when they come from an album page
+    var year by remember(song?.id) { mutableStateOf(song?.year) }
+    LaunchedEffect(song?.id) {
+        if (song != null && song.year == null && song.isYouTube) year = youTube.albumYear(song)
+    }
     val coverArt = LocalCoverArtUrlProvider.current
+    val downloads by youTube.downloads.collectAsState()
+    val canDownload = youTube.capabilities.collectAsState(youTube.currentCapabilities).value.canDownload
+    // Songs of e.g. a restored queue or another device haven't been looked up yet
+    LaunchedEffect(song?.id, canDownload) {
+        if (song?.isYouTube == true) youTube.checkDownloaded(listOf(song))
+    }
     val isMobile = remember { getPlatform().isMobile }
     // 6 buttons + play/pause must fit a 360dp-wide phone
     val controlSlotSize = if (isMobile) 42.dp else 48.dp
@@ -231,6 +246,10 @@ fun PlayerScreen(
                             )
                         }
                     }
+                    year?.takeIf { it > 0 }?.let { year ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(year.toString(), style = MaterialTheme.typography.bodyMedium, color = SpotifyLightGray)
+                    }
                 } else {
                     Text(
                         text = "",
@@ -239,7 +258,15 @@ fun PlayerScreen(
                     )
                 }
             }
-            if (song?.isYouTube == true) YouTubeIcon(size = 24.dp)
+            if (song?.isYouTube == true) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    YouTubeIcon(size = 24.dp)
+                    // Whether it's in the library already, else the button to download it
+                    if (canDownload) {
+                        YouTubeDownloadButton(song, downloads[song.id]) { youTube.download(it) }
+                    }
+                }
+            }
             FavoriteButton(FavoriteKind.Song, song?.id, iconSize = 28.dp)
         }
 
