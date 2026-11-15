@@ -58,12 +58,17 @@ object GlobalShortcuts {
     /** Moves the list of the main view; only collected while there is one. */
     val scroll: SharedFlow<ScrollCommand> = _scroll.asSharedFlow()
 
+    /** Whether the focused element handled the last press of Space, e.g. a button that it clicks. */
+    private var spacePressConsumed = false
+
     /**
      * Ctrl+K focuses the search, Ctrl+F the filter of the songs shown, Ctrl+L shows or hides the lyrics (Cmd on macOS),
      * F5 and Ctrl+R reload what is shown. Only desktop gets the reload shortcuts, in browsers they reload the page.
      */
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.type != KeyEventType.KeyDown) return false
+        // Taken by the focused element, unless the press makes it to onUnhandledKeyEvent
+        if (event.key == Key.Spacebar) spacePressConsumed = true
         if (event.key == Key.F5 && !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed) return requestRefresh()
         if (!event.isCtrlPressed && !event.isMetaPressed) return false
         return when (event.key) {
@@ -84,11 +89,13 @@ object GlobalShortcuts {
      * for key events nothing else handled, as text fields move the cursor with them and type spaces.
      */
     fun onUnhandledKeyEvent(event: KeyEvent): Boolean {
-        // Text fields only take the typed character, not the key press, so react to the former
+        if (event.type == KeyEventType.KeyDown && event.key == Key.Spacebar) spacePressConsumed = false
+        // Text fields only take the typed character, not the key press, so react to the former. Focused buttons
+        // (a click focuses them) do the opposite: Space clicks them, and must not pause or resume on top of that
         if (event.type == KeyEventType.Unknown && event.utf16CodePoint == ' '.code &&
             !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed
         ) {
-            return requestPlayPause()
+            return !spacePressConsumed && requestPlayPause()
         }
         if (event.type == KeyEventType.Unknown && (event.utf16CodePoint == 'f'.code || event.utf16CodePoint == 'F'.code) &&
             !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed
