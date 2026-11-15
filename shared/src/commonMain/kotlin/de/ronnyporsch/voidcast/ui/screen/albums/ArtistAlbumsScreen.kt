@@ -44,6 +44,10 @@ import de.ronnyporsch.voidcast.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.voidcast.ui.components.ExpandableText
 import de.ronnyporsch.voidcast.ui.components.SelectableAlbum
 import de.ronnyporsch.voidcast.ui.components.SongRow
+import de.ronnyporsch.voidcast.ui.components.DownloadedIndicator
+import de.ronnyporsch.voidcast.ui.components.LocalDownloadedCollections
+import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
+import de.ronnyporsch.voidcast.ui.components.PlaylistDownloadButton
 import de.ronnyporsch.voidcast.ui.components.rememberAlbumSelection
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
@@ -163,6 +167,8 @@ fun ArtistAlbumsScreen(
                             // YouTube Music only lists an artist's top songs
                             songTotals = if (state.isYouTube) null else state.songs.formatTotals(),
                             headerState = headerState,
+                            songs = state.songs,
+                            coverArtId = state.coverArtId,
                         )
                     }
 
@@ -327,6 +333,9 @@ private fun ArtistHeader(
     biography: String?,
     songTotals: String?,
     headerState: CollapsingHeaderState,
+    /** The artist's songs as far as loaded, for downloading them. */
+    songs: List<Song>,
+    coverArtId: String?,
 ) {
     Column(
         modifier = Modifier
@@ -358,7 +367,22 @@ private fun ArtistHeader(
 
         if (artistId?.isYouTubeId == true) YouTubeIcon(Modifier.padding(top = 8.dp), size = 24.dp)
 
-        FavoriteButton(FavoriteKind.Artist, artistId)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Keeps all songs of the artist on the device for offline playback
+            val offlineDownloads = LocalSongDownloads.current
+            if (offlineDownloads != null && artistId != null && !artistId.isYouTubeId) {
+                val artistDownloads by offlineDownloads.artistStatus.collectAsState()
+                PlaylistDownloadButton(
+                    playlistName = artistName,
+                    status = artistDownloads[artistId],
+                    onDownload = { offlineDownloads.downloadArtist(artistId, artistName, songs, coverArtId) },
+                    onRemove = { offlineDownloads.removeArtist(artistId) },
+                    kind = "artist",
+                )
+            }
+
+            FavoriteButton(FavoriteKind.Artist, artistId)
+        }
 
         if (!biography.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
@@ -396,6 +420,8 @@ private fun AlbumCard(album: Album, downloaded: Boolean) {
                         .size(26.dp)
                         .background(Color.Black.copy(alpha = 0.6f), CircleShape),
                 )
+            } else if (album in LocalDownloadedCollections.current) {
+                DownloadedIndicator(Modifier.padding(6.dp), size = 26.dp, onCover = true)
             }
         }
 

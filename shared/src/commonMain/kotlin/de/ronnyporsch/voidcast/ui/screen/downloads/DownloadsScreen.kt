@@ -27,6 +27,7 @@ import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.formatFileSize
 import de.ronnyporsch.voidcast.domain.model.youTubeArtistId
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
+import de.ronnyporsch.voidcast.ui.components.ArtistImage
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
 import de.ronnyporsch.voidcast.ui.components.PlaylistDownloadButton
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
@@ -42,7 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * The YouTube Music songs downloaded into the server's library in this session, with their progress, and (Android)
- * the playlists, albums and songs downloaded for offline playback.
+ * the playlists, artists, albums and songs downloaded for offline playback.
  */
 @Composable
 fun DownloadsScreen(
@@ -147,6 +148,7 @@ private fun DeviceDownloadsList(
     val content by downloads.content.collectAsState()
     val playlistStatus by downloads.status.collectAsState()
     val albumStatus by downloads.albumStatus.collectAsState()
+    val artistStatus by downloads.artistStatus.collectAsState()
     val listState = rememberLazyListState()
     RememberScrollPosition(listState, "deviceDownloads")
     val songs = content.songs
@@ -157,8 +159,8 @@ private fun DeviceDownloadsList(
                 val size = songs.sumOf { it.size ?: 0L }
                 Header(
                     title = "On this device",
-                    subtitle = if (songs.isEmpty() && content.playlists.isEmpty() && content.albums.isEmpty()) {
-                        "Download playlists, albums or songs to listen to them offline"
+                    subtitle = if (songs.isEmpty() && content.playlists.isEmpty() && content.albums.isEmpty() && content.artists.isEmpty()) {
+                        "Download playlists, artists, albums or songs to listen to them offline"
                     } else {
                         listOfNotNull(
                             "${songs.size} song${if (songs.size != 1) "s" else ""}",
@@ -179,6 +181,22 @@ private fun DeviceDownloadsList(
                         onClick = { onPlaylistClick(playlist.id) },
                         onDownload = { downloads.download(playlist) },
                         onRemove = { downloads.remove(playlist.id) },
+                    )
+                }
+            }
+
+            if (content.artists.isNotEmpty()) {
+                item(key = "artistsHeader") { SectionHeader("Artists") }
+                items(content.artists, key = { "artist:${it.id}" }) { artist ->
+                    DownloadedCollectionRow(
+                        name = artist.name,
+                        coverArtId = artist.coverArtId,
+                        status = artistStatus[artist.id],
+                        kind = "artist",
+                        onClick = { onArtistClick(artist.id, artist.name) },
+                        onDownload = { downloads.downloadArtist(artist.id, artist.name) },
+                        onRemove = { downloads.removeArtist(artist.id) },
+                        isArtist = true,
                     )
                 }
             }
@@ -228,18 +246,23 @@ private fun DownloadedCollectionRow(
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     detail: String = "",
+    isArtist: Boolean = false,
 ) {
     val coverArt = LocalCoverArtUrlProvider.current
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverArtImage(
-            url = coverArt.getUrl(coverArtId),
-            modifier = Modifier.size(44.dp),
-            cornerRadius = 0.dp,
-            placeholderFontSize = 18.sp,
-        )
+        if (isArtist) {
+            ArtistImage(url = coverArt.getUrl(coverArtId), artistName = name, modifier = Modifier.size(44.dp))
+        } else {
+            CoverArtImage(
+                url = coverArt.getUrl(coverArtId),
+                modifier = Modifier.size(44.dp),
+                cornerRadius = 0.dp,
+                placeholderFontSize = 18.sp,
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

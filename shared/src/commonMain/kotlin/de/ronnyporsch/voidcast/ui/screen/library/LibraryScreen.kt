@@ -1226,11 +1226,16 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false, subtitle: Stri
             .fillMaxWidth()
             .padding(8.dp),
     ) {
-        CoverArtImage(
-            url = coverArt.getUrl(album.coverArtId),
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            placeholderFontSize = 40.sp,
-        )
+        Box(contentAlignment = Alignment.BottomEnd) {
+            CoverArtImage(
+                url = coverArt.getUrl(album.coverArtId),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                placeholderFontSize = 40.sp,
+            )
+            if (album in LocalDownloadedCollections.current) {
+                DownloadedIndicator(Modifier.padding(6.dp), size = 26.dp, onCover = true)
+            }
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -1635,6 +1640,8 @@ private fun ArtistListItem(artist: Artist, isSelected: Boolean, onClick: () -> U
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        if (artist in LocalDownloadedCollections.current) DownloadedIndicator(Modifier.padding(start = 8.dp))
     }
 }
 
@@ -1684,6 +1691,8 @@ private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit
                 overflow = TextOverflow.Ellipsis,
             )
         }
+
+        if (album in LocalDownloadedCollections.current) DownloadedIndicator(Modifier.padding(start = 8.dp))
     }
 }
 

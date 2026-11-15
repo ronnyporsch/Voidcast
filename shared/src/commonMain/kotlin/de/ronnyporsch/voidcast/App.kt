@@ -82,6 +82,7 @@ import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import de.ronnyporsch.voidcast.ui.components.LocalAddToQueue
 import de.ronnyporsch.voidcast.ui.components.LocalPlayNext
 import de.ronnyporsch.voidcast.ui.components.LocalAlbumSongs
+import de.ronnyporsch.voidcast.ui.components.LocalDownloadedCollections
 import de.ronnyporsch.voidcast.ui.components.LocalStartRadio
 import de.ronnyporsch.voidcast.ui.components.LocalStreamFormatLookup
 import de.ronnyporsch.voidcast.ui.components.description
@@ -336,6 +337,7 @@ fun App() {
     val downloadedSongIds by connection.downloads.downloadedSongIds.collectAsState()
     val queuedSongIds by connection.downloads.queuedSongIds.collectAsState()
     val downloadingSongIds by connection.downloads.downloadingSongIds.collectAsState()
+    val downloadedCollections by connection.downloads.collections.collectAsState()
     val pendingSongDownloads = remember(queuedSongIds, downloadingSongIds) {
         PendingSongDownloads(queuedSongIds, downloadingSongIds)
     }
@@ -410,6 +412,7 @@ fun App() {
             LocalSongDragAndDrop provides songDragAndDrop,
             LocalDownloadedSongIds provides downloadedSongIds,
             LocalPendingSongDownloads provides pendingSongDownloads,
+            LocalDownloadedCollections provides downloadedCollections,
             LocalSongDownloads provides connection.downloads.takeIf { it.isSupported },
         ) {
         Box(Modifier.fillMaxSize()) {

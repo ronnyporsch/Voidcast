@@ -24,6 +24,8 @@ import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.youTubeArtistId
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.ArtistImage
+import de.ronnyporsch.voidcast.ui.components.DownloadedIndicator
+import de.ronnyporsch.voidcast.ui.components.LocalDownloadedCollections
 import de.ronnyporsch.voidcast.ui.components.ClickableArtistText
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
 import de.ronnyporsch.voidcast.ui.components.PluginMissingWarning
@@ -307,13 +309,14 @@ private fun SearchArtistRow(artist: Artist, subtitle: String = "Artist", onClick
             modifier = Modifier.size(48.dp),
         )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(artist.name, style = MaterialTheme.typography.bodyLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (artist.id.isYouTubeId) YouTubeIcon(Modifier.padding(end = 4.dp))
                 Text(subtitle, style = MaterialTheme.typography.bodySmall)
             }
         }
+        if (artist in LocalDownloadedCollections.current) DownloadedIndicator(Modifier.padding(start = 8.dp))
     }
 }
 
@@ -357,7 +360,7 @@ private fun SearchAlbumRow(album: Album, onArtistClick: (String) -> Unit) {
             placeholderFontSize = 18.sp,
         )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(album.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             ClickableArtistText(
                 artists = album.artists,
@@ -366,6 +369,7 @@ private fun SearchAlbumRow(album: Album, onArtistClick: (String) -> Unit) {
                 prefix = "Album \u2022 ",
             )
         }
+        if (album in LocalDownloadedCollections.current) DownloadedIndicator(Modifier.padding(start = 8.dp))
     }
 }
 

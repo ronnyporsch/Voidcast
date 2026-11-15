@@ -2,6 +2,7 @@ package de.ronnyporsch.voidcast.data.offline
 
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.platform.SharedSongFile
@@ -44,11 +45,30 @@ private data class DownloadedAlbum(
     )
 }
 
+/** An artist with all of its songs: those of its albums and those on other albums crediting it. */
+@Serializable
+private data class DownloadedArtist(
+    val server: String,
+    val artistId: String,
+    val name: String,
+    val songs: List<Song>,
+    val coverArtId: String? = null,
+) {
+    fun toArtist() = Artist(
+        id = artistId,
+        name = name,
+        albumCount = songs.map { it.albumId }.filter { it.isNotBlank() }.distinct().size,
+        coverArtId = coverArtId,
+        songCount = songs.size,
+    )
+}
+
 /** What is downloaded for the current server, for an overview. */
 data class OfflineContent(
     val playlists: List<Playlist> = emptyList(),
     val albums: List<Album> = emptyList(),
-    /** All songs whose files are on the device, also those of [playlists] and [albums]. */
+    val artists: List<Artist> = emptyList(),
+    /** All songs whose files are on the device, also those of [playlists], [albums] and [artists]. */
     val songs: List<Song> = emptyList(),
 )
 
@@ -62,10 +82,26 @@ data class PlaylistDownloadStatus(
     val isComplete: Boolean get() = !isRunning && downloadedSongs >= totalSongs
 }
 
+/** The artists and albums of the current server whose songs are all on the device, for marking them in lists. */
+data class DownloadedCollections(
+    /** Artists downloaded as a whole whose songs are all there. */
+    val artistIds: Set<String> = emptySet(),
+    /** Albums downloaded as a whole whose songs are all there. */
+    val albumIds: Set<String> = emptySet(),
+    /** How many songs of an album are on the device, however they got there, by album id. */
+    val albumSongCounts: Map<String, Int> = emptyMap(),
+) {
+    operator fun contains(artist: Artist): Boolean = artist.id in artistIds
+
+    /** Also true for an album that wasn't downloaded itself, e.g. one of a downloaded artist. */
+    operator fun contains(album: Album): Boolean =
+        album.id in albumIds || (album.songCount > 0 && (albumSongCounts[album.id] ?: 0) >= album.songCount)
+}
+
 /**
- * Playlists, albums and songs the user downloaded for offline playback. Their songs are downloaded in original quality
- * into [files], along with their cover art; playlists and albums are kept in sync with the server: songs added to them get downloaded, removed ones
- * deleted. A song's file stays as long as a downloaded playlist or album contains it or it got downloaded on its own.
+ * Playlists, albums, artists and songs the user downloaded for offline playback. Their songs are downloaded in original quality
+ * into [files], along with their cover art; playlists, albums and artists are kept in sync with the server: songs added to them get downloaded, removed ones
+ * deleted. A song's file stays as long as a downloaded playlist, album or artist contains it or it got downloaded on its own.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaylistDownloads(
@@ -88,6 +124,7 @@ class PlaylistDownloads(
     private var entries: List<DownloadedPlaylist>? = null
     private var songEntries: List<DownloadedSong>? = null
     private var albumEntries: List<DownloadedAlbum>? = null
+    private var artistEntries: List<DownloadedArtist>? = null
     /** The single songs changed since [syncSongs]' job read them. */
     private var songsChanged = false
     private val jobs = mutableMapOf<String, Job>()
@@ -99,6 +136,14 @@ class PlaylistDownloads(
     private val _albumStatus = MutableStateFlow<Map<String, PlaylistDownloadStatus>>(emptyMap())
     /** The downloaded albums of the current server, by album id. */
     val albumStatus: StateFlow<Map<String, PlaylistDownloadStatus>> = _albumStatus.asStateFlow()
+
+    private val _artistStatus = MutableStateFlow<Map<String, PlaylistDownloadStatus>>(emptyMap())
+    /** The downloaded artists of the current server, by artist id. */
+    val artistStatus: StateFlow<Map<String, PlaylistDownloadStatus>> = _artistStatus.asStateFlow()
+
+    private val _collections = MutableStateFlow(DownloadedCollections())
+    /** The artists and albums of the current server that are downloaded completely. */
+    val collections: StateFlow<DownloadedCollections> = _collections.asStateFlow()
 
     private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
     /** The songs of the current server whose files are on the device. */
@@ -114,7 +159,7 @@ class PlaylistDownloads(
     private val transferring = mutableSetOf<String>()
 
     private val _content = MutableStateFlow(OfflineContent())
-    /** The downloaded playlists, albums and songs of the current server. */
+    /** The downloaded playlists, artists, albums and songs of the current server. */
     val content: StateFlow<OfflineContent> = _content.asStateFlow()
 
     private val _singleSongIds = MutableStateFlow<Set<String>>(emptySet())
@@ -212,6 +257,34 @@ class PlaylistDownloads(
         }
     }
 
+    /**
+     * Downloads all songs of the artist [artistId] (of which [songs] are known so far) and keeps them downloaded,
+     * also those it gets later.
+     */
+    fun downloadArtist(artistId: String, name: String, songs: List<Song> = emptyList(), coverArtId: String? = null) {
+        if (files == null || artistId.isBlank()) return
+        scope.launch {
+            val server = serverKey()
+            if (artistEntry(server, artistId) == null) {
+                saveArtists(loadArtists() + DownloadedArtist(server, artistId, name, songs.distinctBy { it.id }, coverArtId))
+            }
+            syncArtist(server, artistId)
+        }
+        tellIfDeferred()
+    }
+
+    fun removeArtist(artistId: String) {
+        if (files == null) return
+        scope.launch {
+            val server = serverKey()
+            jobs.remove(artistKey(server, artistId))?.cancelAndJoin()
+            val entry = artistEntry(server, artistId) ?: return@launch
+            saveArtists(loadArtists() - entry)
+            deleteUnused(entry.songs, listOf(entry.coverArtId))
+            publish()
+        }
+    }
+
     /** Downloads [songs] on their own and keeps them until [removeSongs]. */
     fun downloadSongs(songs: List<Song>) {
         if (files == null || songs.isEmpty()) return
@@ -251,6 +324,7 @@ class PlaylistDownloads(
             val server = serverKey()
             load().filter { it.server == server }.forEach { sync(server, it.playlist.id) }
             loadAlbums().filter { it.server == server }.forEach { syncAlbum(server, it.albumId) }
+            loadArtists().filter { it.server == server }.forEach { syncArtist(server, it.artistId) }
             syncSongs(server)
         }
     }
@@ -304,7 +378,8 @@ class PlaylistDownloads(
         val server = serverKey()
         (loadSongs().filter { it.server == server }.map { it.song } +
             load().filter { it.server == server }.flatMap { it.playlist.songs } +
-            loadAlbums().filter { it.server == server }.flatMap { it.songs })
+            loadAlbums().filter { it.server == server }.flatMap { it.songs } +
+            loadArtists().filter { it.server == server }.flatMap { it.songs })
             .distinctBy { it.id }
             .filter { files.uriOf(it.id) != null }
     }
@@ -354,6 +429,39 @@ class PlaylistDownloads(
             val album = albumEntry(server, albumId)
             downloadCovers(files, listOf(album?.coverArtId))
             downloadMissing(files, server, album?.songs.orEmpty())
+        }.also { job ->
+            job.invokeOnCompletion {
+                scope.launch {
+                    if (jobs[key] === job) jobs.remove(key)
+                    publish()
+                }
+            }
+        }
+        publish()
+    }
+
+    private suspend fun syncArtist(server: String, artistId: String) {
+        val files = files ?: return
+        val key = artistKey(server, artistId)
+        if (jobs[key]?.isActive == true) return
+        jobs[key] = scope.launch {
+            // Offline the stored song list is downloaded as far as possible
+            val name = artistEntry(server, artistId)?.name ?: return@launch
+            repository.getArtistAlbums(artistId).onSuccess { albums ->
+                val albumIds = albums.map { it.id }.filter { it.isNotBlank() }.distinct()
+                repository.getSongsForArtist(name, albumIds).onSuccess { songs ->
+                    val fresh = songs.distinctBy { it.id }
+                    val entry = artistEntry(server, artistId) ?: return@launch
+                    if (serverKey() != server) return@launch
+                    saveArtists(loadArtists().map { if (it == entry) entry.copy(songs = fresh) else it })
+                    val freshIds = fresh.mapTo(mutableSetOf()) { it.id }
+                    deleteUnused(entry.songs.filterNot { it.id in freshIds })
+                }
+            }
+            publish()
+            val artist = artistEntry(server, artistId)
+            downloadCovers(files, listOf(artist?.coverArtId))
+            downloadMissing(files, server, artist?.songs.orEmpty())
         }.also { job ->
             job.invokeOnCompletion {
                 scope.launch {
@@ -429,15 +537,17 @@ class PlaylistDownloads(
     }
 
     /**
-     * Deletes the files of [songs] and the covers of them and [coverArtIds] that no downloaded playlist or album nor
-     * a single download (of any server) needs anymore.
+     * Deletes the files of [songs] and the covers of them and [coverArtIds] that no downloaded playlist, album or
+     * artist nor a single download (of any server) needs anymore.
      */
     private suspend fun deleteUnused(songs: Collection<Song>, coverArtIds: Collection<String?> = emptyList()) {
         val files = files ?: return
-        val usedSongs = load().flatMap { it.playlist.songs } + loadAlbums().flatMap { it.songs } + loadSongs().map { it.song }
+        val usedSongs = load().flatMap { it.playlist.songs } + loadAlbums().flatMap { it.songs } +
+            loadArtists().flatMap { it.songs } + loadSongs().map { it.song }
         val usedIds = usedSongs.mapTo(mutableSetOf()) { it.id }
         songs.map { it.id }.distinct().filterNot { it in usedIds }.forEach { files.delete(it) }
-        val usedCovers = (usedSongs.map { it.coverArtId } + load().map { it.playlist.coverArtId } + loadAlbums().map { it.coverArtId })
+        val usedCovers = (usedSongs.map { it.coverArtId } + load().map { it.playlist.coverArtId } + loadAlbums().map { it.coverArtId } +
+            loadArtists().map { it.coverArtId })
             .filterNotNullTo(mutableSetOf())
         (songs.map { it.coverArtId } + coverArtIds).filterNotNull().distinct()
             .filterNot { it in usedCovers }
@@ -451,11 +561,14 @@ class PlaylistDownloads(
         val entries = load().filter { it.server == server }
         val singleSongs = loadSongs().filter { it.server == server }
         val albums = loadAlbums().filter { it.server == server }
+        val artists = loadArtists().filter { it.server == server }
+        val collectionSongs = entries.flatMap { it.playlist.songs } + albums.flatMap { it.songs } + artists.flatMap { it.songs }
         _singleSongIds.value = singleSongs.mapTo(mutableSetOf()) { it.song.id }
-        _downloadedSongIds.value = (entries.flatMap { it.playlist.songs } + albums.flatMap { it.songs } + singleSongs.map { it.song })
+        _downloadedSongIds.value = (collectionSongs + singleSongs.map { it.song })
             .mapNotNullTo(mutableSetOf()) { song -> song.id.takeIf { files.uriOf(it) != null } }
         val pending = entries.filter { jobs[key(server, it.playlist.id)]?.isActive == true }.flatMap { it.playlist.songs } +
             albums.filter { jobs[albumKey(server, it.albumId)]?.isActive == true }.flatMap { it.songs } +
+            artists.filter { jobs[artistKey(server, it.artistId)]?.isActive == true }.flatMap { it.songs } +
             (if (jobs[songsKey(server)]?.isActive == true) singleSongs.map { it.song } else emptyList())
         _downloadingSongIds.value = transferring.toSet()
         _queuedSongIds.value = pending.mapNotNullTo(mutableSetOf()) { song ->
@@ -474,13 +587,15 @@ class PlaylistDownloads(
                     isRunning = jobs[key(server, entry.playlist.id)]?.isActive == true && downloaded < total,
                 )
             }
-        _content.value = OfflineContent(
+        val content = OfflineContent(
             playlists = entries.map { it.playlist },
             albums = albums.map { it.toAlbum() },
-            songs = (singleSongs.map { it.song } + entries.flatMap { it.playlist.songs } + albums.flatMap { it.songs })
+            artists = artists.map { it.toArtist() },
+            songs = (singleSongs.map { it.song } + collectionSongs)
                 .distinctBy { it.id }
                 .filter { files.uriOf(it.id) != null },
         )
+        _content.value = content
         _albumStatus.value = albums.associate { entry ->
             val songs = entry.songs.distinctBy { it.id }
             val downloaded = songs.count { files.uriOf(it.id) != null }
@@ -490,6 +605,21 @@ class PlaylistDownloads(
                 isRunning = jobs[albumKey(server, entry.albumId)]?.isActive == true && downloaded < songs.size,
             )
         }
+        _artistStatus.value = artists.associate { entry ->
+            val downloaded = entry.songs.count { files.uriOf(it.id) != null }
+            entry.artistId to PlaylistDownloadStatus(
+                downloadedSongs = downloaded,
+                totalSongs = entry.songs.size,
+                // Until the songs got fetched there is nothing to count
+                isRunning = jobs[artistKey(server, entry.artistId)]?.isActive == true &&
+                    (entry.songs.isEmpty() || downloaded < entry.songs.size),
+            )
+        }
+        _collections.value = DownloadedCollections(
+            artistIds = _artistStatus.value.filterValues { it.isComplete && it.totalSongs > 0 }.keys,
+            albumIds = _albumStatus.value.filterValues { it.isComplete && it.totalSongs > 0 }.keys,
+            albumSongCounts = content.songs.filter { it.albumId.isNotBlank() }.groupingBy { it.albumId }.eachCount(),
+        )
     }
 
     private suspend fun entry(server: String, playlistId: String): DownloadedPlaylist? =
@@ -531,10 +661,26 @@ class PlaylistDownloads(
         writeAppFile(ALBUMS_FILE_NAME, offlineJson.encodeToString(new))
     }
 
+    private suspend fun artistEntry(server: String, artistId: String): DownloadedArtist? =
+        loadArtists().firstOrNull { it.server == server && it.artistId == artistId }
+
+    private suspend fun loadArtists(): List<DownloadedArtist> = artistEntries ?: (
+        readAppFile(ARTISTS_FILE_NAME)?.let {
+            runCatching { offlineJson.decodeFromString<List<DownloadedArtist>>(it) }.getOrNull()
+        } ?: emptyList()
+    ).also { artistEntries = it }
+
+    private suspend fun saveArtists(new: List<DownloadedArtist>) {
+        artistEntries = new
+        writeAppFile(ARTISTS_FILE_NAME, offlineJson.encodeToString(new))
+    }
+
     private fun key(server: String, playlistId: String) = "$server\n$playlistId"
 
     /** Key of the job syncing [albumId]; the prefix keeps it apart from playlists with the same id. */
     private fun albumKey(server: String, albumId: String) = key(server, "album:$albumId")
+
+    private fun artistKey(server: String, artistId: String) = key(server, "artist:$artistId")
 
     /** Key of the job downloading the single songs; playlist ids aren't empty, so it can't collide with [key]. */
     private fun songsKey(server: String) = key(server, "")
@@ -543,6 +689,7 @@ class PlaylistDownloads(
         const val FILE_NAME = "downloaded-playlists.json"
         const val SONGS_FILE_NAME = "downloaded-songs.json"
         const val ALBUMS_FILE_NAME = "downloaded-albums.json"
+        const val ARTISTS_FILE_NAME = "downloaded-artists.json"
         const val SYNC_INTERVAL = 15 * 60 * 1000L
         /** Of the downloaded covers; large enough for the media notification, see AppSession. */
         const val COVER_SIZE = 512
