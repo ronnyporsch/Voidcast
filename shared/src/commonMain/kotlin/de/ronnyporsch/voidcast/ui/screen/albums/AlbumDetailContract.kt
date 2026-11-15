@@ -34,8 +34,11 @@ sealed class AlbumDetailEvent {
     data class ArtistClicked(val artistName: String) : AlbumDetailEvent()
     /** Downloads a YouTube Music song into the library. */
     data class DownloadSong(val request: YouTubeDownloadRequest) : AlbumDetailEvent()
-    /** Downloads all songs of a YouTube Music album into the library. */
-    data object DownloadAll : AlbumDetailEvent()
+    /**
+     * Downloads all songs of a YouTube Music album into the library, tagged with [albumName] and, unless null,
+     * [albumArtists] instead of YouTube Music's.
+     */
+    data class DownloadAll(val albumName: String, val albumArtists: List<String>? = null) : AlbumDetailEvent()
 }
 
 sealed class AlbumDetailEffect {

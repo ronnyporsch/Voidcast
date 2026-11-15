@@ -144,6 +144,8 @@ data class PluginInfoDto(
     @SerialName("SongLookupAvailable") val songLookupAvailable: Boolean = false,
     /** Whether songs' radios can be loaded, see [JellyfinApiService.getYouTubeRadio]. */
     @SerialName("RadioAvailable") val radioAvailable: Boolean = false,
+    /** Whether downloads take album artists, see [YouTubeSongDto.albumArtists]. */
+    @SerialName("AlbumArtistsAvailable") val albumArtistsAvailable: Boolean = false,
     @SerialName("NewReleasesMinSongs") val newReleasesMinSongs: Int = 0,
     @SerialName("NewReleasesFavoritesOnly") val newReleasesFavoritesOnly: Boolean = false,
     /** Whether this user may change the new releases settings, which apply to the whole server. */
@@ -226,6 +228,8 @@ data class YouTubeSongDto(
     @SerialName("IsVideo") val isVideo: Boolean = false,
     /** Tags a download with it; YouTube Music doesn't tell one. */
     @SerialName("Genre") val genre: String? = null,
+    /** Tags a download with them instead of the album artists YouTube Music tells; null keeps those. */
+    @SerialName("AlbumArtists") val albumArtists: List<String>? = null,
     /** Where a download starts and ends, in seconds, to cut off an intro or outro; null keeps it. */
     @SerialName("StartTime") val startTime: Int? = null,
     @SerialName("EndTime") val endTime: Int? = null,

@@ -88,6 +88,7 @@ import de.ronnyporsch.voidcast.ui.components.description
 import de.ronnyporsch.voidcast.ui.components.LocalSongDragAndDrop
 import de.ronnyporsch.voidcast.ui.components.LocalScrollPositions
 import de.ronnyporsch.voidcast.ui.components.LocalDownloadedSongIds
+import de.ronnyporsch.voidcast.ui.components.LocalYouTubeAlbumArtistsEditable
 import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
 import de.ronnyporsch.voidcast.ui.components.LocalPendingSongDownloads
 import de.ronnyporsch.voidcast.ui.components.PendingSongDownloads
@@ -404,6 +405,7 @@ fun App() {
             LocalAlbumSongs provides loadAlbumSongs,
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalStartRadio provides startRadio.takeIf { youTubeCapabilities.radio },
+            LocalYouTubeAlbumArtistsEditable provides youTubeCapabilities.albumArtists,
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
             LocalDownloadedSongIds provides downloadedSongIds,

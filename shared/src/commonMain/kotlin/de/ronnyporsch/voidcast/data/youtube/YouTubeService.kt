@@ -47,6 +47,8 @@ data class YouTubeCapabilities(
     val songLookup: Boolean = false,
     /** Whether songs' radios can be loaded, see [YouTubeService.getRadio]. */
     val radio: Boolean = false,
+    /** Whether downloads can be tagged with other album artists than YouTube Music's, see [YouTubeDownloadRequest.albumArtists]. */
+    val albumArtists: Boolean = false,
 )
 
 sealed class DownloadStatus {
@@ -60,9 +62,15 @@ sealed class DownloadStatus {
 /**
  * A YouTube Music [song] to download into the library, tagged with its (possibly edited) title, artists, album and
  * genre. Only the part from [startTime] to [endTime] (in seconds) gets downloaded, e.g. without a video's intro; null
- * keeps the start or end.
+ * keeps the start or end. [albumArtists] replace the album artists YouTube Music tells, if the server can do that
+ * (see [YouTubeCapabilities.albumArtists]); null keeps them.
  */
-data class YouTubeDownloadRequest(val song: Song, val startTime: Int? = null, val endTime: Int? = null)
+data class YouTubeDownloadRequest(
+    val song: Song,
+    val startTime: Int? = null,
+    val endTime: Int? = null,
+    val albumArtists: List<String>? = null,
+)
 
 /** A YouTube Music artist page; ids carry [YOUTUBE_SONG_ID_PREFIX]. */
 data class YouTubeArtist(
@@ -137,6 +145,7 @@ class YouTubeService(private val connection: MusicServerConnection) {
             addToPlaylists = server?.playlistAdditionAvailable == true,
             songLookup = server?.songLookupAvailable == true,
             radio = server?.radioAvailable == true,
+            albumArtists = server?.albumArtistsAvailable == true,
         )
     }
 
@@ -515,6 +524,7 @@ private fun YouTubeDownloadRequest.toDto() = YouTubeSongDto(
     duration = song.duration,
     isVideo = song.isVideo,
     genre = song.genre?.takeIf { it.isNotBlank() },
+    albumArtists = albumArtists?.takeIf { it.isNotEmpty() },
     startTime = startTime,
     endTime = endTime,
 )

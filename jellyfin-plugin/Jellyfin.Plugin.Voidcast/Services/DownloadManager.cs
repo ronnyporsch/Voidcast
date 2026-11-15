@@ -145,8 +145,11 @@ public partial class DownloadManager
         }
 
         // They end up in tags and file names
-        var texts = new[] { song.Title, song.Artist, song.Album, song.Genre }.Concat((song.Artists ?? []).Select(artist => artist?.Name));
-        if (song.Artists is { Count: > MaxArtists } || texts.Any(text => text is { Length: > MaxTextLength }))
+        var texts = new[] { song.Title, song.Artist, song.Album, song.Genre }
+            .Concat((song.Artists ?? []).Select(artist => artist?.Name))
+            .Concat(song.AlbumArtists ?? []);
+        if (song.Artists is { Count: > MaxArtists } || song.AlbumArtists is { Count: > MaxArtists }
+            || texts.Any(text => text is { Length: > MaxTextLength }))
         {
             throw new ArgumentException("The track's details are too long");
         }

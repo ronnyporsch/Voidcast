@@ -69,7 +69,9 @@ class AlbumDetailViewModel(
                 emitEffect(AlbumDetailEffect.NavigateToArtist(event.artistName, artistId))
             }
             is AlbumDetailEvent.DownloadSong -> youTube.download(event.request)
-            is AlbumDetailEvent.DownloadAll -> currentState.album?.songs?.let { songs -> youTube.download(songs.map(::YouTubeDownloadRequest)) }
+            is AlbumDetailEvent.DownloadAll -> currentState.album?.songs?.let { songs ->
+                youTube.download(songs.map { YouTubeDownloadRequest(it.copy(album = event.albumName), albumArtists = event.albumArtists) })
+            }
         }
     }
 

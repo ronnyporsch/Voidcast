@@ -39,6 +39,7 @@ import de.ronnyporsch.voidcast.ui.components.SongRow
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
 import de.ronnyporsch.voidcast.ui.components.contextMenuSongs
+import de.ronnyporsch.voidcast.ui.components.YouTubeAlbumDownloadDialog
 import de.ronnyporsch.voidcast.ui.components.YouTubeDownloadButton
 import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
 import de.ronnyporsch.voidcast.ui.components.PlaylistDownloadButton
@@ -212,12 +213,23 @@ fun AlbumDetailScreen(
                             }
 
                             if (state.isYouTube && state.canDownload) {
+                                var showDownloadDialog by remember { mutableStateOf(false) }
                                 AlbumDownloadButton(
                                     songs = album.songs,
                                     downloads = state.downloads,
-                                    onClick = { viewModel.onEvent(AlbumDetailEvent.DownloadAll) },
+                                    onClick = { showDownloadDialog = true },
                                     modifier = Modifier.weight(1f).height(44.dp),
                                 )
+                                if (showDownloadDialog) {
+                                    YouTubeAlbumDownloadDialog(
+                                        album = album,
+                                        onDownload = { name, artists ->
+                                            showDownloadDialog = false
+                                            viewModel.onEvent(AlbumDetailEvent.DownloadAll(name, artists))
+                                        },
+                                        onDismiss = { showDownloadDialog = false },
+                                    )
+                                }
                             }
 
                             // Android: keeps the album on the device for offline playback
@@ -274,7 +286,7 @@ fun AlbumDetailScreen(
                                 showFavorite = true,
                                 trailingContent = if (state.isYouTube && state.canDownload) {
                                     {
-                                        YouTubeDownloadButton(song, state.downloads[song.id]) { edited ->
+                                        YouTubeDownloadButton(song, state.downloads[song.id], album.artists.map { it.name }) { edited ->
                                             viewModel.onEvent(AlbumDetailEvent.DownloadSong(edited))
                                         }
                                     }

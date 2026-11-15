@@ -5,7 +5,7 @@ using Jellyfin.Plugin.Voidcast.Api;
 
 namespace Jellyfin.Plugin.Voidcast.Services;
 
-internal static class TrackTagsBuilder
+public static class TrackTagsBuilder
 {
     private static readonly HashSet<string> ReleaseTypes = ["album", "single", "ep"];
 
@@ -34,6 +34,7 @@ internal static class TrackTagsBuilder
                 tags.Album = song.Album;
                 tags.AlbumArtist = string.IsNullOrWhiteSpace(song.Artist) ? null : song.Artist;
                 tags.AlbumArtists = artists;
+                ApplyAlbumArtists(tags, song);
             }
 
             return tags;
@@ -58,7 +59,23 @@ internal static class TrackTagsBuilder
         var releaseType = album.ReleaseType?.ToLowerInvariant();
         tags.ReleaseType = releaseType != null && ReleaseTypes.Contains(releaseType) ? releaseType : null;
         tags.Media = "Digital Media";
+        ApplyAlbumArtists(tags, song);
         return tags;
+    }
+
+    /// <summary>Replaces the album artists with the ones the client asked for, if any.</summary>
+    private static void ApplyAlbumArtists(TrackTags tags, YouTubeSongDto song)
+    {
+        var albumArtists = (song.AlbumArtists ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct()
+            .ToList();
+        if (albumArtists.Count > 0)
+        {
+            tags.AlbumArtist = string.Join(", ", albumArtists);
+            tags.AlbumArtists = albumArtists;
+        }
     }
 
     private static T? SingleOrNull<T>(IEnumerable<T> items)

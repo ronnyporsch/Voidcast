@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
 import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
+import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -40,12 +42,21 @@ import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyWhite
 
+/** Whether the server tags downloads with the album artists the user asks for, see YouTubeCapabilities.albumArtists. */
+val LocalYouTubeAlbumArtistsEditable = compositionLocalOf { false }
+
 /**
  * Downloads a YouTube Music song into the server's library and shows the progress. Asks for the tags and the part to
  * download first, prefilled with YouTube Music's, see [YouTubeDownloadDialog], and passes them to [onDownload].
+ * [albumArtists] are the ones of the song's album, if known.
  */
 @Composable
-fun YouTubeDownloadButton(song: Song, status: DownloadStatus?, onDownload: (YouTubeDownloadRequest) -> Unit) {
+fun YouTubeDownloadButton(
+    song: Song,
+    status: DownloadStatus?,
+    albumArtists: List<String> = emptyList(),
+    onDownload: (YouTubeDownloadRequest) -> Unit,
+) {
     var showDialog by remember { mutableStateOf(false) }
     when (status) {
         DownloadStatus.InProgress -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
@@ -74,6 +85,7 @@ fun YouTubeDownloadButton(song: Song, status: DownloadStatus?, onDownload: (YouT
     if (showDialog) {
         YouTubeDownloadDialog(
             song = song,
+            albumArtists = albumArtists,
             onDownload = {
                 showDialog = false
                 onDownload(it)
@@ -84,15 +96,17 @@ fun YouTubeDownloadButton(song: Song, status: DownloadStatus?, onDownload: (YouT
 }
 
 /**
- * Lets the user correct the tags of [song] (title, artists, album, genre) and cut off an intro or outro before it gets
- * downloaded. [progress] tells e.g. which of several songs this is; [onKeepRest] offers to download the remaining ones
- * of them with YouTube Music's tags.
+ * Lets the user correct the tags of [song] (title, artists, album, album artists, genre) and cut off an intro or outro
+ * before it gets downloaded. [albumArtists] are the ones of its album, if known; the server looks them up otherwise.
+ * [progress] tells e.g. which of several songs this is; [onKeepRest] offers to download the remaining ones of them
+ * with YouTube Music's tags.
  */
 @Composable
 fun YouTubeDownloadDialog(
     song: Song,
     onDownload: (YouTubeDownloadRequest) -> Unit,
     onDismiss: () -> Unit,
+    albumArtists: List<String> = emptyList(),
     title: String = "Download to library",
     confirmLabel: String = "Download",
     progress: String? = null,
@@ -103,6 +117,8 @@ fun YouTubeDownloadDialog(
     // One per line, as names may contain commas ("Tyler, The Creator")
     var artists by remember(song) { mutableStateOf(song.artists.joinToString("\n") { it.name }) }
     var album by remember(song) { mutableStateOf(song.album) }
+    val albumArtistsEditable = LocalYouTubeAlbumArtistsEditable.current
+    var albumArtistsText by remember(song, albumArtists) { mutableStateOf(albumArtists.joinToString("\n")) }
     var genre by remember(song) { mutableStateOf(song.genre.orEmpty()) }
     var start by remember(song) { mutableStateOf(formatCutTime(0)) }
     var end by remember(song) { mutableStateOf(if (song.duration > 0) formatCutTime(song.duration) else "") }
@@ -115,7 +131,7 @@ fun YouTubeDownloadDialog(
     val valid = songTitle.isNotBlank() && startValid && endValid
     val download = {
         if (valid) {
-            val names = artists.lines().map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            val names = parseNames(artists)
             val albumName = album.trim()
             onDownload(
                 YouTubeDownloadRequest(
@@ -131,6 +147,9 @@ fun YouTubeDownloadDialog(
                     ),
                     startTime = startSeconds?.takeIf { it > 0 },
                     endTime = endSeconds?.takeIf { song.duration <= 0 || it < song.duration },
+                    // Unchanged or empty: the server tags the album's (or, without an album, none)
+                    albumArtists = parseNames(albumArtistsText)
+                        .takeIf { albumArtistsEditable && albumName.isNotEmpty() && it.isNotEmpty() && it != albumArtists },
                 )
             )
         }
@@ -181,6 +200,13 @@ fun YouTubeDownloadDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (albumArtistsEditable) {
+                    AlbumArtistsField(
+                        value = albumArtistsText,
+                        onValueChange = { albumArtistsText = it },
+                        enabled = album.isNotBlank(),
+                    )
+                }
                 TagField(
                     value = genre,
                     onValueChange = { genre = it },
@@ -227,6 +253,70 @@ fun YouTubeDownloadDialog(
 }
 
 /**
+ * Lets the user change the title and the album artists of the YouTube Music [album] before all its songs get
+ * downloaded; [onDownload] gets the title and, if they were changed, the album artists (else null).
+ */
+@Composable
+fun YouTubeAlbumDownloadDialog(album: Album, onDownload: (String, List<String>?) -> Unit, onDismiss: () -> Unit) {
+    val albumArtistsEditable = LocalYouTubeAlbumArtistsEditable.current
+    val knownArtists = remember(album) { album.artists.map { it.name } }
+    var name by remember(album) { mutableStateOf(album.name) }
+    var artists by remember(album) { mutableStateOf(knownArtists.joinToString("\n")) }
+    val valid = name.isNotBlank()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Download album to library") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                TagField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Album",
+                    singleLine = true,
+                    isError = !valid,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (albumArtistsEditable) {
+                    AlbumArtistsField(value = artists, onValueChange = { artists = it })
+                }
+            }
+        },
+        confirmButton = {
+            OutlinedButton(
+                onClick = {
+                    val names = parseNames(artists)
+                    onDownload(name.trim(), names.takeIf { albumArtistsEditable && it.isNotEmpty() && it != knownArtists })
+                },
+                enabled = valid,
+                shape = RoundedCornerShape(0.dp),
+            ) {
+                Text("Download", color = if (valid) AccentColor else Color.Unspecified)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun AlbumArtistsField(value: String, onValueChange: (String) -> Unit, enabled: Boolean = true) {
+    TagField(
+        value = value,
+        onValueChange = onValueChange,
+        label = "Album artists",
+        supportingText = { Text("Each artist on its own line. Empty: the album's artists on YouTube Music") },
+        minLines = 2,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** The names in [text], one per line, as names may contain commas ("Tyler, The Creator"). */
+private fun parseNames(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+/**
  * Asks for the tags of the YouTube Music songs [editor] is about to add to a playlist, see
  * [PlaylistEditor.pendingYouTube]: one song after another, then adds them.
  */
@@ -265,10 +355,12 @@ private fun TagField(
     singleLine: Boolean = false,
     minLines: Int = 1,
     isError: Boolean = false,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         label = { Text(label, color = SearchPlaceholderGray) },
         supportingText = supportingText,
         singleLine = singleLine,

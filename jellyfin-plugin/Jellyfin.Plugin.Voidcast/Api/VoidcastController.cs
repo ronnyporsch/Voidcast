@@ -65,6 +65,7 @@ public class VoidcastController : ControllerBase
             PlaylistAdditionAvailable = true,
             SongLookupAvailable = true,
             RadioAvailable = true,
+            AlbumArtistsAvailable = true,
             NewReleasesMinSongs = Plugin.Instance.Configuration.NewReleasesMinSongs,
             NewReleasesFavoritesOnly = Plugin.Instance.Configuration.NewReleasesFavoritesOnly,
             CanConfigureNewReleases = User.IsInRole("Administrator"),

@@ -85,6 +85,12 @@ public class YouTubeSongDto
     /// <summary>Gets or sets the genre to tag a download with; YouTube Music doesn't tell one.</summary>
     public string? Genre { get; set; }
 
+    /// <summary>
+    /// Gets or sets the album artists to tag a download with instead of the ones of the album on YouTube Music (or,
+    /// without one, the track's artists); null or empty keeps those.
+    /// </summary>
+    public List<string>? AlbumArtists { get; set; }
+
     /// <summary>Gets or sets where a download starts in seconds, to cut off an intro; null keeps the start.</summary>
     public int? StartTime { get; set; }
 
@@ -307,6 +313,9 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether songs' radios can be loaded, see <c>YouTube/Songs/{videoId}/Radio</c>.</summary>
     public bool RadioAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether downloads take album artists, see <see cref="YouTubeSongDto.AlbumArtists"/>.</summary>
+    public bool AlbumArtistsAvailable { get; set; }
 
     public int NewReleasesMinSongs { get; set; }
 
