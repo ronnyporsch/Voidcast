@@ -36,6 +36,7 @@ import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
 import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.data.youtube.YouTubeService
+import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
@@ -272,6 +273,8 @@ fun SongContextMenu(
     showPlaylistsFirst: Boolean = false,
     /** Called after an action got chosen (not when the menu is just closed), e.g. to end a selection. */
     onActionDone: () -> Unit = {},
+    /** The YouTube Music album the songs are all of, if so: downloading them asks for its name and artists first. */
+    youTubeAlbum: Album? = null,
 ) {
     val editor = LocalPlaylistEditor.current
     val addToQueue = LocalAddToQueue.current
@@ -287,6 +290,12 @@ fun SongContextMenu(
     var showCreateDialog by remember { mutableStateOf(false) }
     // The menu forgets the songs when it closes, but the dialog outlives it
     var dialogSongs by remember { mutableStateOf(emptyList<Song>()) }
+    // YouTube Music songs can be downloaded into the server's library
+    val youTubeDownloads = LocalYouTubeDownloads.current
+    val youTubeStatuses by (youTubeDownloads?.downloads ?: remember { MutableStateFlow(emptyMap<String, DownloadStatus>()) }).collectAsState()
+    var downloadDialogSong by remember { mutableStateOf<Song?>(null) }
+    var downloadDialogAlbum by remember { mutableStateOf<Album?>(null) }
+    val scope = rememberCoroutineScope()
     val playlists by (editor?.playlists ?: remember { MutableStateFlow(emptyList<Playlist>()) }).collectAsState()
     val favorites = LocalFavorites.current
     val streamFormatLookup = LocalStreamFormatLookup.current
@@ -465,6 +474,32 @@ fun SongContextMenu(
                     )
                 }
             }
+            if (youTubeDownloads != null) {
+                val missing = songs.filter { song ->
+                    song.isYouTube && youTubeStatuses[song.id].let { it == null || it is DownloadStatus.Failed }
+                }
+                if (missing.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Download to library") },
+                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                        onClick = {
+                            val single = missing.singleOrNull()?.takeIf { songs.size == 1 }
+                            when {
+                                youTubeAlbum != null -> scope.launch {
+                                    // The album as listed may lack its artists and songs
+                                    downloadDialogAlbum = youTubeAlbum.takeIf { it.songs.isNotEmpty() }
+                                        ?: runCatching { youTubeDownloads.getAlbum(youTubeAlbum.id) }
+                                            .onFailure { if (it is CancellationException) throw it }
+                                            .getOrElse { youTubeAlbum.copy(songs = songs) }
+                                }
+                                single != null -> downloadDialogSong = single
+                                else -> youTubeDownloads.download(missing.map { YouTubeDownloadRequest(it) })
+                            }
+                            finish()
+                        },
+                    )
+                }
+            }
             val youTubeUrls = songs.mapNotNull { it.youTubeUrl }
             if (youTubeUrls.isNotEmpty()) {
                 DropdownMenuItem(
@@ -522,6 +557,27 @@ fun SongContextMenu(
                 )
             }
         }
+    }
+
+    downloadDialogSong?.let { song ->
+        YouTubeDownloadDialog(
+            song = song,
+            onDownload = {
+                downloadDialogSong = null
+                youTubeDownloads?.download(it)
+            },
+            onDismiss = { downloadDialogSong = null },
+        )
+    }
+    downloadDialogAlbum?.let { album ->
+        YouTubeAlbumDownloadDialog(
+            album = album,
+            onDownload = { name, artists ->
+                downloadDialogAlbum = null
+                youTubeDownloads?.downloadAlbums(listOf(album), albumName = name, albumArtists = artists)
+            },
+            onDismiss = { downloadDialogAlbum = null },
+        )
     }
 
     if (showCreateDialog && editor != null) {

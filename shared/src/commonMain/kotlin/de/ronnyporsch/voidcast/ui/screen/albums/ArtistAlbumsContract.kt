@@ -29,7 +29,13 @@ data class ArtistAlbumsState(
     val libraryFormats: Map<String, AudioStreamInfo> = emptyMap(),
     /** YouTube Music albums whose songs are all in the library. */
     val downloadedAlbumIds: Set<String> = emptySet(),
+    /** YouTube Music albums that are about to be downloaded, see [ArtistAlbumsEvent.DownloadArtist]. */
+    val pendingAlbumIds: Set<String> = emptySet(),
 )
+
+/** Whether this goes under "Albums" rather than "Singles & EPs". Only YouTube Music knows release types. */
+val Album.isFullAlbum: Boolean
+    get() = releaseType == null || releaseType == "Album"
 
 sealed class ArtistAlbumsEvent {
     data class AlbumClicked(val album: Album) : ArtistAlbumsEvent()
@@ -45,6 +51,8 @@ sealed class ArtistAlbumsEvent {
     data object ShuffleAllSongs : ArtistAlbumsEvent()
     /** Downloads a YouTube Music song into the library. */
     data class DownloadSong(val request: YouTubeDownloadRequest) : ArtistAlbumsEvent()
+    /** Downloads all albums of a YouTube Music artist into the library, and its singles and EPs if [includeSingles]. */
+    data class DownloadArtist(val includeSingles: Boolean) : ArtistAlbumsEvent()
 }
 
 sealed class ArtistAlbumsEffect {

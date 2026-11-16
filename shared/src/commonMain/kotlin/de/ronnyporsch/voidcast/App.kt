@@ -90,6 +90,7 @@ import de.ronnyporsch.voidcast.ui.components.LocalSongDragAndDrop
 import de.ronnyporsch.voidcast.ui.components.LocalScrollPositions
 import de.ronnyporsch.voidcast.ui.components.LocalDownloadedSongIds
 import de.ronnyporsch.voidcast.ui.components.LocalYouTubeAlbumArtistsEditable
+import de.ronnyporsch.voidcast.ui.components.LocalYouTubeDownloads
 import de.ronnyporsch.voidcast.ui.components.LocalSongDownloads
 import de.ronnyporsch.voidcast.ui.components.LocalPendingSongDownloads
 import de.ronnyporsch.voidcast.ui.components.PendingSongDownloads
@@ -214,6 +215,12 @@ fun App() {
                 scope.launch { snackbarHostState.showSnackbar("Couldn't load the songs of $what", duration = SnackbarDuration.Short) }
             }
             loaded.flatMap { it.getOrDefault(emptyList()) }
+        }
+    }
+    LaunchedEffect(youTube) {
+        youTube.albumDownloadFailures.collect { albums ->
+            val what = albums.singleOrNull()?.let { "\"${it.name}\"" } ?: "${albums.size} albums"
+            snackbarHostState.showSnackbar("Couldn't load the songs of $what to download them", duration = SnackbarDuration.Short)
         }
     }
     val libraryViewModel = remember {
@@ -408,6 +415,7 @@ fun App() {
             LocalStreamFormatLookup provides lookUpStreamFormat.takeIf { youTubeCapabilities.available },
             LocalStartRadio provides startRadio.takeIf { youTubeCapabilities.radio },
             LocalYouTubeAlbumArtistsEditable provides youTubeCapabilities.albumArtists,
+            LocalYouTubeDownloads provides youTube.takeIf { youTubeCapabilities.canDownload },
             LocalFavorites provides connection.favorites,
             LocalSongDragAndDrop provides songDragAndDrop,
             LocalDownloadedSongIds provides downloadedSongIds,

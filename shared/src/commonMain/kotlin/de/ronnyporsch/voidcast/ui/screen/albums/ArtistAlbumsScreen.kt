@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import de.ronnyporsch.voidcast.ui.components.TooltipIconButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -76,9 +78,8 @@ fun ArtistAlbumsScreen(
     val albumSelection = rememberAlbumSelection()
     // Limits the albums and songs shown
     var query by rememberSaveable { mutableStateOf("") }
-    // Only YouTube Music knows release types; library albums all go under "Albums"
-    val (albums, singles) = state.albums.filter { matchesFilter(query, it.name) }
-        .partition { it.releaseType == null || it.releaseType == "Album" }
+    // Library albums all go under "Albums"
+    val (albums, singles) = state.albums.filter { matchesFilter(query, it.name) }.partition { it.isFullAlbum }
     val appearsOnAlbums = state.appearsOnAlbums.filter { matchesFilter(query, it.name, it.artist) }
     // In the order they are shown, for selecting ranges of them
     val shownAlbums = albums + singles + appearsOnAlbums
@@ -169,6 +170,9 @@ fun ArtistAlbumsScreen(
                             headerState = headerState,
                             songs = state.songs,
                             coverArtId = state.coverArtId,
+                            youTubeDownload = if (state.isYouTube && state.canDownload && state.albums.isNotEmpty()) {
+                                { YouTubeArtistDownloadButton(state) { viewModel.onEvent(ArtistAlbumsEvent.DownloadArtist(it)) } }
+                            } else null,
                         )
                     }
 
@@ -336,6 +340,8 @@ private fun ArtistHeader(
     /** The artist's songs as far as loaded, for downloading them. */
     songs: List<Song>,
     coverArtId: String?,
+    /** Downloads a YouTube Music artist into the library. */
+    youTubeDownload: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -381,6 +387,8 @@ private fun ArtistHeader(
                 )
             }
 
+            youTubeDownload?.invoke()
+
             FavoriteButton(FavoriteKind.Artist, artistId)
         }
 
@@ -393,6 +401,79 @@ private fun ArtistHeader(
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
+    }
+}
+
+/**
+ * Downloads all releases of a YouTube Music artist into the server's library, after asking whether that is meant;
+ * [onDownload] gets whether to download the singles and EPs too.
+ */
+@Composable
+private fun YouTubeArtistDownloadButton(state: ArtistAlbumsState, onDownload: (includeSingles: Boolean) -> Unit) {
+    var showDialog by remember { mutableStateOf(false) }
+    val missing = state.albums.filter { it.id !in state.downloadedAlbumIds }
+    when {
+        state.albums.any { it.id in state.pendingAlbumIds } -> Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.size(22.dp), color = AccentColor, strokeWidth = 2.dp)
+        }
+        missing.isEmpty() -> TooltipIconButton(
+            onClick = {},
+            icon = Icons.Default.CheckCircle,
+            contentDescription = "In library",
+            tint = AccentColor,
+        )
+        else -> TooltipIconButton(
+            onClick = { showDialog = true },
+            icon = Icons.Default.Download,
+            contentDescription = "Download artist to library",
+            tint = SpotifyLightGray,
+        )
+    }
+
+    if (showDialog) {
+        val (albums, singles) = missing.partition { it.isFullAlbum }
+        var includeSingles by remember { mutableStateOf(true) }
+        val count = albums.size + if (includeSingles) singles.size else 0
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Download artist to library") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        buildString {
+                            append("All songs of ")
+                            append(
+                                listOfNotNull(
+                                    albums.size.takeIf { it > 0 }?.let { "$it album${if (it != 1) "s" else ""}" },
+                                    singles.size.takeIf { it > 0 && includeSingles }?.let { "$it singles & EPs" },
+                                ).joinToString(" and ").ifEmpty { "no releases" }
+                            )
+                            append(" of ${state.artistName} get downloaded into the server's library, with the tags from YouTube Music.")
+                            if (missing.size < state.albums.size) append(" Releases that are in the library already are left out.")
+                        }
+                    )
+                    if (albums.isNotEmpty() && singles.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = includeSingles, onCheckedChange = { includeSingles = it })
+                            Text("Include singles & EPs")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                OutlinedButton(
+                    onClick = {
+                        showDialog = false
+                        onDownload(includeSingles)
+                    },
+                    enabled = count > 0,
+                    shape = RoundedCornerShape(0.dp),
+                ) {
+                    Text("Download", color = AccentColor)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancel") } },
+        )
     }
 }
 

@@ -10,6 +10,9 @@ import de.ronnyporsch.voidcast.ui.components.selectedThrough
 import de.ronnyporsch.voidcast.ui.components.toggled
 import de.ronnyporsch.voidcast.util.newestAlbumsFirst
 import de.ronnyporsch.voidcast.util.newestFirst
+import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class ArtistAlbumsViewModel(
@@ -63,6 +66,12 @@ class ArtistAlbumsViewModel(
                 if (songs.isNotEmpty()) emitEffect(ArtistAlbumsEffect.PlaySongs(songs, 0, shuffle = true))
             }
             is ArtistAlbumsEvent.DownloadSong -> youTube.download(event.request)
+            is ArtistAlbumsEvent.DownloadArtist -> {
+                // Albums first: a song that is on an album and a single gets the album's tags
+                val (albums, singles) = currentState.albums.filter { it.id !in currentState.downloadedAlbumIds }
+                    .partition { it.isFullAlbum }
+                youTube.downloadAlbums(if (event.includeSingles) albums + singles else albums)
+            }
         }
     }
 
@@ -77,6 +86,19 @@ class ArtistAlbumsViewModel(
         }
         viewModelScope.launch {
             youTube.knownFormats.collect { setState { copy(libraryFormats = it) } }
+        }
+        viewModelScope.launch {
+            youTube.pendingAlbumDownloads.collect { setState { copy(pendingAlbumIds = it) } }
+        }
+        viewModelScope.launch {
+            // Once downloads have finished, more albums may be complete
+            var running = false
+            youTube.downloads.map { downloads -> downloads.values.any { it == DownloadStatus.InProgress } }
+                .distinctUntilChanged()
+                .collect { inProgress ->
+                    if (running && !inProgress) refreshDownloadedAlbums()
+                    running = inProgress
+                }
         }
         launch {
             runCatching { youTube.getArtist(id) }
@@ -93,12 +115,18 @@ class ArtistAlbumsViewModel(
                             isSongsLoading = false,
                         )
                     }
-                    // The server looks up the albums' track lists, which takes a moment the first time
-                    runCatching { youTube.downloadedAlbumIds(page.albums) }
-                        .onSuccess { setState { copy(downloadedAlbumIds = it) } }
+                    refreshDownloadedAlbums()
                 }
                 .onFailure { setState { copy(error = it.message, isLoading = false, isSongsLoading = false) } }
         }
+    }
+
+    /** The server looks up the albums' track lists, which takes a moment the first time. */
+    private suspend fun refreshDownloadedAlbums() {
+        val albums = currentState.albums
+        if (albums.isEmpty()) return
+        runCatching { youTube.downloadedAlbumIds(albums) }
+            .onSuccess { setState { copy(downloadedAlbumIds = it) } }
     }
 
     private fun resolveArtistByName() {

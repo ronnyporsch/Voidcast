@@ -18,6 +18,7 @@ import de.ronnyporsch.voidcast.domain.model.AudioStreamInfo
 import de.ronnyporsch.voidcast.domain.model.ArtistInfo
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.YOUTUBE_SONG_ID_PREFIX
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
 import de.ronnyporsch.voidcast.domain.model.youTubeId
 import de.ronnyporsch.voidcast.domain.model.youTubeVideoId
 import kotlinx.coroutines.CancellationException
@@ -27,11 +28,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class YouTubeCapabilities(
@@ -124,6 +129,14 @@ class YouTubeService(private val connection: MusicServerConnection) {
     private val _requestedSongs = MutableStateFlow<List<Song>>(emptyList())
     /** The songs downloaded (or being downloaded) in this session, latest request first; [downloads] has their status. */
     val requestedSongs: StateFlow<List<Song>> = _requestedSongs.asStateFlow()
+
+    private val _pendingAlbumDownloads = MutableStateFlow<Set<String>>(emptySet())
+    /** Ids of the albums [downloadAlbums] still has to request the songs of. */
+    val pendingAlbumDownloads: StateFlow<Set<String>> = _pendingAlbumDownloads.asStateFlow()
+
+    private val _albumDownloadFailures = MutableSharedFlow<List<Album>>(extraBufferCapacity = 16)
+    /** The albums of a [downloadAlbums] call whose songs couldn't be looked up, so they didn't get downloaded. */
+    val albumDownloadFailures: SharedFlow<List<Album>> = _albumDownloadFailures.asSharedFlow()
 
     private val _libraryFormats = MutableStateFlow<Map<String, AudioStreamInfo>>(emptyMap())
     /** Codec and bitrate of the downloaded files of songs in the library ([downloads] says which), by song id. */
@@ -276,11 +289,13 @@ class YouTubeService(private val connection: MusicServerConnection) {
         if (!currentCapabilities.canDownload) return
         val videoIds = songs.mapNotNull { song -> song.youTubeVideoId?.takeIf { _downloads.value[song.id] == null } }
         if (videoIds.isEmpty()) return
-        scope.launch {
-            for (track in downloadedTracks(videoIds)) {
-                val songId = YOUTUBE_SONG_ID_PREFIX + track.videoId
-                if (_downloads.value[songId] == null) setStatus(songId, DownloadStatus.InLibrary)
-            }
+        scope.launch { markDownloaded(videoIds) }
+    }
+
+    private suspend fun markDownloaded(videoIds: List<String>) {
+        for (track in downloadedTracks(videoIds)) {
+            val songId = YOUTUBE_SONG_ID_PREFIX + track.videoId
+            if (_downloads.value[songId] == null) setStatus(songId, DownloadStatus.InLibrary)
         }
     }
 
@@ -319,27 +334,66 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** Downloads the [requests]' songs into the server's library; [downloads] reports their progress. */
     fun download(requests: List<YouTubeDownloadRequest>) {
         if (!currentCapabilities.canDownload) return
-        scope.launch {
-            for (request in requests) {
-                val song = request.song
-                val status = _downloads.value[song.id]
-                if (status == DownloadStatus.InProgress || status is DownloadStatus.Done || status == DownloadStatus.InLibrary) continue
-                addRequested(song)
-                setStatus(song.id, DownloadStatus.InProgress)
-                try {
-                    val job = connection.jellyfinApi.requestDownload(request.toDto())
-                    update(job.id, song.id, job.state, job.message, job.path)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    setStatus(song.id, DownloadStatus.Failed(e.message ?: "Download failed"))
-                }
-            }
-            startPolling()
-        }
+        scope.launch { request(requests) }
     }
 
     fun download(request: YouTubeDownloadRequest) = download(listOf(request))
+
+    /** Requests those of [requests] from the server that aren't downloaded or downloading yet. */
+    private suspend fun request(requests: List<YouTubeDownloadRequest>) {
+        for (request in requests) {
+            val song = request.song
+            val status = _downloads.value[song.id]
+            if (status == DownloadStatus.InProgress || status is DownloadStatus.Done || status == DownloadStatus.InLibrary) continue
+            addRequested(song)
+            setStatus(song.id, DownloadStatus.InProgress)
+            try {
+                val job = connection.jellyfinApi.requestDownload(request.toDto())
+                update(job.id, song.id, job.state, job.message, job.path)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                setStatus(song.id, DownloadStatus.Failed(e.message ?: "Download failed"))
+            }
+        }
+        startPolling()
+    }
+
+    /**
+     * Downloads all songs of the YouTube Music [albums] (e.g. all of an artist) into the server's library, one album
+     * after another; their songs get looked up where they aren't known yet. Songs on several of the albums are
+     * downloaded for the first one. [albumName] and [albumArtists] replace YouTube Music's tags, see
+     * [YouTubeDownloadRequest]. [pendingAlbumDownloads] and [downloads] report the progress, [albumDownloadFailures]
+     * the albums that couldn't be looked up.
+     */
+    fun downloadAlbums(albums: List<Album>, albumName: String? = null, albumArtists: List<String>? = null) {
+        if (!currentCapabilities.canDownload) return
+        val queued = albums.filter { it.id.isYouTubeId }.distinctBy { it.id }
+        if (queued.isEmpty()) return
+        scope.launch {
+            // Albums that are waiting already get downloaded by the call that queued them
+            val mine = queued.filter { it.id !in _pendingAlbumDownloads.value }
+            _pendingAlbumDownloads.update { pending -> pending + mine.map { it.id } }
+            val failed = mutableListOf<Album>()
+            for (album in mine) {
+                try {
+                    val songs = album.songs.ifEmpty {
+                        connection.jellyfinApi.getYouTubeAlbum(album.id.youTubeId.orEmpty()).toAlbum().songs
+                    }
+                    // Not to download again what is in the library already
+                    markDownloaded(songs.mapNotNull { song -> song.youTubeVideoId?.takeIf { _downloads.value[song.id] == null } })
+                    request(songs.map { YouTubeDownloadRequest(if (albumName != null) it.copy(album = albumName) else it, albumArtists = albumArtists) })
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    failed += album
+                } finally {
+                    _pendingAlbumDownloads.update { it - album.id }
+                }
+            }
+            if (failed.isNotEmpty()) _albumDownloadFailures.tryEmit(failed)
+        }
+    }
 
     /**
      * Adds the [requests]' songs to the playlist with [playlistId], in their order. The server downloads those that aren't in its

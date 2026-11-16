@@ -28,12 +28,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
 import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
+import de.ronnyporsch.voidcast.data.youtube.YouTubeService
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
@@ -41,6 +43,9 @@ import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyLightGray
 import de.ronnyporsch.voidcast.ui.theme.SpotifyWhite
+
+/** Downloads YouTube Music songs and albums into the server's library, e.g. from context menus; null where that isn't possible. */
+val LocalYouTubeDownloads = staticCompositionLocalOf<YouTubeService?> { null }
 
 /** Whether the server tags downloads with the album artists the user asks for, see YouTubeCapabilities.albumArtists. */
 val LocalYouTubeAlbumArtistsEditable = compositionLocalOf { false }

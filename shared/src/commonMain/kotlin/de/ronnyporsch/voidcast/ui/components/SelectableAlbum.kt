@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Song
+import de.ronnyporsch.voidcast.domain.model.isYouTubeId
 import de.ronnyporsch.voidcast.getPlatform
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SelectionColor
@@ -221,6 +222,7 @@ fun SelectableAlbum(
                 albums.singleOrNull()?.let { "${it.name} • $songs" } ?: "${albums.size} albums selected • $songs"
             },
             showFavorites = false,
+            youTubeAlbum = menuAlbums?.singleOrNull()?.takeIf { it.id.isYouTubeId },
         )
     }
 }
