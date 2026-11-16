@@ -354,6 +354,14 @@ class JellyfinApiService {
     suspend fun getYouTubeRadio(videoId: String, continuation: String? = null): YouTubeRadioDto =
         get("Voidcast/YouTube/Songs/$videoId/Radio", mapOf("continuation" to continuation))
 
+    /** YouTube Music's lyrics of the song [videoId]; null if it has none. Needs [PluginInfoDto.lyricsAvailable]. */
+    suspend fun getYouTubeLyrics(videoId: String): YouTubeLyricsDto? {
+        val response = client.get("${baseUrl()}/Voidcast/YouTube/Songs/$videoId/Lyrics") { authorize() }
+        if (response.status == HttpStatusCode.NotFound) return null
+        response.ensureSuccess()
+        return response.body()
+    }
+
     suspend fun getYouTubeArtist(channelId: String): YouTubeArtistPageDto = get("Voidcast/YouTube/Artists/$channelId", emptyMap())
 
     suspend fun getYouTubeAlbum(albumId: String): YouTubeAlbumDto = get("Voidcast/YouTube/Albums/$albumId", emptyMap())

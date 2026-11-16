@@ -130,6 +130,7 @@ parameter).
 | `GET /Voidcast/YouTube/{videoId}/StreamInfo` | Codec and bitrate of the stream a download would get |
 | `POST /Voidcast/YouTube/Downloaded[/Details]` | Which of the given video ids (JSON array) are already downloaded; `Details` adds codec and bitrate of the files |
 | `GET /Voidcast/YouTube/{videoId}/Audio[?format=mp3]` | The track's audio, for playback |
+| `GET /Voidcast/YouTube/Songs/{videoId}/Lyrics` | The song's (unsynced) lyrics as YouTube Music shows them; 404 if it has none |
 | `GET /Voidcast/NewReleases` | The latest scan for new releases as the user gets to see it, and the scan's status |
 | `GET /Voidcast/NewReleases/Status` | What a running scan got to |
 | `POST /Voidcast/NewReleases/Scan` | Administrators: starts a scan, unless one is running |

@@ -146,10 +146,18 @@ data class PluginInfoDto(
     @SerialName("RadioAvailable") val radioAvailable: Boolean = false,
     /** Whether downloads take album artists, see [YouTubeSongDto.albumArtists]. */
     @SerialName("AlbumArtistsAvailable") val albumArtistsAvailable: Boolean = false,
+    /** Whether lyrics of songs can be loaded, see [JellyfinApiService.getYouTubeLyrics]. */
+    @SerialName("LyricsAvailable") val lyricsAvailable: Boolean = false,
     @SerialName("NewReleasesMinSongs") val newReleasesMinSongs: Int = 0,
     @SerialName("NewReleasesFavoritesOnly") val newReleasesFavoritesOnly: Boolean = false,
     /** Whether this user may change the new releases settings, which apply to the whole server. */
     @SerialName("CanConfigureNewReleases") val canConfigureNewReleases: Boolean = false,
+)
+
+@Serializable
+data class YouTubeLyricsDto(
+    /** Unsynced, as YouTube Music shows them. */
+    @SerialName("Lines") val lines: List<String> = emptyList(),
 )
 
 @Serializable

@@ -168,6 +168,31 @@ public partial class YouTubeMusicClient
         return new YouTubeRadioDto { Songs = songs, Continuation = songs.Count > 0 ? next : null };
     }
 
+    /// <summary>The (unsynced) lyrics YouTube Music shows for a song or video, or null if it has none.</summary>
+    public async Task<string?> GetLyricsAsync(string videoId, CancellationToken cancellationToken)
+    {
+        var root = await PostAsync("next", new JsonObject { ["videoId"] = videoId }, cancellationToken).ConfigureAwait(false);
+        // The watch page's "Lyrics" tab; it's there (but leads to a "not available" message) for songs without lyrics too
+        var browseId = Path(root, "contents", "singleColumnMusicWatchNextResultsRenderer", "tabbedRenderer", "watchNextTabbedResultsRenderer", "tabs")
+            .Items()
+            .Select(tab => Path(tab, "tabRenderer", "endpoint"))
+            .Select(tab => Path(tab, "browseEndpoint"))
+            .Where(endpoint => String(Path(endpoint, "browseEndpointContextSupportedConfigs", "browseEndpointContextMusicConfig"), "pageType")
+                == "MUSIC_PAGE_TYPE_TRACK_LYRICS")
+            .Select(endpoint => String(endpoint, "browseId"))
+            .FirstOrDefault(id => id != null);
+        if (browseId == null)
+        {
+            return null;
+        }
+
+        var lyrics = await PostAsync("browse", new JsonObject { ["browseId"] = browseId }, cancellationToken).ConfigureAwait(false);
+        var text = Path(lyrics, "contents", "sectionListRenderer", "contents").Items()
+            .Select(section => Join(Path(section, "musicDescriptionShelfRenderer", "description", "runs").Items()))
+            .FirstOrDefault(description => description.Length > 0);
+        return text?.ReplaceLineEndings("\n").Trim();
+    }
+
     /// <summary>The entries of the queue of a <c>next</c> (watch page) response.</summary>
     private static List<JsonNode?> QueueEntries(JsonNode? root) => Path(QueuePanel(root), "contents").Items();
 

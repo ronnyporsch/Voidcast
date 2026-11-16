@@ -274,9 +274,18 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun getMusicVideoLibraries() = active.getMusicVideoLibraries()
         override suspend fun getMusicVideos(libraryId: String?) = active.getMusicVideos(libraryId)
 
-        // YouTube Music tracks aren't library items, the server has no lyrics for them; nor for videos
-        override suspend fun getLyrics(song: Song) =
-            if (song.isYouTube || song.isVideo) Result.success(null) else active.getLyrics(song)
+        // Videos have no lyrics. YouTube Music tracks aren't library items, so the server has none for them either:
+        // the plugin gets YouTube Music's
+        override suspend fun getLyrics(song: Song): Result<Lyrics?> {
+            if (song.isVideo) return Result.success(null)
+            val videoId = song.youTubeVideoId ?: return active.getLyrics(song)
+            // Asked without knowing the plugin too: that's still being found out when the app starts with a song
+            val plugin = plugin.value
+            if (plugin?.lyricsAvailable == false) return Result.success(null)
+            return runCatching {
+                jellyfinApi.getYouTubeLyrics(videoId)?.lines?.takeIf { it.isNotEmpty() }?.let { lines -> Lyrics(lines.map(::LyricLine)) }
+            }.recoverCatching { if (plugin == null) null else throw it }
+        }
 
         override suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?> {
             val videoId = song.youTubeVideoId ?: return active.getAudioFormat(song)

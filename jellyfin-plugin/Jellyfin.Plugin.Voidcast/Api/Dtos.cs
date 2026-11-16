@@ -56,6 +56,13 @@ public class YouTubeRadioDto
     public string? Continuation { get; set; }
 }
 
+/// <summary>Lyrics of a YouTube Music track, see <c>YouTube/Songs/{videoId}/Lyrics</c>.</summary>
+public class YouTubeLyricsDto
+{
+    /// <summary>Gets or sets the lines; YouTube Music's lyrics aren't synced.</summary>
+    public List<string> Lines { get; set; } = [];
+}
+
 /// <summary>A YouTube Music search result. Clients send it back as is to download the track.</summary>
 public class YouTubeSongDto
 {
@@ -316,6 +323,9 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether downloads take album artists, see <see cref="YouTubeSongDto.AlbumArtists"/>.</summary>
     public bool AlbumArtistsAvailable { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether lyrics of songs can be loaded, see <c>YouTube/Songs/{videoId}/Lyrics</c>.</summary>
+    public bool LyricsAvailable { get; set; }
 
     public int NewReleasesMinSongs { get; set; }
 

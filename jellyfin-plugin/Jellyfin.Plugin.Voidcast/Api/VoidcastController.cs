@@ -66,6 +66,7 @@ public class VoidcastController : ControllerBase
             SongLookupAvailable = true,
             RadioAvailable = true,
             AlbumArtistsAvailable = true,
+            LyricsAvailable = true,
             NewReleasesMinSongs = Plugin.Instance.Configuration.NewReleasesMinSongs,
             NewReleasesFavoritesOnly = Plugin.Instance.Configuration.NewReleasesFavoritesOnly,
             CanConfigureNewReleases = User.IsInRole("Administrator"),
@@ -147,6 +148,26 @@ public class VoidcastController : ControllerBase
         try
         {
             return await _youTubeMusic.GetRadioAsync(videoId, continuation, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    /// <summary>The (unsynced) lyrics YouTube Music shows for a song.</summary>
+    [HttpGet("YouTube/Songs/{videoId}/Lyrics")]
+    public async Task<ActionResult<YouTubeLyricsDto>> GetLyrics([FromRoute] string videoId, CancellationToken cancellationToken)
+    {
+        if (!YtDlpService.IsValidVideoId(videoId))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var lyrics = await _youTubeMusic.GetLyricsAsync(videoId, cancellationToken).ConfigureAwait(false);
+            return lyrics != null ? new YouTubeLyricsDto { Lines = lyrics.Split('\n').Select(line => line.Trim()).ToList() } : NotFound();
         }
         catch (HttpRequestException e)
         {
