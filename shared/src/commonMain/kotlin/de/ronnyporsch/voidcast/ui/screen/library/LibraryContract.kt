@@ -24,6 +24,7 @@ data class LibraryState(
     val selectedArtistAppearsOnAlbums: List<Album> = emptyList(),
     val selectedArtistBiography: String? = null,
     val selectedArtistLargeImageUrl: String? = null,
+    val selectedArtistSimilarArtists: List<Artist> = emptyList(),
     val selectedArtistSongs: List<Song> = emptyList(),
     val selectedArtistSongsLoading: Boolean = false,
     val selectedAlbumId: String? = null,

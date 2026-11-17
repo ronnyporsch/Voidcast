@@ -36,16 +36,21 @@ class JellyfinMusicRepository(
     }
 
     override suspend fun getArtistInfo(artistId: String): Result<ArtistInfo> = runCatching {
-        val artist = api.getItem(artistId)
-        val imageType = when {
-            "Primary" in artist.imageTags -> "Primary"
-            artist.backdropImageTags.isNotEmpty() -> "Backdrop"
-            else -> null
+        coroutineScope {
+            // The artist's info is worth showing without them
+            val similar = async { runCatching { api.getSimilarItems(artistId, SIMILAR_ARTISTS_LIMIT).items.map { it.toArtist() } }.getOrDefault(emptyList()) }
+            val artist = api.getItem(artistId)
+            val imageType = when {
+                "Primary" in artist.imageTags -> "Primary"
+                artist.backdropImageTags.isNotEmpty() -> "Backdrop"
+                else -> null
+            }
+            ArtistInfo(
+                biography = artist.overview?.takeIf { it.isNotBlank() },
+                largeImageUrl = imageType?.let { api.getImageUrl(artistId, null, it) },
+                similarArtists = similar.await(),
+            )
         }
-        ArtistInfo(
-            biography = artist.overview?.takeIf { it.isNotBlank() },
-            largeImageUrl = imageType?.let { api.getImageUrl(artistId, null, it) },
-        )
     }
 
     override suspend fun getAlbum(albumId: String): Result<Album> = runCatching {
@@ -331,6 +336,8 @@ class JellyfinMusicRepository(
 }
 
 /** Song query parameter for codec, bitrate and file size; only where shown, they make responses a lot bigger. */
+private const val SIMILAR_ARTISTS_LIMIT = 20
+
 private val WITH_FORMAT_AND_SIZE = "fields" to "Genres,DateCreated,MediaStreams,MediaSources"
 
 /** Like the plugin names the codecs of YouTube videos, e.g. "h264" -> "H.264". */

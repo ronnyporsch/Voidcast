@@ -9,6 +9,7 @@ import de.ronnyporsch.voidcast.data.jellyfin.PluginInfoDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeAlbumDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeAlbumSummaryDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeArtistDto
+import de.ronnyporsch.voidcast.data.jellyfin.YouTubeArtistSummaryDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeRadioDto
 import de.ronnyporsch.voidcast.data.jellyfin.YouTubeSongDto
 import de.ronnyporsch.voidcast.data.repository.MusicServerConnection
@@ -166,9 +167,9 @@ class YouTubeService(private val connection: MusicServerConnection) {
         connection.jellyfinApi.searchYouTube(query, includeVideos = currentCapabilities.videos).map { it.toSong() }
             .also(::checkDownloaded)
 
-    suspend fun searchArtists(query: String): List<Artist> = connection.jellyfinApi.searchYouTubeArtists(query).map {
-        Artist(id = YOUTUBE_SONG_ID_PREFIX + it.id, name = it.name, coverArtId = it.thumbnailUrl)
-    }
+    suspend fun searchArtists(query: String): List<Artist> = connection.jellyfinApi.searchYouTubeArtists(query).map { it.toArtist() }
+
+    private fun YouTubeArtistSummaryDto.toArtist() = Artist(id = YOUTUBE_SONG_ID_PREFIX + id, name = name, coverArtId = thumbnailUrl)
 
     /** The song or video with [videoId], e.g. from a [YouTubeLink]. */
     suspend fun getSong(videoId: String): Song =
@@ -222,7 +223,11 @@ class YouTubeService(private val connection: MusicServerConnection) {
         return YouTubeArtist(
             artist = artist,
             // The header image is a wide banner; a square crop of it fits the artist header
-            info = ArtistInfo(biography = page.description, largeImageUrl = page.thumbnailUrl?.takeIf(::isYouTubeImageUrl)?.let { resizeYouTubeThumbnail(it, 544) }),
+            info = ArtistInfo(
+                biography = page.description,
+                largeImageUrl = page.thumbnailUrl?.takeIf(::isYouTubeImageUrl)?.let { resizeYouTubeThumbnail(it, 544) },
+                similarArtists = page.similarArtists.map { it.toArtist() },
+            ),
             albums = page.albums.map { it.toAlbum(artist) },
             songs = page.songs.map { it.toSong() }.also(::checkDownloaded),
         )

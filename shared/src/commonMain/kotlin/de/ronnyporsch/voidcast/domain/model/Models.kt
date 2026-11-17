@@ -24,6 +24,8 @@ data class Artist(
 data class ArtistInfo(
     val biography: String? = null,
     val largeImageUrl: String? = null,
+    /** Artists the server deems similar; on Subsonic and Jellyfin servers only those in the library. */
+    val similarArtists: List<Artist> = emptyList(),
 )
 
 @Serializable

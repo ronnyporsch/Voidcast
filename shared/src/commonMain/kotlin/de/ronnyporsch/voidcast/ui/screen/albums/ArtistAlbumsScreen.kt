@@ -45,6 +45,7 @@ import de.ronnyporsch.voidcast.ui.components.collapsingHeaderTitle
 import de.ronnyporsch.voidcast.ui.components.rememberCollapsingHeaderState
 import de.ronnyporsch.voidcast.ui.components.ExpandableText
 import de.ronnyporsch.voidcast.ui.components.SelectableAlbum
+import de.ronnyporsch.voidcast.ui.components.SimilarArtists
 import de.ronnyporsch.voidcast.ui.components.SongRow
 import de.ronnyporsch.voidcast.ui.components.DownloadedIndicator
 import de.ronnyporsch.voidcast.ui.components.LocalDownloadedCollections
@@ -228,6 +229,12 @@ fun ArtistAlbumsScreen(
                             ) {
                                 AlbumCard(album, downloaded = album.id in state.downloadedAlbumIds)
                             }
+                        }
+                    }
+
+                    if (query.isBlank() && state.similarArtists.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            SimilarArtists(state.similarArtists, onArtistClick = { viewModel.onEvent(ArtistAlbumsEvent.SimilarArtistClicked(it)) })
                         }
                     }
 

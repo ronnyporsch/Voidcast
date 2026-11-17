@@ -46,6 +46,8 @@ class ArtistAlbumsViewModel(
                 setState { copy(selectedSongIds = songs.selectedThrough(event.index, selectedSongIds)) }
             is ArtistAlbumsEvent.AlbumClicked ->
                 emitEffect(ArtistAlbumsEffect.NavigateToAlbum(event.album.id))
+            is ArtistAlbumsEvent.SimilarArtistClicked ->
+                emitEffect(ArtistAlbumsEffect.NavigateToArtist(event.artist.id, event.artist.name))
             is ArtistAlbumsEvent.SongClicked -> {
                 if (getPlatform().isMobile) {
                     emitEffect(ArtistAlbumsEffect.PlaySongs(state.value.songs, event.index))
@@ -111,6 +113,7 @@ class ArtistAlbumsViewModel(
                             largeImageUrl = page.info.largeImageUrl,
                             albums = page.albums.newestFirst(),
                             songs = page.songs,
+                            similarArtists = page.info.similarArtists,
                             isLoading = false,
                             isSongsLoading = false,
                         )
@@ -192,6 +195,7 @@ class ArtistAlbumsViewModel(
                         copy(
                             biography = info.biography,
                             largeImageUrl = info.largeImageUrl,
+                            similarArtists = info.similarArtists,
                         )
                     }
                 }

@@ -165,6 +165,8 @@ data class ArtistInfo2Dto(
     val smallImageUrl: String? = null,
     val mediumImageUrl: String? = null,
     val largeImageUrl: String? = null,
+    /** Only artists in the library, unless asked for with includeNotPresent. */
+    val similarArtist: List<ArtistDto> = emptyList(),
 )
 
 @Serializable

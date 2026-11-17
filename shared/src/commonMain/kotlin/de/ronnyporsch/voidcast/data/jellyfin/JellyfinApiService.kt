@@ -119,6 +119,10 @@ class JellyfinApiService {
 
     suspend fun getItem(itemId: String): BaseItemDto = get("Items/$itemId", mapOf("userId" to userId))
 
+    /** Items of the same type as [itemId] that Jellyfin deems similar, e.g. by genres. */
+    suspend fun getSimilarItems(itemId: String, limit: Int): ItemsResultDto =
+        get("Items/$itemId/Similar", mapOf("userId" to userId, "limit" to limit))
+
     /** The libraries (and other top-level folders) the user can see. */
     suspend fun getUserViews(): ItemsResultDto = get("UserViews", mapOf("userId" to userId))
 

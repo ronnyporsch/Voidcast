@@ -146,6 +146,7 @@ class MusicRepositoryImpl(
         ArtistInfo(
             biography = info?.biography?.takeIf { it.isNotBlank() },
             largeImageUrl = info?.largeImageUrl ?: info?.mediumImageUrl ?: info?.smallImageUrl,
+            similarArtists = info?.similarArtist.orEmpty().map { it.toDomain() }.filter { it.id.isNotBlank() },
         )
     }
 

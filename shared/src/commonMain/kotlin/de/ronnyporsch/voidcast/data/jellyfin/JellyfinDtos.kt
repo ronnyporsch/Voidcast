@@ -270,6 +270,8 @@ data class YouTubeArtistPageDto(
     @SerialName("Albums") val albums: List<YouTubeAlbumSummaryDto> = emptyList(),
     /** The artist's most popular songs. */
     @SerialName("Songs") val songs: List<YouTubeSongDto> = emptyList(),
+    /** Artists whose fans also like this one; needs a plugin that tells them. */
+    @SerialName("SimilarArtists") val similarArtists: List<YouTubeArtistSummaryDto> = emptyList(),
 )
 
 @Serializable

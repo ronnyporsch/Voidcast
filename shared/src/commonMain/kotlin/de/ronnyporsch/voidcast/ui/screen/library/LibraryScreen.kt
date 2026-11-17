@@ -616,6 +616,8 @@ private fun LibraryDetailPane(
             appearsOnAlbums = state.selectedArtistAppearsOnAlbums,
             biography = state.selectedArtistBiography,
             largeImageUrl = state.selectedArtistLargeImageUrl,
+            similarArtists = state.selectedArtistSimilarArtists,
+            onSimilarArtistClick = { viewModel.onEvent(LibraryEvent.OpenArtistScreen(it)) },
             songs = state.selectedArtistSongs,
             isSongsLoading = state.selectedArtistSongsLoading,
             onAlbumClick = { viewModel.onEvent(LibraryEvent.OpenAlbumScreen(it)) },
@@ -749,6 +751,8 @@ private fun ArtistDetailPane(
     appearsOnAlbums: List<Album>,
     biography: String?,
     largeImageUrl: String?,
+    similarArtists: List<Artist>,
+    onSimilarArtistClick: (Artist) -> Unit,
     songs: List<Song>,
     isSongsLoading: Boolean,
     onAlbumClick: (Album) -> Unit,
@@ -872,6 +876,12 @@ private fun ArtistDetailPane(
                             SelectableAlbum(album, shownAlbums, albumSelection, onClick = { onAlbumClick(album) }) {
                                 AlbumCard(album)
                             }
+                        }
+                    }
+
+                    if (query.isBlank() && similarArtists.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            SimilarArtists(similarArtists, onArtistClick = onSimilarArtistClick)
                         }
                     }
 

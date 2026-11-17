@@ -4,6 +4,7 @@ import de.ronnyporsch.voidcast.domain.model.AudioStreamInfo
 import de.ronnyporsch.voidcast.data.youtube.YouTubeDownloadRequest
 import de.ronnyporsch.voidcast.data.youtube.DownloadStatus
 import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Song
 
 data class ArtistAlbumsState(
@@ -16,6 +17,7 @@ data class ArtistAlbumsState(
     val albums: List<Album> = emptyList(),
     val appearsOnAlbums: List<Album> = emptyList(),
     val songs: List<Song> = emptyList(),
+    val similarArtists: List<Artist> = emptyList(),
     val isLoading: Boolean = false,
     val isSongsLoading: Boolean = false,
     val error: String? = null,
@@ -39,6 +41,7 @@ val Album.isFullAlbum: Boolean
 
 sealed class ArtistAlbumsEvent {
     data class AlbumClicked(val album: Album) : ArtistAlbumsEvent()
+    data class SimilarArtistClicked(val artist: Artist) : ArtistAlbumsEvent()
     data class SongClicked(val song: Song, val index: Int) : ArtistAlbumsEvent()
     data class SongDoubleClicked(val song: Song, val index: Int) : ArtistAlbumsEvent()
     /** Ctrl-click: adds the song to or removes it from the selection. */
@@ -57,5 +60,6 @@ sealed class ArtistAlbumsEvent {
 
 sealed class ArtistAlbumsEffect {
     data class NavigateToAlbum(val albumId: String) : ArtistAlbumsEffect()
+    data class NavigateToArtist(val artistId: String, val artistName: String) : ArtistAlbumsEffect()
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : ArtistAlbumsEffect()
 }

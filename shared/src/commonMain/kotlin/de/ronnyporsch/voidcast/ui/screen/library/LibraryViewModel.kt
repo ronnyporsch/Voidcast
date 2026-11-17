@@ -127,6 +127,7 @@ class LibraryViewModel(
                         selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
+                        selectedArtistSimilarArtists = emptyList(),
                         selectedArtistSongs = emptyList(),
                         selectedArtistSongsLoading = false,
                         selectedAlbumId = null,
@@ -189,6 +190,7 @@ class LibraryViewModel(
                         selectedArtistAppearsOnAlbums = emptyList(),
                         selectedArtistBiography = null,
                         selectedArtistLargeImageUrl = null,
+                        selectedArtistSimilarArtists = emptyList(),
                         selectedArtistSongs = emptyList(),
                         selectedArtistSongsLoading = false,
                         selectedPlaylistId = null,
@@ -599,6 +601,7 @@ class LibraryViewModel(
                         copy(
                             selectedArtistBiography = info.biography,
                             selectedArtistLargeImageUrl = info.largeImageUrl,
+                            selectedArtistSimilarArtists = info.similarArtists,
                         )
                     }
                 }

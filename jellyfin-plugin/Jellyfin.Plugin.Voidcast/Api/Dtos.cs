@@ -211,6 +211,9 @@ public class YouTubeArtistPageDto
 
     /// <summary>Gets or sets the artist's most popular songs.</summary>
     public List<YouTubeSongDto> Songs { get; set; } = [];
+
+    /// <summary>Gets or sets the artists whose fans also like this one.</summary>
+    public List<YouTubeArtistSummaryDto> SimilarArtists { get; set; } = [];
 }
 
 public class YouTubeAlbumDto

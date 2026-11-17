@@ -747,6 +747,8 @@ fun App() {
                                 when (effect) {
                                     is ArtistAlbumsEffect.NavigateToAlbum ->
                                         navigator.push(Screen.AlbumSongs(effect.albumId))
+                                    is ArtistAlbumsEffect.NavigateToArtist ->
+                                        navigator.push(Screen.ArtistAlbums(effect.artistId, effect.artistName))
                                     is ArtistAlbumsEffect.PlaySongs ->
                                         playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
                                 }

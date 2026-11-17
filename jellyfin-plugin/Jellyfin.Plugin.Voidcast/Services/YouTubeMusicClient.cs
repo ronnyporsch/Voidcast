@@ -255,6 +255,17 @@ public partial class YouTubeMusicClient
         var songs = sections.Select(section => Path(section, "musicShelfRenderer")).FirstOrDefault(shelf => shelf != null)
             .Pipe(shelf => GetTopSongsAsync(shelf, cancellationToken));
 
+        // The "Fans might also like" shelf, recognised by its items linking to artist pages, as its title is localised
+        var similarArtists = sections
+            .Select(section => Path(section, "musicCarouselShelfRenderer", "contents").Items()
+                .Select(item => ParseArtistSummary(Path(item, "musicTwoRowItemRenderer")))
+                .ToList())
+            .FirstOrDefault(items => items.Count > 0 && items.All(artist => artist != null))
+            ?.OfType<YouTubeArtistSummaryDto>()
+            .Where(artist => artist.Id != channelId)
+            .DistinctBy(artist => artist.Id)
+            .ToList() ?? [];
+
         var description = sections.Select(section => Path(section, "musicDescriptionShelfRenderer", "description", "runs"))
             .Select(runs => Join(runs.Items()))
             .FirstOrDefault(text => text.Length > 0)
@@ -268,7 +279,22 @@ public partial class YouTubeMusicClient
             Description = description.Length > 0 ? description : null,
             Albums = (await Task.WhenAll(albums).ConfigureAwait(false)).SelectMany(list => list).DistinctBy(album => album.Id).ToList(),
             Songs = await songs.ConfigureAwait(false),
+            SimilarArtists = similarArtists,
         };
+    }
+
+    /// <summary>An artist of a carousel shelf, or null if the item isn't one.</summary>
+    private static YouTubeArtistSummaryDto? ParseArtistSummary(JsonNode? item)
+    {
+        var name = Join(Path(item, "title", "runs").Items());
+        return PageType(item) == "MUSIC_PAGE_TYPE_ARTIST" && BrowseId(item) is { } id && name.Length > 0
+            ? new YouTubeArtistSummaryDto
+            {
+                Id = id,
+                Name = name,
+                ThumbnailUrl = String(Path(item, "thumbnailRenderer", "musicThumbnailRenderer", "thumbnail", "thumbnails").Items().LastOrDefault(), "url"),
+            }
+            : null;
     }
 
     /// <summary>Looks up an album by its browse id (see <see cref="YouTubeSongDto.AlbumId"/>), or returns null if unavailable.</summary>
