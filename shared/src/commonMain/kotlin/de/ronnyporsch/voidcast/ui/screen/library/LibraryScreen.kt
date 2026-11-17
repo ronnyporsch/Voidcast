@@ -6,6 +6,7 @@ import de.ronnyporsch.voidcast.ui.components.FavoriteButton
 import de.ronnyporsch.voidcast.domain.model.FavoriteKind
 import de.ronnyporsch.voidcast.domain.model.audioFormat
 import de.ronnyporsch.voidcast.domain.model.formatTotals
+import de.ronnyporsch.voidcast.domain.model.formatTotalDuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -1510,8 +1511,12 @@ private fun PlaylistDetailPane(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
 
+                                val totalDuration = playlist.songs.sumOf { it.duration }
                                 Text(
-                                    text = "${playlist.songCount} songs",
+                                    text = listOfNotNull(
+                                        "${playlist.songCount} songs",
+                                        totalDuration.takeIf { it > 0 }?.formatTotalDuration(),
+                                    ).joinToString(" \u2022 "),
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
