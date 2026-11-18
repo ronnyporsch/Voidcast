@@ -10,6 +10,7 @@ import de.ronnyporsch.voidcast.platform.CrossfadeAudioPlayer
 import de.ronnyporsch.voidcast.platform.createAudioPlayer
 import de.ronnyporsch.voidcast.platform.createSystemMediaControls
 import de.ronnyporsch.voidcast.platform.isOnWifi
+import de.ronnyporsch.voidcast.platform.keepDownloadsRunning
 import de.ronnyporsch.voidcast.platform.offlineMode
 import de.ronnyporsch.voidcast.ui.screen.player.PlayerViewModel
 import kotlinx.coroutines.CancellationException
@@ -87,6 +88,14 @@ class AppSession private constructor() {
                 .collect { allowed ->
                     if (allowed && _autoLoginStatus.value == AutoLoginStatus.Connected) connection.downloads.syncAll()
                 }
+        }
+        // E.g. on Android, so the system doesn't stop them while the app is in the background
+        scope.launch {
+            combine(connection.downloads.hasPendingDownloads, settingsHolder.settings.map { it.downloadOnlyOnWifi }) { pending, wifiOnly ->
+                pending to wifiOnly
+            }
+                .distinctUntilChanged()
+                .collect { (pending, wifiOnly) -> if (pending) keepDownloadsRunning(wifiOnly) }
         }
         if (autoLogin) scope.launch { runAutoLogin() }
         // Also after logging in by hand, e.g. once the saved login got rejected

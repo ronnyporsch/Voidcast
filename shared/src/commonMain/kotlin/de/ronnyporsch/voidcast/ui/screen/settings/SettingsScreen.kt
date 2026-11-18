@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.AppVersion
 import de.ronnyporsch.voidcast.getPlatform
+import de.ronnyporsch.voidcast.platform.rememberDownloadNotifications
 import de.ronnyporsch.voidcast.ui.components.PluginMissingWarning
 import de.ronnyporsch.voidcast.ui.components.RememberScrollPosition
 import de.ronnyporsch.voidcast.ui.components.VerticalScrollbar
@@ -294,6 +295,15 @@ fun SettingsScreen(
                         checked = state.downloadOnlyOnWifi,
                         onCheckedChange = { viewModel.onEvent(SettingsEvent.DownloadOnlyOnWifiToggled(it)) },
                     )
+
+                    rememberDownloadNotifications()?.let { notifications ->
+                        SettingsSwitch(
+                            title = "Download Notifications",
+                            subtitle = "Show the progress of downloads in a notification",
+                            checked = notifications.enabled,
+                            onCheckedChange = { notifications.change() },
+                        )
+                    }
                 }
 
                 state.serverYouTubeInfo?.let { info ->

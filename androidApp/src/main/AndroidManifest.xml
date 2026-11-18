@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Whether the device is on wifi, for downloading only then -->
@@ -7,6 +8,10 @@
     <!-- Media notification: keeps playing in the background via a foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Downloads keep going in the background via WorkManager's foreground service, see DownloadWorker -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- The notification showing download progress, see MainActivity; media notifications don't need it -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The apps besides the system that may browse the library and control playback, see MediaControllerCheck.kt:
          the app checks that they are genuine, for which it has to be able to see them -->
@@ -60,6 +65,11 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+        <!-- WorkManager's foreground service, for DownloadWorker -->
+        <service
+                android:name="androidx.work.impl.foreground.SystemForegroundService"
+                android:foregroundServiceType="dataSync"
+                tools:node="merge" />
     </application>
 
 </manifest>

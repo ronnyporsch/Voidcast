@@ -158,6 +158,10 @@ class PlaylistDownloads(
     val downloadingSongIds: StateFlow<Set<String>> = _downloadingSongIds.asStateFlow()
     private val transferring = mutableSetOf<String>()
 
+    private val _hasPendingDownloads = MutableStateFlow(false)
+    /** Whether songs are being downloaded or waiting for it in a running sync, see [queuedSongIds]. */
+    val hasPendingDownloads: StateFlow<Boolean> = _hasPendingDownloads.asStateFlow()
+
     private val _content = MutableStateFlow(OfflineContent())
     /** The downloaded playlists, artists, albums and songs of the current server. */
     val content: StateFlow<OfflineContent> = _content.asStateFlow()
@@ -169,6 +173,10 @@ class PlaylistDownloads(
     private val _deferred = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** Emits when a download got requested while [canDownload] says no, so its files follow later. */
     val deferred: SharedFlow<Unit> = _deferred.asSharedFlow()
+
+    private val _requested = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Emits when the user asks for something to be downloaded, unlike the syncs that keep downloads up to date. */
+    val requested: SharedFlow<Unit> = _requested.asSharedFlow()
 
     private val _shareErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
     /** Why [shareSongs] failed. */
@@ -217,6 +225,7 @@ class PlaylistDownloads(
             }
             sync(server, playlist.id)
         }
+        _requested.tryEmit(Unit)
         tellIfDeferred()
     }
 
@@ -242,6 +251,7 @@ class PlaylistDownloads(
             }
             syncAlbum(server, album.id)
         }
+        _requested.tryEmit(Unit)
         tellIfDeferred()
     }
 
@@ -270,6 +280,7 @@ class PlaylistDownloads(
             }
             syncArtist(server, artistId)
         }
+        _requested.tryEmit(Unit)
         tellIfDeferred()
     }
 
@@ -295,6 +306,7 @@ class PlaylistDownloads(
             if (new.isNotEmpty()) saveSongs(loadSongs() + new.map { DownloadedSong(server, it) })
             syncSongs(server)
         }
+        _requested.tryEmit(Unit)
         tellIfDeferred()
     }
 
@@ -320,13 +332,26 @@ class PlaylistDownloads(
     /** Resumes unfinished downloads and syncs all downloaded playlists of the current server, e.g. after connecting. */
     fun syncAll() {
         if (files == null) return
-        scope.launch {
-            val server = serverKey()
-            load().filter { it.server == server }.forEach { sync(server, it.playlist.id) }
-            loadAlbums().filter { it.server == server }.forEach { syncAlbum(server, it.albumId) }
-            loadArtists().filter { it.server == server }.forEach { syncArtist(server, it.artistId) }
-            syncSongs(server)
+        scope.launch { startSyncs() }
+    }
+
+    /** Like [syncAll], but returns only once all syncs are through, also those started meanwhile by anything else. */
+    suspend fun syncAllAndAwait() {
+        if (files == null) return
+        withContext(dispatcher) { startSyncs() }
+        while (true) {
+            val running = withContext(dispatcher) { jobs.values.filter { it.isActive } }
+            if (running.isEmpty()) return
+            running.joinAll()
         }
+    }
+
+    private suspend fun startSyncs() {
+        val server = serverKey()
+        load().filter { it.server == server }.forEach { sync(server, it.playlist.id) }
+        loadAlbums().filter { it.server == server }.forEach { syncAlbum(server, it.albumId) }
+        loadArtists().filter { it.server == server }.forEach { syncArtist(server, it.artistId) }
+        syncSongs(server)
     }
 
     /** Call after [playlistId] got changed, to download its new songs. */
@@ -574,6 +599,7 @@ class PlaylistDownloads(
         _queuedSongIds.value = pending.mapNotNullTo(mutableSetOf()) { song ->
             song.id.takeIf { files.uriOf(it) == null && it !in transferring }
         }
+        _hasPendingDownloads.value = transferring.isNotEmpty() || _queuedSongIds.value.isNotEmpty()
         _status.value = entries
             .associate { entry ->
                 val songs = entry.playlist.songs.distinctBy { it.id }
