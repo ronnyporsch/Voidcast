@@ -22,16 +22,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val WORK_NAME = "downloads"
-private const val TAG_WIFI_ONLY = "wifiOnly"
-private const val TAG_ANY_NETWORK = "anyNetwork"
+// Changing the constraints needs new tags, or work enqueued with the old ones would be kept
+private const val TAG_WIFI_ONLY = "network:wifi"
+private const val TAG_ANY_NETWORK = "network:any"
 
 private val enqueueScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -56,9 +55,11 @@ private fun constraints(wifiOnly: Boolean): Constraints {
         // Close enough before Android 9, which can't require wifi or ethernet themselves
         return Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build()
     }
-    // What isOnWifi counts as wifi, so the worker runs exactly when the downloads may
+    // What isOnWifi counts as wifi, so the worker runs exactly when the downloads may. A VPN is fine: its network
+    // carries the transport of the one underneath, and the app's default network is the VPN while one is up
     val request = NetworkRequest.Builder()
         .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
         .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
         .build()
@@ -77,7 +78,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         if (app.settingsHolder.settings.value.offlineMode) return@coroutineScope Result.success()
 
         val foreground = try {
-            setForeground(foregroundInfo(null))
+            setForeground(foregroundInfo(remaining = 0, total = 0))
             true
         } catch (_: IllegalStateException) {
             // Android 12+ doesn't let apps in the background start foreground services; then this runs as a regular
@@ -95,21 +96,25 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         val downloads = app.connection.downloads
         val progress = if (foreground) launch {
-            combine(downloads.queuedSongIds, downloads.downloadingSongIds) { queued, downloading -> queued.size + downloading.size }
-                .distinctUntilChanged()
-                .collect { remaining ->
-                    try {
-                        setForeground(foregroundInfo(remaining.takeIf { it > 0 }))
-                    } catch (_: IllegalStateException) {
-                    }
+            // Of this run; grows when songs get added meanwhile, so the bar doesn't jump back
+            var total = 0
+            var lastRemaining = 0
+            downloads.pendingSongCount.collect { remaining ->
+                if (remaining > lastRemaining) total += remaining - lastRemaining
+                lastRemaining = remaining
+                try {
+                    setForeground(foregroundInfo(remaining, total))
+                } catch (_: IllegalStateException) {
                 }
+            }
         } else null
         downloads.syncAllAndAwait()
         progress?.cancel()
         Result.success()
     }
 
-    private fun foregroundInfo(remainingSongs: Int?): ForegroundInfo {
+    /** Without [total] songs known yet, the progress bar shows that something is going on. */
+    private fun foregroundInfo(remaining: Int, total: Int): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -120,8 +125,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Downloading songs")
-            .apply { if (remainingSongs != null) setContentText(if (remainingSongs == 1) "1 song left" else "$remainingSongs songs left") }
-            .setProgress(0, 0, true)
+            .apply { if (remaining > 0) setContentText(if (remaining == 1) "1 song left" else "$remaining songs left") }
+            .setProgress(total, total - remaining, total == 0)
             .setOngoing(true)
             .setSilent(true)
             .build()

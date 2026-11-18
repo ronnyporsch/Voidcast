@@ -158,8 +158,15 @@ class PlaylistDownloads(
     val downloadingSongIds: StateFlow<Set<String>> = _downloadingSongIds.asStateFlow()
     private val transferring = mutableSetOf<String>()
 
+    private val _pendingSongCount = MutableStateFlow(0)
+    /**
+     * How many songs are being downloaded or waiting for it in a running sync: [downloadingSongIds] and
+     * [queuedSongIds] together, which as separate flows don't always change at the same time.
+     */
+    val pendingSongCount: StateFlow<Int> = _pendingSongCount.asStateFlow()
+
     private val _hasPendingDownloads = MutableStateFlow(false)
-    /** Whether songs are being downloaded or waiting for it in a running sync, see [queuedSongIds]. */
+    /** Whether [pendingSongCount] is above 0. */
     val hasPendingDownloads: StateFlow<Boolean> = _hasPendingDownloads.asStateFlow()
 
     private val _content = MutableStateFlow(OfflineContent())
@@ -599,7 +606,8 @@ class PlaylistDownloads(
         _queuedSongIds.value = pending.mapNotNullTo(mutableSetOf()) { song ->
             song.id.takeIf { files.uriOf(it) == null && it !in transferring }
         }
-        _hasPendingDownloads.value = transferring.isNotEmpty() || _queuedSongIds.value.isNotEmpty()
+        _pendingSongCount.value = transferring.size + _queuedSongIds.value.size
+        _hasPendingDownloads.value = _pendingSongCount.value > 0
         _status.value = entries
             .associate { entry ->
                 val songs = entry.playlist.songs.distinctBy { it.id }
