@@ -152,6 +152,8 @@ data class PluginInfoDto(
     @SerialName("NewReleasesFavoritesOnly") val newReleasesFavoritesOnly: Boolean = false,
     /** Whether this user may change the new releases settings, which apply to the whole server. */
     @SerialName("CanConfigureNewReleases") val canConfigureNewReleases: Boolean = false,
+    /** Whether the server has the Playback Reporting history [JellyfinApiService.getWrapped] needs (plugin 1.13.0 and later). */
+    @SerialName("WrappedAvailable") val wrappedAvailable: Boolean = false,
 )
 
 @Serializable
@@ -338,4 +340,98 @@ data class VideoStreamInfoDto(
 data class AudioStreamInfoDto(
     @SerialName("Codec") val codec: String? = null,
     @SerialName("BitRate") val bitRate: Int? = null,
+)
+
+/** A user's listening stats of a period, see [JellyfinApiService.getWrapped]. Dates are days of the user's time zone, as yyyy-MM-dd. */
+@Serializable
+data class WrappedDto(
+    /** The time listened, also plays too short to count. */
+    @SerialName("TotalSeconds") val totalSeconds: Long = 0,
+    /** Plays long enough to count, which all the rankings are of. */
+    @SerialName("PlayCount") val playCount: Int = 0,
+    @SerialName("SongCount") val songCount: Int = 0,
+    @SerialName("ArtistCount") val artistCount: Int = 0,
+    @SerialName("AlbumCount") val albumCount: Int = 0,
+    @SerialName("TopSongs") val topSongs: List<WrappedSongDto> = emptyList(),
+    @SerialName("TopArtists") val topArtists: List<WrappedArtistDto> = emptyList(),
+    @SerialName("TopAlbums") val topAlbums: List<WrappedAlbumDto> = emptyList(),
+    @SerialName("TopGenres") val topGenres: List<WrappedGenreDto> = emptyList(),
+    /** Plays by hour of the day, 0 to 23. */
+    @SerialName("PlaysByHour") val playsByHour: List<Int> = emptyList(),
+    /** Plays by day of the week, Monday first. */
+    @SerialName("PlaysByWeekday") val playsByWeekday: List<Int> = emptyList(),
+    @SerialName("BusiestDay") val busiestDay: WrappedDayDto? = null,
+    @SerialName("LongestStreak") val longestStreak: WrappedStreakDto? = null,
+    /** Songs played for the first time ever in the period. */
+    @SerialName("NewSongCount") val newSongCount: Int = 0,
+    /** Artists played for the first time ever in the period. */
+    @SerialName("NewArtistCount") val newArtistCount: Int = 0,
+    @SerialName("TopNewArtist") val topNewArtist: WrappedArtistDto? = null,
+    /** The song played most often on a single day, if one was played more than once on a day. */
+    @SerialName("OnRepeat") val onRepeat: WrappedRepeatDto? = null,
+    /** The song stopped before half of it most often, if one was more than once. */
+    @SerialName("MostSkipped") val mostSkipped: WrappedSkipDto? = null,
+)
+
+@Serializable
+data class WrappedSongDto(
+    /** Null if the song is no longer in the library. */
+    @SerialName("Id") val id: String? = null,
+    @SerialName("Name") val name: String = "",
+    @SerialName("Artist") val artist: String = "",
+    @SerialName("Album") val album: String? = null,
+    @SerialName("AlbumId") val albumId: String? = null,
+    @SerialName("Plays") val plays: Int = 0,
+    @SerialName("Seconds") val seconds: Long = 0,
+)
+
+@Serializable
+data class WrappedArtistDto(
+    /** Null if the library has no artist of the name. */
+    @SerialName("Id") val id: String? = null,
+    @SerialName("Name") val name: String = "",
+    @SerialName("Plays") val plays: Int = 0,
+    @SerialName("Seconds") val seconds: Long = 0,
+)
+
+@Serializable
+data class WrappedAlbumDto(
+    @SerialName("Id") val id: String = "",
+    @SerialName("Name") val name: String = "",
+    @SerialName("Artist") val artist: String = "",
+    @SerialName("Plays") val plays: Int = 0,
+    @SerialName("Seconds") val seconds: Long = 0,
+)
+
+@Serializable
+data class WrappedGenreDto(
+    @SerialName("Name") val name: String = "",
+    @SerialName("Plays") val plays: Int = 0,
+)
+
+@Serializable
+data class WrappedDayDto(
+    @SerialName("Date") val date: String = "",
+    @SerialName("Seconds") val seconds: Long = 0,
+    @SerialName("Plays") val plays: Int = 0,
+)
+
+@Serializable
+data class WrappedStreakDto(
+    @SerialName("Days") val days: Int = 0,
+    @SerialName("Start") val start: String = "",
+    @SerialName("End") val end: String = "",
+)
+
+@Serializable
+data class WrappedRepeatDto(
+    @SerialName("Song") val song: WrappedSongDto = WrappedSongDto(),
+    @SerialName("Date") val date: String = "",
+    @SerialName("Plays") val plays: Int = 0,
+)
+
+@Serializable
+data class WrappedSkipDto(
+    @SerialName("Song") val song: WrappedSongDto = WrappedSongDto(),
+    @SerialName("Skips") val skips: Int = 0,
 )

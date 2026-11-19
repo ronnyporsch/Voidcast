@@ -31,6 +31,7 @@ public class VoidcastController : ControllerBase
     private readonly DownloadManager _downloads;
     private readonly IPlaylistManager _playlistManager;
     private readonly NewReleasesService _newReleases;
+    private readonly WrappedService _wrapped;
     private readonly ILogger<VoidcastController> _logger;
 
     public VoidcastController(
@@ -39,6 +40,7 @@ public class VoidcastController : ControllerBase
         DownloadManager downloads,
         IPlaylistManager playlistManager,
         NewReleasesService newReleases,
+        WrappedService wrapped,
         ILogger<VoidcastController> logger)
     {
         _logger = logger;
@@ -47,6 +49,7 @@ public class VoidcastController : ControllerBase
         _downloads = downloads;
         _playlistManager = playlistManager;
         _newReleases = newReleases;
+        _wrapped = wrapped;
     }
 
     /// <summary>Tells clients the plugin is installed and whether the user may download.</summary>
@@ -70,6 +73,7 @@ public class VoidcastController : ControllerBase
             NewReleasesMinSongs = Plugin.Instance.Configuration.NewReleasesMinSongs,
             NewReleasesFavoritesOnly = Plugin.Instance.Configuration.NewReleasesFavoritesOnly,
             CanConfigureNewReleases = User.IsInRole("Administrator"),
+            WrappedAvailable = _wrapped.IsAvailable,
         };
     }
 
@@ -258,6 +262,43 @@ public class VoidcastController : ControllerBase
         plugin.Configuration.NewReleasesFavoritesOnly = settings.FavoritesOnly;
         plugin.SaveConfiguration();
         return NoContent();
+    }
+
+    /// <summary>
+    /// The requesting user's listening stats ("Wrapped") of the plays from <paramref name="from"/> (inclusive, the
+    /// whole history if left out) to <paramref name="to"/> (exclusive, now if left out), from the Playback Reporting
+    /// plugin's history. Days and hours are counted in the user's time zone, <paramref name="utcOffsetMinutes"/> ahead of UTC.
+    /// </summary>
+    [HttpGet("Wrapped")]
+    public ActionResult<WrappedDto> GetWrapped([FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] int utcOffsetMinutes)
+    {
+        if (UserId == Guid.Empty)
+        {
+            return Problem("Only users have a listening history", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (Math.Abs(utcOffsetMinutes) > 14 * 60 || (from != null && to != null && from >= to))
+        {
+            return Problem("Invalid period", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            return _wrapped.Compute(
+                UserId,
+                from?.UtcDateTime ?? DateTime.MinValue,
+                to?.UtcDateTime ?? DateTime.UtcNow,
+                TimeSpan.FromMinutes(utcOffsetMinutes));
+        }
+        catch (InvalidOperationException e)
+        {
+            return Problem(e.Message, statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException e)
+        {
+            _logger.LogError(e, "Couldn't read the Playback Reporting history");
+            return Problem("Couldn't read the Playback Reporting history: " + e.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     /// <summary>Queues a download of a YouTube Music track (a result of <see cref="Search"/>) into the music library.</summary>

@@ -23,6 +23,10 @@ data class SettingsState(
     val canConfigureNewReleases: Boolean = false,
     /** Describes the YouTube Music support of the connected Jellyfin server's Voidcast plugin, if any. */
     val serverYouTubeInfo: String? = null,
+    /** Whether the connected Jellyfin server has the Voidcast plugin, which Wrapped needs. */
+    val hasPlugin: Boolean = false,
+    /** Whether the server has the Playback Reporting history Wrapped is made of. */
+    val wrappedAvailable: Boolean = false,
     /** The connected Jellyfin server has no Voidcast plugin, so YouTube Music is unavailable. */
     val pluginMissing: Boolean = false,
     val isReconnecting: Boolean = false,

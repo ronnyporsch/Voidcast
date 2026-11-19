@@ -21,6 +21,10 @@
     <PackageReference Include="TagLibSharp" Version="2.3.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <!-- Reads the Playback Reporting plugin's history; the server has it for its own database -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

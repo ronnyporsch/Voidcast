@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlin.time.Instant
 
 data class JellyfinSession(
     val serverUrl: String,
@@ -443,6 +444,13 @@ class JellyfinApiService {
         response.ensureSuccess()
         return response.body()
     }
+
+    /**
+     * The user's listening stats of the plays from [from] (the whole history if null) until [to] (now if null), from the
+     * server's Playback Reporting history. Days and hours are those of the user's time zone, [utcOffsetMinutes] ahead of UTC.
+     */
+    suspend fun getWrapped(from: Instant?, to: Instant?, utcOffsetMinutes: Int): WrappedDto =
+        get("Voidcast/Wrapped", mapOf("from" to from?.toString(), "to" to to?.toString(), "utcOffsetMinutes" to utcOffsetMinutes))
 
     /** The user's recent downloads. */
     suspend fun getDownloads(): List<DownloadJobDto> = get("Voidcast/Downloads", emptyMap())

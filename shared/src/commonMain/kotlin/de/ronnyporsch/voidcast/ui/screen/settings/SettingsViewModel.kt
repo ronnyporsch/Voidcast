@@ -45,6 +45,8 @@ class SettingsViewModel(
                         newReleasesMinSongs = plugin?.newReleasesMinSongs ?: newReleasesMinSongs,
                         newReleasesFavoritesOnly = plugin?.newReleasesFavoritesOnly ?: newReleasesFavoritesOnly,
                         canConfigureNewReleases = plugin?.canConfigureNewReleases == true,
+                        hasPlugin = plugin != null,
+                        wrappedAvailable = plugin?.wrappedAvailable == true,
                     )
                 }
             }

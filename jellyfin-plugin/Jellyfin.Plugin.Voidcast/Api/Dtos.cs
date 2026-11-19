@@ -336,4 +336,142 @@ public class PluginInfoDto
 
     /// <summary>Gets or sets a value indicating whether the requesting user may change the new releases settings, which apply to the whole server.</summary>
     public bool CanConfigureNewReleases { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether the server has the Playback Reporting plugin's history, which <c>Wrapped</c> needs.</summary>
+    public bool WrappedAvailable { get; set; }
+}
+
+/// <summary>A user's listening stats of a period ("Wrapped"), see <c>Wrapped</c>. Dates are days in the user's time zone, as yyyy-MM-dd.</summary>
+public class WrappedDto
+{
+    /// <summary>Gets or sets the time listened, also plays too short to count.</summary>
+    public long TotalSeconds { get; set; }
+
+    /// <summary>Gets or sets the number of plays long enough to count, which all the rankings are of.</summary>
+    public int PlayCount { get; set; }
+
+    public int SongCount { get; set; }
+
+    public int ArtistCount { get; set; }
+
+    public int AlbumCount { get; set; }
+
+    public List<WrappedSongDto> TopSongs { get; set; } = [];
+
+    public List<WrappedArtistDto> TopArtists { get; set; } = [];
+
+    public List<WrappedAlbumDto> TopAlbums { get; set; } = [];
+
+    public List<WrappedGenreDto> TopGenres { get; set; } = [];
+
+    /// <summary>Gets or sets the plays by hour of the day, 0 to 23.</summary>
+    public int[] PlaysByHour { get; set; } = new int[24];
+
+    /// <summary>Gets or sets the plays by day of the week, Monday first.</summary>
+    public int[] PlaysByWeekday { get; set; } = new int[7];
+
+    /// <summary>Gets or sets the day with the most time listened; null without plays.</summary>
+    public WrappedDayDto? BusiestDay { get; set; }
+
+    /// <summary>Gets or sets the most days in a row with plays; null without plays.</summary>
+    public WrappedStreakDto? LongestStreak { get; set; }
+
+    /// <summary>Gets or sets the number of songs played for the first time ever in the period.</summary>
+    public int NewSongCount { get; set; }
+
+    /// <summary>Gets or sets the number of artists played for the first time ever in the period.</summary>
+    public int NewArtistCount { get; set; }
+
+    /// <summary>Gets or sets the most played of the artists played for the first time in the period.</summary>
+    public WrappedArtistDto? TopNewArtist { get; set; }
+
+    /// <summary>Gets or sets the song played most often on a single day, if any song was played more than once on a day.</summary>
+    public WrappedRepeatDto? OnRepeat { get; set; }
+
+    /// <summary>Gets or sets the song stopped before half of it most often, if any was more than once.</summary>
+    public WrappedSkipDto? MostSkipped { get; set; }
+}
+
+public class WrappedSongDto
+{
+    /// <summary>Gets or sets the item id; null if the song is no longer in the library.</summary>
+    public string? Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Artist { get; set; } = string.Empty;
+
+    public string? Album { get; set; }
+
+    public string? AlbumId { get; set; }
+
+    public int Plays { get; set; }
+
+    public long Seconds { get; set; }
+}
+
+public class WrappedArtistDto
+{
+    /// <summary>Gets or sets the item id of the artist; null if the library has no artist item of the name.</summary>
+    public string? Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public int Plays { get; set; }
+
+    public long Seconds { get; set; }
+}
+
+public class WrappedAlbumDto
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Artist { get; set; } = string.Empty;
+
+    public int Plays { get; set; }
+
+    public long Seconds { get; set; }
+}
+
+public class WrappedGenreDto
+{
+    public string Name { get; set; } = string.Empty;
+
+    public int Plays { get; set; }
+}
+
+public class WrappedDayDto
+{
+    public string Date { get; set; } = string.Empty;
+
+    public long Seconds { get; set; }
+
+    public int Plays { get; set; }
+}
+
+public class WrappedStreakDto
+{
+    public int Days { get; set; }
+
+    public string Start { get; set; } = string.Empty;
+
+    public string End { get; set; } = string.Empty;
+}
+
+public class WrappedRepeatDto
+{
+    public WrappedSongDto Song { get; set; } = new();
+
+    public string Date { get; set; } = string.Empty;
+
+    public int Plays { get; set; }
+}
+
+public class WrappedSkipDto
+{
+    public WrappedSongDto Song { get; set; } = new();
+
+    public int Skips { get; set; }
 }

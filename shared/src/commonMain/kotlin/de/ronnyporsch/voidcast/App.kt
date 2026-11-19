@@ -70,6 +70,8 @@ import de.ronnyporsch.voidcast.ui.screen.videos.MusicVideosScreen
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesEvent
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesScreen
 import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesViewModel
+import de.ronnyporsch.voidcast.ui.screen.wrapped.WrappedScreen
+import de.ronnyporsch.voidcast.ui.screen.wrapped.WrappedViewModel
 import de.ronnyporsch.voidcast.domain.model.ServerType
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
@@ -549,7 +551,7 @@ fun App() {
                     ) {
                         // These screens draw their own back button in their header
                         val hasOwnBackButton = currentScreen is Screen.ArtistAlbums || currentScreen is Screen.AlbumSongs ||
-                            currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings ||
+                            currentScreen is Screen.PlaylistSongs || currentScreen is Screen.Settings || currentScreen is Screen.Wrapped ||
                             currentScreen is Screen.FavoriteSongs || currentScreen is Screen.GenreSongs
                         if (navigator.canGoBack() && !hasOwnBackButton) {
                             IconButton(onClick = { navigator.pop() }) {
@@ -913,7 +915,12 @@ fun App() {
                                 }
                             }
                         }
-                        SettingsScreen(vm) { navigator.pop() }
+                        SettingsScreen(vm, onBack = { navigator.pop() }, onOpenWrapped = { navigator.push(Screen.Wrapped) })
+                    }
+
+                    is Screen.Wrapped -> {
+                        val vm = remember { WrappedViewModel(connection.jellyfinApi) }
+                        WrappedScreen(vm) { navigator.pop() }
                     }
                 }
                 }

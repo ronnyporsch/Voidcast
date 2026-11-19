@@ -24,6 +24,8 @@ sealed class Screen {
     /** The music videos of a Jellyfin server; [libraryId] is the library whose tab is shown, null for the first. */
     data class MusicVideos(val libraryId: String? = null) : Screen()
     data object Settings : Screen()
+    /** The user's listening stats (Jellyfin servers with the Playback Reporting plugin). */
+    data object Wrapped : Screen()
 }
 
 enum class QueueTab(val title: String) {

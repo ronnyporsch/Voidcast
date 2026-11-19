@@ -14,5 +14,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<DownloadIndex>();
         serviceCollection.AddSingleton<DownloadManager>();
         serviceCollection.AddSingleton<NewReleasesService>();
+        serviceCollection.AddSingleton<WrappedService>();
     }
 }

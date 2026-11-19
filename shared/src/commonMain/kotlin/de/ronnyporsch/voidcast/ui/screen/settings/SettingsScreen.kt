@@ -34,6 +34,7 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
+    onOpenWrapped: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -302,6 +303,36 @@ fun SettingsScreen(
                             subtitle = "Show the progress of downloads in a notification",
                             checked = notifications.enabled,
                             onCheckedChange = { notifications.change() },
+                        )
+                    }
+                }
+
+                if (state.hasPlugin) {
+                    Spacer(Modifier.height(16.dp))
+
+                    SectionHeader("Wrapped")
+
+                    if (state.wrappedAvailable) {
+                        Text(
+                            "Your most played songs, artists, albums and genres, when you listen and what you discovered, for the last days, a year or all time.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SpotifyLightGray,
+                        )
+                        OutlinedButton(
+                            onClick = onOpenWrapped,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentColor),
+                        ) {
+                            Text("Show my Wrapped", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text(
+                            "Wrapped is made from the listening history of the Playback Reporting plugin. It needs that plugin and version 1.13 or later of the Voidcast plugin on your Jellyfin server.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SpotifyLightGray,
                         )
                     }
                 }
