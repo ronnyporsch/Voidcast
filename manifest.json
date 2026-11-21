@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.14.0.0",
+        "changelog": "Jellyfin now stores the YouTube Music id of downloads (shown and linked in the metadata editor); the plugin no longer keeps its own index of the download folder",
+        "targetAbi": "12.2.0.0",
+        "sourceUrl": "https://github.com/ronnyporsch/Voidcast/releases/download/plugin-v1.14.0/voidcast_1.14.0.0.zip",
+        "checksum": "d7ae82f954b34d816639c2751e50e422",
+        "timestamp": "2026-11-21T14:17:49Z"
+      },
+      {
         "version": "1.13.0.0",
         "changelog": "added rewind/wrapped feature",
         "targetAbi": "12.2.0.0",
