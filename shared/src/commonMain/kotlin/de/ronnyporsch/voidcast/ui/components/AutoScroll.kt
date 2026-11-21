@@ -14,6 +14,8 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -82,9 +84,22 @@ fun Modifier.autoScrollHost(autoScroll: AutoScroll, indicatorColor: Color): Modi
     .drawWithContent {
         drawContent()
         val anchor = autoScroll.anchor ?: return@drawWithContent
-        drawCircle(Color.Black.copy(alpha = 0.4f), radius = 14.dp.toPx(), center = anchor)
-        drawCircle(indicatorColor, radius = 14.dp.toPx(), center = anchor, style = Stroke(1.5.dp.toPx()))
-        drawCircle(indicatorColor, radius = 2.5.dp.toPx(), center = anchor)
+        // An arrow up and one down, outlined to stand out on any content
+        val halfWidth = 7.dp.toPx()
+        val height = 8.dp.toPx()
+        val gap = 3.dp.toPx()
+        val arrows = Path().apply {
+            moveTo(anchor.x, anchor.y - gap - height)
+            lineTo(anchor.x + halfWidth, anchor.y - gap)
+            lineTo(anchor.x - halfWidth, anchor.y - gap)
+            close()
+            moveTo(anchor.x, anchor.y + gap + height)
+            lineTo(anchor.x + halfWidth, anchor.y + gap)
+            lineTo(anchor.x - halfWidth, anchor.y + gap)
+            close()
+        }
+        drawPath(arrows, Color.Black.copy(alpha = 0.6f), style = Stroke(3.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(arrows, indicatorColor)
     }
 
 private suspend fun PointerInputScope.handleAutoScroll(autoScroll: AutoScroll) = coroutineScope {
