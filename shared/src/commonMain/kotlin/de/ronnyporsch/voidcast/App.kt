@@ -63,6 +63,9 @@ import de.ronnyporsch.voidcast.ui.screen.playlist.*
 import de.ronnyporsch.voidcast.ui.screen.search.*
 import de.ronnyporsch.voidcast.ui.screen.settings.*
 import de.ronnyporsch.voidcast.ui.theme.VoidcastTheme
+import de.ronnyporsch.voidcast.ui.components.AutoScroll
+import de.ronnyporsch.voidcast.ui.components.LocalAutoScroll
+import de.ronnyporsch.voidcast.ui.components.autoScrollHost
 import de.ronnyporsch.voidcast.ui.screen.favorites.FavoriteSongsScreen
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsButton
 import de.ronnyporsch.voidcast.ui.screen.downloads.DownloadsScreen
@@ -405,8 +408,10 @@ fun App() {
         }
     }
 
+    val autoScroll = remember { AutoScroll() }
     VoidcastTheme {
         CompositionLocalProvider(
+            LocalAutoScroll provides autoScroll,
             LocalSelectionBarHost provides selectionBarHost,
             LocalCoverArtUrlProvider provides coverArtUrlProvider,
             LocalMusicRepository provides repository,
@@ -531,7 +536,7 @@ fun App() {
             modifier = Modifier.onMouseNavigation(
                 onBack = { if (navigator.canGoBack()) navigator.pop() },
                 onForward = { if (navigator.canGoForward()) navigator.forward() }
-            ),
+            ).autoScrollHost(autoScroll, MaterialTheme.colorScheme.onSurface),
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { AppSnackbarHost(snackbarHostState) },
             topBar = {

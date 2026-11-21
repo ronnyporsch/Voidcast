@@ -15,7 +15,7 @@ actual fun VerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.autoScrollTarget(state),
         style = webScrollbarStyle(),
     )
 }
@@ -27,7 +27,7 @@ actual fun VerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberGridScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.autoScrollTarget(state),
         style = webScrollbarStyle(),
     )
 }
@@ -39,7 +39,7 @@ actual fun VerticalScrollbar(
 ) {
     VerticalScrollbar(
         adapter = rememberScrollbarAdapter(state),
-        modifier = modifier,
+        modifier = modifier.autoScrollTarget(state),
         style = webScrollbarStyle(),
     )
 }
