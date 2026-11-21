@@ -172,7 +172,7 @@ fun App() {
                 val loading = launch { snackbarHostState.showSnackbar("Starting the radio of \"${song.title}\"…", duration = SnackbarDuration.Short) }
                 val songs = runCatching { youTube.getRadio(song) }.onFailure { if (it is CancellationException) throw it }
                 loading.cancel()
-                songs.onSuccess { radio -> playerViewModel.onEvent(PlayerEvent.PlayRadio(radio.songs, radio::loadMore)) }
+                songs.onSuccess { radio -> playerViewModel.onEvent(PlayerEvent.PlayRadio(song, radio.songs, radio::loadMore)) }
                     .onFailure { snackbarHostState.showSnackbar("Couldn't start the radio: ${it.message}", duration = SnackbarDuration.Short) }
             }
         }

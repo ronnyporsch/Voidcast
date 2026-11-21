@@ -53,10 +53,11 @@ sealed class PlayerEvent {
      */
     data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
     /**
-     * Plays the radio [songs] from the start, without shuffle; [loadMore] gets the radio's next songs as the queue
-     * runs out, until it returns none. Playing other songs ends the radio.
+     * Plays the radio [songs] of [seed] from the start, without shuffle; [loadMore] gets the radio's next songs as the
+     * queue runs out, until it returns none. Playing other songs ends the radio. If [seed] is playing, it keeps playing
+     * and the radio follows it.
      */
-    data class PlayRadio(val songs: List<Song>, val loadMore: suspend () -> List<Song>) : PlayerEvent()
+    data class PlayRadio(val seed: Song, val songs: List<Song>, val loadMore: suspend () -> List<Song>) : PlayerEvent()
     data object PlayPause : PlayerEvent()
     data object Play : PlayerEvent()
     data object Pause : PlayerEvent()

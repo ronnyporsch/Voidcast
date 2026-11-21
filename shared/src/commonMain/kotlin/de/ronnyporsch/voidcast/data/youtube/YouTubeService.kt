@@ -176,7 +176,8 @@ class YouTubeService(private val connection: MusicServerConnection) {
         connection.jellyfinApi.getYouTubeSong(videoId).toSong().also { checkDownloaded(listOf(it)) }
 
     /**
-     * A radio of [song]: it, followed by similar songs from YouTube Music, with more to load, see [YouTubeRadio].
+     * A radio of [song]: songs similar to it from YouTube Music (not the song itself), with more to load, see
+     * [YouTubeRadio].
      * Library songs get matched with a YouTube Music song by searching for their artist and title first.
      */
     suspend fun getRadio(song: Song): YouTubeRadio {
@@ -186,7 +187,10 @@ class YouTubeService(private val connection: MusicServerConnection) {
             ?: throw NoSuchElementException("\"${song.title}\" isn't on YouTube Music")
         val page = connection.jellyfinApi.getYouTubeRadio(videoId)
         val radio = YouTubeRadio(videoId, page.continuation)
-        return radio.apply { songs = listOf(song) + radio.newSongs(page) }
+        // The song's own video id counts as seen already
+        val songs = radio.newSongs(page)
+        if (songs.isEmpty()) throw NoSuchElementException("No songs similar to \"${song.title}\" found")
+        return radio.apply { this.songs = songs }
     }
 
     /**
