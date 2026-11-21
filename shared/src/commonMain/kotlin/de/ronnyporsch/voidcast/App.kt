@@ -919,8 +919,20 @@ fun App() {
                     }
 
                     is Screen.Wrapped -> {
-                        val vm = remember { WrappedViewModel(connection.jellyfinApi) }
-                        WrappedScreen(vm) { navigator.pop() }
+                        val vm = remember { WrappedViewModel(connection.jellyfinApi, repository) }
+                        // Wrapped plays songs of its own instead of the queue, which carries on afterwards
+                        DisposableEffect(Unit) {
+                            val status = playerViewModel.currentState.playback.status
+                            val wasPlaying = status == PlaybackStatus.Playing || status == PlaybackStatus.Buffering
+                            if (wasPlaying) playerViewModel.onEvent(PlayerEvent.Pause)
+                            onDispose { if (wasPlaying) playerViewModel.onEvent(PlayerEvent.Play) }
+                        }
+                        WrappedScreen(
+                            viewModel = vm,
+                            streamUrl = repository::getStreamUrl,
+                            queuePlaying = playerState.playback.status == PlaybackStatus.Playing,
+                            onBack = { navigator.pop() },
+                        )
                     }
                 }
                 }

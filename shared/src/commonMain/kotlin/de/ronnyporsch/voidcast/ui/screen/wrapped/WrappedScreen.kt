@@ -32,12 +32,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SelectableDates
@@ -45,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -68,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import de.ronnyporsch.voidcast.data.jellyfin.WrappedArtistDto
 import de.ronnyporsch.voidcast.data.jellyfin.WrappedDto
 import de.ronnyporsch.voidcast.data.jellyfin.WrappedSongDto
+import de.ronnyporsch.voidcast.platform.createAudioPlayer
 import de.ronnyporsch.voidcast.ui.LocalCoverArtUrlProvider
 import de.ronnyporsch.voidcast.ui.components.CoverArtImage
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
@@ -77,11 +84,18 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlin.math.roundToLong
 
-/** The user's listening stats of a period as Spotify Wrapped style story slides. */
+/**
+ * The user's listening stats of a period as Spotify Wrapped style story slides, each with a fitting song playing.
+ * [streamUrl] is that of a song by id; while [queuePlaying] (the user started the queue again), the songs stay quiet.
+ */
 @Composable
-fun WrappedScreen(viewModel: WrappedViewModel, onBack: () -> Unit) {
+fun WrappedScreen(viewModel: WrappedViewModel, streamUrl: (String) -> String, queuePlaying: Boolean, onBack: () -> Unit) {
     val state by viewModel.state.collectAsState()
     var pickingDays by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val soundtrack = remember { WrappedSoundtrack(createAudioPlayer(), createAudioPlayer(), scope, streamUrl) }
+    DisposableEffect(soundtrack) { onDispose { soundtrack.release() } }
+    var muted by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -132,7 +146,17 @@ fun WrappedScreen(viewModel: WrappedViewModel, onBack: () -> Unit) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(24.dp),
                 )
-                wrapped != null -> key(wrapped) { WrappedStories(wrapped, state.period.label(state.today)) }
+                wrapped != null -> key(wrapped) {
+                    WrappedStories(
+                        wrapped = wrapped,
+                        periodLabel = state.period.label(state.today),
+                        soundtrack = soundtrack,
+                        lookups = state.soundtrackLookups,
+                        silent = muted || queuePlaying,
+                        muted = muted,
+                        onToggleMute = { muted = !muted },
+                    )
+                }
             }
         }
     }
@@ -221,7 +245,7 @@ private fun CustomPeriodDialog(
 private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
 
 /** A story slide, shown if its stats exist. */
-private enum class Slide(val top: Color, val bottom: Color) {
+internal enum class Slide(val top: Color, val bottom: Color) {
     Intro(Color(0xFFB5179E), Color(0xFF3A0CA3)),
     Minutes(Color(0xFF0F9B8E), Color(0xFF1A2A6C)),
     TopArtist(Color(0xFFFF6B35), Color(0xFF8E0E00)),
@@ -236,7 +260,7 @@ private enum class Slide(val top: Color, val bottom: Color) {
     Summary(Color(0xFF2B2B2B), Color(0xFF000000)),
 }
 
-private fun slidesOf(wrapped: WrappedDto): List<Slide> = Slide.entries.filter { slide ->
+internal fun slidesOf(wrapped: WrappedDto): List<Slide> = Slide.entries.filter { slide ->
     when (slide) {
         Slide.TopArtist -> wrapped.topArtists.isNotEmpty()
         Slide.TopSongs -> wrapped.topSongs.isNotEmpty()
@@ -251,10 +275,26 @@ private fun slidesOf(wrapped: WrappedDto): List<Slide> = Slide.entries.filter { 
 }
 
 @Composable
-private fun WrappedStories(wrapped: WrappedDto, periodLabel: String) {
+private fun WrappedStories(
+    wrapped: WrappedDto,
+    periodLabel: String,
+    soundtrack: WrappedSoundtrack,
+    lookups: SoundtrackLookups,
+    silent: Boolean,
+    muted: Boolean,
+    onToggleMute: () -> Unit,
+) {
     val slides = remember(wrapped) { slidesOf(wrapped) }
     val pagerState = rememberPagerState { slides.size }
     val scope = rememberCoroutineScope()
+
+    // The song of the slide shown. Songs looked up later may change the plan, but not the song of a slide played already
+    val plan = remember(wrapped, lookups) { planSoundtrack(wrapped, slides, lookups) }
+    val playedSongs = remember(wrapped) { mutableMapOf<Slide, String>() }
+    val shownSlide = slides[pagerState.settledPage]
+    val songId = playedSongs[shownSlide] ?: plan[shownSlide]?.also { playedSongs[shownSlide] = it }
+    LaunchedEffect(songId, silent) { soundtrack.play(songId.takeUnless { silent }) }
+    DisposableEffect(soundtrack) { onDispose { soundtrack.stop() } }
 
     Box(
         modifier = Modifier
@@ -296,6 +336,14 @@ private fun WrappedStories(wrapped: WrappedDto, periodLabel: String) {
                         .clickable { scope.launch { pagerState.animateScrollToPage(index) } },
                 )
             }
+        }
+
+        IconButton(onClick = onToggleMute, modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 4.dp)) {
+            Icon(
+                imageVector = if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = if (muted) "Play the songs" else "Mute the songs",
+                tint = Color.White,
+            )
         }
     }
 }

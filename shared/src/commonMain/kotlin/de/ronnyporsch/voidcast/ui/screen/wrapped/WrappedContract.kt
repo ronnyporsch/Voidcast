@@ -11,6 +11,8 @@ data class WrappedState(
     /** The stats of [period]; null until they are loaded. */
     val wrapped: WrappedDto? = null,
     val error: String? = null,
+    /** Songs looked up for the soundtrack of [wrapped], see [planSoundtrack]; added to as they come in. */
+    val soundtrackLookups: SoundtrackLookups = SoundtrackLookups(),
 )
 
 sealed interface WrappedEvent {
