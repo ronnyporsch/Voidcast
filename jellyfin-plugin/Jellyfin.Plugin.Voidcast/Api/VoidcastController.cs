@@ -327,8 +327,8 @@ public class VoidcastController : ControllerBase
     }
 
     /// <summary>
-    /// Returns those of the given video ids that are already in the library's download folder, also ones
-    /// downloaded before the server restarted. Lookups are cheap; the folder's tags are read in the background.
+    /// Returns those of the given video ids that are already in the library (Jellyfin keeps their YouTube Music id,
+    /// see <see cref="YouTubeMusicId"/>), or just got downloaded and aren't scanned yet.
     /// </summary>
     [HttpPost("YouTube/Downloaded")]
     public ActionResult<IReadOnlyList<string>> GetDownloaded([FromBody] List<string> videoIds) =>
@@ -339,7 +339,7 @@ public class VoidcastController : ControllerBase
     public ActionResult<IReadOnlyList<DownloadedTrack>> GetDownloadedDetails([FromBody] List<string> videoIds) =>
         Ok(_downloads.FindDownloaded(videoIds.Where(YtDlpService.IsValidVideoId).Take(500)));
 
-    /// <summary>Returns those of the given album ids whose tracks are all in the library's download folder.</summary>
+    /// <summary>Returns those of the given album ids whose tracks are all in the library.</summary>
     [HttpPost("YouTube/Albums/Downloaded")]
     public async Task<ActionResult<IReadOnlyList<string>>> GetDownloadedAlbums([FromBody] List<string> albumIds, CancellationToken cancellationToken) =>
         Ok(await _downloads.FindDownloadedAlbumsAsync(albumIds.Where(YouTubeMusicClient.IsValidAlbumId).Take(200), cancellationToken).ConfigureAwait(false));

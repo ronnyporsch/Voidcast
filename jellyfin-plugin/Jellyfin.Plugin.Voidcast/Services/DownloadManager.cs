@@ -44,7 +44,7 @@ public partial class DownloadManager
     private readonly ITaskManager _taskManager;
     private readonly IPlaylistManager _playlistManager;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly DownloadIndex _index;
+    private readonly DownloadedTracks _downloaded;
     private readonly ConcurrentDictionary<Guid, Job> _jobs = new();
     private readonly ConcurrentDictionary<Guid, Addition> _additions = new();
     private readonly SemaphoreSlim _slots;
@@ -62,7 +62,7 @@ public partial class DownloadManager
         ITaskManager taskManager,
         IPlaylistManager playlistManager,
         IHttpClientFactory httpClientFactory,
-        DownloadIndex index)
+        DownloadedTracks downloaded)
     {
         _logger = logger;
         _ytDlp = ytDlp;
@@ -71,7 +71,7 @@ public partial class DownloadManager
         _taskManager = taskManager;
         _playlistManager = playlistManager;
         _httpClientFactory = httpClientFactory;
-        _index = index;
+        _downloaded = downloaded;
         var slots = Math.Clamp(Plugin.Instance?.Configuration.MaxConcurrentDownloads ?? 2, 1, 8);
         _slots = new SemaphoreSlim(slots, slots);
     }
@@ -167,7 +167,7 @@ public partial class DownloadManager
             ValidateSong(song);
         }
 
-        var paths = songs.Select(song => _index.FindPath(song.VideoId)).ToList();
+        var paths = songs.Select(song => _downloaded.FindPath(song.VideoId)).ToList();
         if (!mayDownload && paths.Any(path => path == null))
         {
             throw new UnauthorizedAccessException("Only administrators may download into the library (see the Voidcast plugin settings)");
@@ -258,11 +258,11 @@ public partial class DownloadManager
         return path != null ? await WaitForItemAsync(path, PlaylistImportTimeout).ConfigureAwait(false) : null;
     }
 
-    /// <summary>Returns those of <paramref name="videoIds"/> that are already in the download folder.</summary>
+    /// <summary>Returns those of <paramref name="videoIds"/> that are already in the library (or just got downloaded).</summary>
     public IReadOnlyList<DownloadedTrack> FindDownloaded(IEnumerable<string> videoIds) =>
-        _index.FindDownloaded(videoIds, GetDownloadDirectory());
+        _downloaded.FindDownloaded(videoIds);
 
-    /// <summary>Returns those of <paramref name="albumIds"/> whose tracks are all in the download folder.</summary>
+    /// <summary>Returns those of <paramref name="albumIds"/> whose tracks are all in the library.</summary>
     public async Task<IReadOnlyList<string>> FindDownloadedAlbumsAsync(IEnumerable<string> albumIds, CancellationToken cancellationToken)
     {
         var albums = await Task.WhenAll(albumIds.Distinct().Select(async albumId =>
@@ -333,7 +333,7 @@ public partial class DownloadManager
             }
 
             job.Dto.Path = target;
-            _index.Add(song.VideoId, target);
+            _downloaded.Add(song.VideoId, target);
             job.Dto.State = DownloadState.Importing;
             job.Dto.Message = "Saved to " + target + ", scanning library";
             _logger.LogInformation("Downloaded {VideoId} to {Path}", song.VideoId, target);
@@ -463,7 +463,7 @@ public partial class DownloadManager
         for (var number = 1; ; number++)
         {
             var target = (number == 1 ? path : $"{path} ({number.ToString(System.Globalization.CultureInfo.InvariantCulture)})") + extension;
-            if (!File.Exists(target) || _index.IsDownloadOf(target, videoId))
+            if (!File.Exists(target) || _downloaded.IsDownloadOf(target, videoId))
             {
                 return target;
             }

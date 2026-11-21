@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -42,6 +43,7 @@ import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.isYouTube
 import de.ronnyporsch.voidcast.domain.model.youTubeUrl
+import de.ronnyporsch.voidcast.ui.LocalMusicRepository
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -316,6 +318,14 @@ fun SongContextMenu(
         else if (showPlaylistsFirst) editor?.refreshPlaylists()
     }
     val containingSong = songs.singleOrNull()?.takeIf { !it.isYouTube }
+    // Where the song's file came from, e.g. its YouTube Music URL; the song lists don't carry it
+    val repository = LocalMusicRepository.current
+    val uriHandler = LocalUriHandler.current
+    var sourceUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(expanded, containingSong) {
+        sourceUrl = null
+        if (expanded && containingSong != null) sourceUrl = repository.getSourceUrl(containingSong).getOrNull()
+    }
     LaunchedEffect(showContainingPlaylists, containingSong) {
         containingPlaylists = null
         if (showContainingPlaylists && editor != null && containingSong != null) {
@@ -499,6 +509,17 @@ fun SongContextMenu(
                         },
                     )
                 }
+            }
+            sourceUrl?.let { url ->
+                DropdownMenuItem(
+                    text = { Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 280.dp)) },
+                    leadingIcon = { YouTubeIcon(size = 20.dp) },
+                    onClick = {
+                        // E.g. no browser on the device
+                        runCatching { uriHandler.openUri(url) }
+                        onDismiss()
+                    },
+                )
             }
             val youTubeUrls = songs.mapNotNull { it.youTubeUrl }
             if (youTubeUrls.isNotEmpty()) {

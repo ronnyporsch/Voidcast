@@ -235,6 +235,12 @@ class JellyfinMusicRepository(
         song.audioFormat ?: api.getItem(song.id).toSong().audioFormat
     }
 
+    // Single items come with their provider ids; the plugin keeps the video id of downloads
+    override suspend fun getSourceUrl(song: Song): Result<String?> = runCatching {
+        if (song.isYouTube) return@runCatching null
+        api.getItem(song.id).providerIds["YouTubeMusic"]?.takeIf(YOUTUBE_VIDEO_ID::matches)?.let(::youTubeWatchUrl)
+    }
+
     override suspend fun getFavorites(): Result<SearchResults> = runCatching {
         // One query returns all three kinds, artists included
         val items = api.getItems(
@@ -337,6 +343,9 @@ class JellyfinMusicRepository(
 
 /** Song query parameter for codec, bitrate and file size; only where shown, they make responses a lot bigger. */
 private const val SIMILAR_ARTISTS_LIMIT = 20
+
+// It comes from the server and ends up in a URL that gets opened
+private val YOUTUBE_VIDEO_ID = Regex("""[\w-]{11}""")
 
 private val WITH_FORMAT_AND_SIZE = "fields" to "Genres,DateCreated,MediaStreams,MediaSources"
 

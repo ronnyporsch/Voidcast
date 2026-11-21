@@ -72,6 +72,8 @@ data class BaseItemDto(
     @SerialName("NormalizationGain") val normalizationGain: Float? = null,
     /** Of songs: the [normalizationGain] of their album. */
     @SerialName("AlbumNormalizationGain") val albumNormalizationGain: Float? = null,
+    /** Ids of the item in other databases, e.g. the Voidcast plugin's "YouTubeMusic"; only with the ProviderIds field. */
+    @SerialName("ProviderIds") val providerIds: Map<String, String?> = emptyMap(),
 )
 
 @Serializable

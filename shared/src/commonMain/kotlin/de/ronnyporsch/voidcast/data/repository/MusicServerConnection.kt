@@ -272,6 +272,7 @@ class MusicServerConnection(private val settingsHolder: SettingsHolder) {
         override suspend fun startScan() = active.startScan()
 
         override suspend fun getMusicVideoLibraries() = active.getMusicVideoLibraries()
+        override suspend fun getSourceUrl(song: Song) = active.getSourceUrl(song)
         override suspend fun getMusicVideos(libraryId: String?) = active.getMusicVideos(libraryId)
 
         // Videos have no lyrics. YouTube Music tracks aren't library items, so the server has none for them either:

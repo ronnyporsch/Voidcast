@@ -66,6 +66,9 @@ interface MusicRepository {
     /** Codec and bitrate of the song's file (for YouTube Music songs: of the stream); null if unknown. */
     suspend fun getAudioFormat(song: Song): Result<AudioStreamInfo?>
 
+    /** Where the song's file got downloaded from, e.g. its YouTube Music URL; null if unknown or not a library song. */
+    suspend fun getSourceUrl(song: Song): Result<String?> = Result.success(null)
+
     /** The user's favorite artists, albums and songs. */
     suspend fun getFavorites(): Result<SearchResults>
     suspend fun setFavorite(kind: FavoriteKind, id: String, favorite: Boolean): Result<Unit>

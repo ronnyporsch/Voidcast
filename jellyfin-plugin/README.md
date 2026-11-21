@@ -11,9 +11,9 @@ music library. The plugin searches YouTube Music for the clients; when a client 
 4. starts a library scan.
 
 Clients can also search YouTube Music artists and browse their albums, singles and EPs and top songs; album tracks
-are streamed and downloaded like search results. Clients are told which tracks are already downloaded: the plugin
-reads the YouTube URL in the comment tag of the files in the download folder (once, then only new or changed files)
-and keeps the index in `<data dir>/voidcast/download-index.json`. The plugin also streams YouTube Music tracks for playback and
+are streamed and downloaded like search results. Clients are told which tracks are already downloaded: downloads carry
+their YouTube Music URL in the comment tag, which the plugin reads when Jellyfin scans a file and stores as the
+track's *YouTube Music* provider id (shown and linked in Jellyfin's metadata editor). The plugin also streams YouTube Music tracks for playback and
 reports the codec/bitrate a download would get.
 
 The *Scan for new releases* task (*Dashboard → Scheduled Tasks*, weekly by default, or an administrator's *Scan now* in a client) looks on

@@ -214,7 +214,9 @@ val Song.youTubeVideoId: String?
 
 /** Link to the song on YouTube Music, if it is from there. */
 val Song.youTubeUrl: String?
-    get() = youTubeVideoId?.let { "https://music.youtube.com/watch?v=$it" }
+    get() = youTubeVideoId?.let(::youTubeWatchUrl)
+
+fun youTubeWatchUrl(videoId: String) = "https://music.youtube.com/watch?v=$videoId"
 
 /** Id of the YouTube Music artist page of the song's artist [name], if it has one. */
 fun Song.youTubeArtistId(name: String): String? =
