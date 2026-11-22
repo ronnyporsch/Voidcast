@@ -278,10 +278,12 @@ private fun LibrarySidebar(
 
             when (state.category) {
                 LibraryCategory.Artists -> {
-                    val artists = remember(state.artists, state.albums, order, filter) {
+                    // Sorted apart from the filter, so typing in it only filters
+                    val sortedArtists = remember(state.artists, state.albums, order) {
                         val counted = if (order.sort == LibrarySort.SongCount) state.artists.withSongCounts(state.albums) else state.artists
-                        counted.sortedBy(order).filter { matchesFilter(filter, it.name) }
+                        counted.sortedBy(order)
                     }
+                    val artists = remember(sortedArtists, filter) { sortedArtists.matching(filter) { matches(it.name) } }
                     SidebarList(
                         items = artists,
                         key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
@@ -299,9 +301,8 @@ private fun LibrarySidebar(
                     }
                 }
                 LibraryCategory.Albums -> {
-                    val albums = remember(state.albums, order, filter) {
-                        state.albums.sortedBy(order).filter { matchesFilter(filter, it.name, it.artist) }
-                    }
+                    val sortedAlbums = remember(state.albums, order) { state.albums.sortedBy(order) }
+                    val albums = remember(sortedAlbums, filter) { sortedAlbums.matching(filter) { matches(it.name, it.artist) } }
                     SidebarList(
                         items = albums,
                         key = { index, album -> "${album.id}::$index" },
@@ -320,7 +321,8 @@ private fun LibrarySidebar(
                     }
                 }
                 LibraryCategory.Songs -> {
-                    val songs = remember(state.songs, order, filter) { state.songs.sortedBy(order).filter { it.matches(filter) } }
+                    val sortedSongs = remember(state.songs, order) { state.songs.sortedBy(order) }
+                    val songs = remember(sortedSongs, filter) { sortedSongs.matchingSongs(filter) }
                     SongSidebar(
                         songs = songs,
                         state = listState,
@@ -331,9 +333,8 @@ private fun LibrarySidebar(
                     )
                 }
                 LibraryCategory.Genres -> {
-                    val genres = remember(state.genres, filter) {
-                        state.genres.sortedBy { it.name.lowercase() }.filter { matchesFilter(filter, it.name) }
-                    }
+                    val sortedGenres = remember(state.genres) { state.genres.sortedBy { it.name.lowercase() } }
+                    val genres = remember(sortedGenres, filter) { sortedGenres.matching(filter) { matches(it.name) } }
                     SidebarList(
                         items = genres,
                         key = { _, genre -> genre.id },
@@ -372,8 +373,9 @@ private fun LibrarySidebar(
                 )
                 LibraryCategory.Playlists -> {
                     val expandedFolders = state.view.expandedPlaylistFolders
-                    val entries = remember(state.playlists, order, expandedFolders, filter) {
-                        val playlists = state.playlists.sortedBy(order).filter { matchesFilter(filter, it.name) }
+                    val sortedPlaylists = remember(state.playlists, order) { state.playlists.sortedBy(order) }
+                    val entries = remember(sortedPlaylists, expandedFolders, filter) {
+                        val playlists = sortedPlaylists.matching(filter) { matches(it.name) }
                         // Matches in folders show without opening them
                         playlists.toSidebarEntries(if (filter.isBlank()) expandedFolders else playlists.mapNotNullTo(mutableSetOf()) { it.folderAndName()?.first })
                     }
@@ -814,8 +816,8 @@ private fun ArtistDetailPane(
         } else {
             val headerState = rememberCollapsingHeaderState(state)
             val albumSelection = rememberAlbumSelection()
-            val albums = albums.filter { matchesFilter(query, it.name) }
-            val appearsOnAlbums = appearsOnAlbums.filter { matchesFilter(query, it.name, it.artist) }
+            val albums = albums.matching(query) { matches(it.name) }
+            val appearsOnAlbums = appearsOnAlbums.matching(query) { matches(it.name, it.artist) }
             // In the order they are shown, for selecting ranges of them
             val shownAlbums = albums + appearsOnAlbums
             // The songs matching the search, with their positions among all of them, which the callbacks get
@@ -1889,7 +1891,7 @@ private fun AlbumListItem(album: Album, isSelected: Boolean, onClick: () -> Unit
 private fun FavoritesSidebar(
     state: LibraryState,
     order: LibraryOrder,
-    /** Limits the artists and albums, see [matchesFilter]. */
+    /** Limits the artists and albums, see [TextFilter]. */
     filter: String,
     onSongsClick: () -> Unit,
     onArtistClick: (Artist) -> Unit,
@@ -1899,12 +1901,10 @@ private fun FavoritesSidebar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    val artists = remember(state.favoriteArtists, order, filter) {
-        state.favoriteArtists.sortedBy(order).filter { matchesFilter(filter, it.name) }
-    }
-    val albums = remember(state.favoriteAlbums, order, filter) {
-        state.favoriteAlbums.sortedBy(order).filter { matchesFilter(filter, it.name, it.artist) }
-    }
+    val sortedArtists = remember(state.favoriteArtists, order) { state.favoriteArtists.sortedBy(order) }
+    val artists = remember(sortedArtists, filter) { sortedArtists.matching(filter) { matches(it.name) } }
+    val sortedAlbums = remember(state.favoriteAlbums, order) { state.favoriteAlbums.sortedBy(order) }
+    val albums = remember(sortedAlbums, filter) { sortedAlbums.matching(filter) { matches(it.name, it.artist) } }
     Box(modifier = modifier.padding(12.dp)) {
         LazyColumn(
             state = listState,

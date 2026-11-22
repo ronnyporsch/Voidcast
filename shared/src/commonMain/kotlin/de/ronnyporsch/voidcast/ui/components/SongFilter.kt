@@ -30,18 +30,43 @@ import de.ronnyporsch.voidcast.platform.GlobalShortcuts
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 import de.ronnyporsch.voidcast.ui.theme.SearchPlaceholderGray
 
-/** Whether every word of [query] is part of one of [fields], ignoring case; a blank query matches everything. */
-fun matchesFilter(query: String, vararg fields: String): Boolean {
-    val words = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    return words.all { word -> fields.any { it.contains(word, ignoreCase = true) } }
+private val WHITESPACE = Regex("\\s+")
+
+/**
+ * A filter query split into its words once, to match many items against it: an item matches if every word is part
+ * of one of its fields, ignoring case. A blank query matches everything.
+ */
+class TextFilter(query: String) {
+    private val words = query.trim().split(WHITESPACE).filter { it.isNotEmpty() }
+
+    val isBlank: Boolean get() = words.isEmpty()
+
+    fun matches(vararg fields: String): Boolean = words.all { word -> fields.any { it.contains(word, ignoreCase = true) } }
+
+    /** Matches the song's title, artist and album. */
+    fun matches(song: Song): Boolean = matches(song.title, song.artist, song.album)
 }
 
+/** The items matching [query] by [matches], see [TextFilter]; the list itself for a blank query. */
+inline fun <T> List<T>.matching(query: String, matches: TextFilter.(T) -> Boolean): List<T> {
+    val textFilter = TextFilter(query)
+    return if (textFilter.isBlank) this else filter { textFilter.matches(it) }
+}
+
+/** Whether every word of [query] is part of one of [fields], ignoring case; a blank query matches everything. */
+fun matchesFilter(query: String, vararg fields: String): Boolean = TextFilter(query).matches(*fields)
+
 /** Whether [query] is part of the song's title, artist or album, ignoring case; a blank query matches every song. */
-fun Song.matches(query: String): Boolean = matchesFilter(query, title, artist, album)
+fun Song.matches(query: String): Boolean = TextFilter(query).matches(this)
 
 /** The songs matching [query] together with their positions in the whole list, see [matches]. */
-fun List<Song>.filtered(query: String): List<IndexedValue<Song>> =
-    withIndex().filter { it.value.matches(query) }
+fun List<Song>.filtered(query: String): List<IndexedValue<Song>> {
+    val filter = TextFilter(query)
+    return if (filter.isBlank) withIndex().toList() else withIndex().filter { filter.matches(it.value) }
+}
+
+/** The songs matching [query], see [matches]. */
+fun List<Song>.matchingSongs(query: String): List<Song> = matching(query) { matches(it) }
 
 /** Focuses a [SongFilterField] on Ctrl+F, see [rememberSongFilterFocus]. */
 class SongFilterFocus {

@@ -5,7 +5,7 @@ import de.ronnyporsch.voidcast.domain.model.Album
 import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.Song
-import de.ronnyporsch.voidcast.ui.components.matches
+import de.ronnyporsch.voidcast.ui.components.matchingSongs
 
 /** The library as far as the downloaded [songs] tell it, for browsing while the server isn't reachable. */
 class OfflineLibrary(songs: List<Song>) {
@@ -76,7 +76,7 @@ class OfflineLibrary(songs: List<Song>) {
             artists = artists.filter { it.name.contains(q, ignoreCase = true) },
             albums = albums.filter { it.name.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true) },
             // Every word on its own, so "artist title" finds the song
-            songs = songs.filter { it.matches(q) },
+            songs = songs.matchingSongs(q),
         )
     }
 

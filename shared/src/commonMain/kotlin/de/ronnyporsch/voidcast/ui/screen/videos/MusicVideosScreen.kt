@@ -90,7 +90,7 @@ private fun MusicVideosGrid(
     val loaded by produceState<Result<List<Song>>?>(null) { value = repository.getMusicVideos(library?.id) }
     val videos = loaded?.getOrNull().orEmpty()
     var query by remember { mutableStateOf("") }
-    val shown = remember(videos, query) { videos.filter { it.matches(query) } }
+    val shown = remember(videos, query) { videos.matchingSongs(query) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     val isMobile = remember { getPlatform().isMobile }
     val gridState = rememberLazyGridState()

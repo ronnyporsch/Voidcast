@@ -3,7 +3,7 @@ package de.ronnyporsch.voidcast.ui.screen.albums
 import de.ronnyporsch.voidcast.domain.model.isYouTubeId
 import de.ronnyporsch.voidcast.ui.components.YouTubeIcon
 import androidx.compose.runtime.saveable.rememberSaveable
-import de.ronnyporsch.voidcast.ui.components.matchesFilter
+import de.ronnyporsch.voidcast.ui.components.matching
 import de.ronnyporsch.voidcast.ui.components.filtered
 import de.ronnyporsch.voidcast.ui.components.SongFilterField
 import de.ronnyporsch.voidcast.ui.components.FavoriteButton
@@ -80,8 +80,8 @@ fun ArtistAlbumsScreen(
     // Limits the albums and songs shown
     var query by rememberSaveable { mutableStateOf("") }
     // Library albums all go under "Albums"
-    val (albums, singles) = state.albums.filter { matchesFilter(query, it.name) }.partition { it.isFullAlbum }
-    val appearsOnAlbums = state.appearsOnAlbums.filter { matchesFilter(query, it.name, it.artist) }
+    val (albums, singles) = state.albums.matching(query) { matches(it.name) }.partition { it.isFullAlbum }
+    val appearsOnAlbums = state.appearsOnAlbums.matching(query) { matches(it.name, it.artist) }
     // In the order they are shown, for selecting ranges of them
     val shownAlbums = albums + singles + appearsOnAlbums
     // The songs matching the search, with their positions among all of them, which the events refer to

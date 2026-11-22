@@ -6,7 +6,7 @@ import de.ronnyporsch.voidcast.data.repository.SearchResults
 import de.ronnyporsch.voidcast.domain.model.*
 import de.ronnyporsch.voidcast.getPlatform
 import io.ktor.http.HttpStatusCode
-import de.ronnyporsch.voidcast.ui.components.matches
+import de.ronnyporsch.voidcast.ui.components.matchingSongs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -208,7 +208,7 @@ class JellyfinMusicRepository(
         }
         (byTitle.await() + byArtist.awaitAll().flatten())
             .distinctBy { it.id }
-            .filter { it.matches(query) }
+            .matchingSongs(query)
             .take(50)
     }
 
