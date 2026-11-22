@@ -284,9 +284,10 @@ private fun LibrarySidebar(
                         counted.sortedBy(order)
                     }
                     val artists = remember(sortedArtists, filter) { sortedArtists.matching(filter) { matches(it.name) } }
+                    val artistKeys = remember(artists) { artists.uniqueKeys { it.id.ifEmpty { "name:${it.name}" } } }
                     SidebarList(
                         items = artists,
-                        key = { index, artist -> "${artist.id.ifEmpty { "name:${artist.name}" }}::$index" },
+                        key = { index, _ -> artistKeys[index] },
                         state = listState,
                         emptyText = if (filter.isBlank()) "No artists" else "No matching artists",
                     ) { _, artist ->
@@ -303,9 +304,10 @@ private fun LibrarySidebar(
                 LibraryCategory.Albums -> {
                     val sortedAlbums = remember(state.albums, order) { state.albums.sortedBy(order) }
                     val albums = remember(sortedAlbums, filter) { sortedAlbums.matching(filter) { matches(it.name, it.artist) } }
+                    val albumKeys = remember(albums) { albums.uniqueKeys { it.id } }
                     SidebarList(
                         items = albums,
-                        key = { index, album -> "${album.id}::$index" },
+                        key = { index, _ -> albumKeys[index] },
                         state = listState,
                         isLoading = isCategoryLoading,
                         emptyText = if (filter.isBlank()) "No albums" else "No matching albums",
@@ -519,6 +521,20 @@ private fun LibrarySidebarHeader(
 }
 
 /** The scrolling list of a sidebar category. Shows [emptyText] if there are no [items]. */
+/**
+ * [key] of each item, made unique by numbering the repeats of one. Unlike the items' positions, these keys stay with
+ * them when the list gets filtered or sorted, so the rows still shown are kept instead of all being built anew.
+ */
+private fun <T> List<T>.uniqueKeys(key: (T) -> String): List<String> {
+    val repeats = HashMap<String, Int>()
+    return map { item ->
+        val base = key(item)
+        val repeat = repeats[base] ?: 0
+        repeats[base] = repeat + 1
+        if (repeat == 0) base else "$base\n$repeat"
+    }
+}
+
 @Composable
 private fun <T> SidebarList(
     items: List<T>,
@@ -573,7 +589,8 @@ private fun SongSidebar(
 ) {
     val isMobile = remember { getPlatform().isMobile }
     var selectedIds by remember { mutableStateOf(emptySet<String>()) }
-    val songKey = { index: Int, song: Song -> "${song.id}::$index" }
+    val keys = remember(songs) { songs.uniqueKeys { it.id } }
+    val songKey = { index: Int, _: Song -> keys[index] }
     val touchSelection = rememberTouchSelection(
         items = songs,
         selectedIds = selectedIds,
