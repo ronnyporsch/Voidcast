@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast
 
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.focusable
 import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
@@ -29,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -1020,94 +1023,67 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, sho
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        NavigationBarItem(
+        BottomNavItem(
             selected = currentScreen is Screen.Library,
-            onClick = {
-                if (currentScreen !is Screen.Library) {
-                    navigator.replaceAll(Screen.Library())
-                }
-            },
-            icon = {
-                Icon(Icons.Default.LibraryMusic, contentDescription = null, tint = if (currentScreen is Screen.Library) AccentColor else SpotifyLightGray)
-            },
-            label = {
-                Text(
-                    "Library",
-                    color = if (currentScreen is Screen.Library) AccentColor else SpotifyLightGray,
-                    fontWeight = if (currentScreen is Screen.Library) FontWeight.Bold else FontWeight.Normal,
-                )
-            },
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
+            onClick = { navigator.replaceAll(Screen.Library()) },
+            icon = Icons.Default.LibraryMusic,
+            label = "Library",
         )
-
-        NavigationBarItem(
+        BottomNavItem(
             selected = currentScreen is Screen.NewReleases,
-            onClick = {
-                if (currentScreen !is Screen.NewReleases) {
-                    navigator.push(Screen.NewReleases)
-                }
-            },
-            icon = {
-                Icon(Icons.Default.NewReleases, contentDescription = null, tint = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray)
-            },
-            label = {
-                Text(
-                    "Releases",
-                    color = if (currentScreen is Screen.NewReleases) AccentColor else SpotifyLightGray,
-                    fontWeight = if (currentScreen is Screen.NewReleases) FontWeight.Bold else FontWeight.Normal,
-                )
-            },
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
+            onClick = { navigator.push(Screen.NewReleases) },
+            icon = Icons.Default.NewReleases,
+            label = "Releases",
         )
-
         if (showVideos) {
-            NavigationBarItem(
+            BottomNavItem(
                 selected = currentScreen is Screen.MusicVideos,
-                onClick = {
-                    if (currentScreen !is Screen.MusicVideos) {
-                        navigator.push(Screen.MusicVideos())
-                    }
-                },
-                icon = {
-                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = if (currentScreen is Screen.MusicVideos) AccentColor else SpotifyLightGray)
-                },
-                label = {
-                    Text(
-                        "Videos",
-                        color = if (currentScreen is Screen.MusicVideos) AccentColor else SpotifyLightGray,
-                        fontWeight = if (currentScreen is Screen.MusicVideos) FontWeight.Bold else FontWeight.Normal,
-                    )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
+                onClick = { navigator.push(Screen.MusicVideos()) },
+                icon = Icons.Default.VideoLibrary,
+                label = "Videos",
             )
         }
-
-        NavigationBarItem(
+        BottomNavItem(
             selected = currentScreen is Screen.Settings,
-            onClick = {
-                if (currentScreen !is Screen.Settings) {
-                    navigator.push(Screen.Settings)
-                }
-            },
-            icon = {
-                Icon(Icons.Default.Settings, contentDescription = null, tint = if (currentScreen is Screen.Settings) AccentColor else SpotifyLightGray)
-            },
-            label = {
-                Text(
-                    "Settings",
-                    color = if (currentScreen is Screen.Settings) AccentColor else SpotifyLightGray,
-                    fontWeight = if (currentScreen is Screen.Settings) FontWeight.Bold else FontWeight.Normal,
-                )
-            },
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+            onClick = { navigator.push(Screen.Settings) },
+            icon = Icons.Default.Settings,
+            label = "Settings",
+        )
+    }
+}
+
+/**
+ * Bottom bar entry whose hover/press highlight covers the entire clickable cell,
+ * unlike Material's NavigationBarItem which confines it to the small pill around the icon.
+ * [onClick] is only invoked when the item is not already selected.
+ */
+@Composable
+private fun RowScope.BottomNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+) {
+    val color = if (selected) AccentColor else SpotifyLightGray
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .height(80.dp)
+            .selectable(
+                selected = selected,
+                onClick = { if (!selected) onClick() },
+                role = Role.Tab,
             ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = color)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            color = color,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         )
     }
 }
