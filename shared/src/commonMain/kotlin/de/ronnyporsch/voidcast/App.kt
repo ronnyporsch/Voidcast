@@ -1072,13 +1072,15 @@ private fun BottomNavigationBar(
     playingScreen: Screen?,
     playbackSource: PlaybackSource?,
 ) {
+    // Desktop: the library's detail pane can show what is playing; then that is the tab highlighted, not the library
+    val playingSelected = playingScreen != null && (currentScreen == playingScreen || showsSource(currentScreen, playbackSource))
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         // Shows the overview of the playlists, also from another item of the library
         BottomNavItem(
-            selected = currentScreen is Screen.Library,
+            selected = currentScreen is Screen.Library && !playingSelected,
             onClick = { navigator.replaceAll(Screen.Library(LibrarySelection.PlaylistOverview)) },
             clickableWhenSelected = (currentScreen as? Screen.Library)?.selection.let {
                 it != null && it != LibrarySelection.PlaylistOverview
@@ -1087,7 +1089,7 @@ private fun BottomNavigationBar(
             label = "Library",
         )
         BottomNavItem(
-            selected = playingScreen != null && (currentScreen == playingScreen || showsSource(currentScreen, playbackSource)),
+            selected = playingSelected,
             onClick = { playingScreen?.let(navigator::push) },
             icon = Icons.Default.PlayCircle,
             label = "Playing",
