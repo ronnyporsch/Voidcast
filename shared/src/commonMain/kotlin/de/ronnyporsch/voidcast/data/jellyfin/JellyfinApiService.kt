@@ -375,8 +375,11 @@ class JellyfinApiService {
 
     suspend fun getNewReleasesStatus(): NewReleasesStatusDto = get("Voidcast/NewReleases/Status", emptyMap())
 
-    suspend fun startNewReleasesScan() {
-        client.post("${baseUrl()}/Voidcast/NewReleases/Scan") { authorize() }.ensureSuccess()
+    suspend fun startNewReleasesScan(full: Boolean) {
+        client.post("${baseUrl()}/Voidcast/NewReleases/Scan") {
+            authorize()
+            parameter("full", full)
+        }.ensureSuccess()
     }
 
     /** Needs [PluginInfoDto.canConfigureNewReleases]. */

@@ -22,9 +22,9 @@ class NewReleasesViewModel(private val youTube: YouTubeService) : MviStore<NewRe
                 opened = true
                 if (job?.isActive != true) start { load() }
             }
-            NewReleasesEvent.Scan -> if (!currentState.isScanning) start {
+            is NewReleasesEvent.Scan -> if (!currentState.isScanning) start {
                 setState { copy(isScanning = true, checkedArtists = 0, artistsToCheck = null, error = null) }
-                youTube.startNewReleasesScan()
+                youTube.startNewReleasesScan(event.full)
                 followScan()
             }
             NewReleasesEvent.Connected -> if (opened) {

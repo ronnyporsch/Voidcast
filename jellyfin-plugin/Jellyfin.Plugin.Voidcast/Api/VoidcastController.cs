@@ -227,10 +227,13 @@ public class VoidcastController : ControllerBase
     [HttpGet("NewReleases/Status")]
     public ActionResult<NewReleasesStatusDto> GetNewReleasesStatus() => _newReleases.Status;
 
-    /// <summary>Starts a scan for new releases, unless one is running.</summary>
+    /// <summary>
+    /// Starts a scan for new releases, unless one is running; a <paramref name="full"/> one doesn't take over what earlier
+    /// scans looked up.
+    /// </summary>
     [HttpPost("NewReleases/Scan")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public ActionResult StartNewReleasesScan()
+    public ActionResult StartNewReleasesScan([FromQuery] bool full)
     {
         // A scan asks YouTube about every artist, from the IP that also streams and downloads
         if (!User.IsInRole("Administrator"))
@@ -238,7 +241,7 @@ public class VoidcastController : ControllerBase
             return Problem("Only administrators may start a scan", statusCode: StatusCodes.Status403Forbidden);
         }
 
-        _newReleases.RequestScan();
+        _newReleases.RequestScan(full);
         return Accepted();
     }
 

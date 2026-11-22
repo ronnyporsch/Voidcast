@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -33,10 +34,12 @@ public class NewReleasesService
     private readonly IUserManager _userManager;
     private readonly ITaskManager _taskManager;
     private readonly string _path;
+    private readonly string _artistIdsPath;
     private readonly object _lock = new();
     private NewReleasesStatusDto _status = new();
     private NewReleasesScanDto? _scan;
     private bool _loaded;
+    private bool _fullScanRequested;
 
     public NewReleasesService(
         ILogger<NewReleasesService> logger,
@@ -52,6 +55,7 @@ public class NewReleasesService
         _userManager = userManager;
         _taskManager = taskManager;
         _path = Path.Combine(applicationPaths.DataPath, "voidcast", "new-releases.json");
+        _artistIdsPath = Path.Combine(applicationPaths.DataPath, "voidcast", "new-releases-artist-ids.json");
     }
 
     public NewReleasesStatusDto Status
@@ -65,8 +69,11 @@ public class NewReleasesService
         }
     }
 
-    /// <summary>Starts a scan, unless one is running.</summary>
-    public void RequestScan()
+    /// <summary>
+    /// Starts a scan, unless one is running. A <paramref name="full"/> one looks everything up again rather than taking
+    /// over artist channels and release dates from earlier scans.
+    /// </summary>
+    public void RequestScan(bool full = false)
     {
         lock (_lock)
         {
@@ -74,6 +81,8 @@ public class NewReleasesService
             {
                 return;
             }
+
+            _fullScanRequested = full;
 
             // Already now, so that a client asking right away doesn't take the scan for finished
             _status = new NewReleasesStatusDto { IsScanning = true };
@@ -118,10 +127,17 @@ public class NewReleasesService
     {
         // The task manager calls this on the thread of whoever started the task, possibly a client's request
         await Task.Yield();
+        bool full;
+        lock (_lock)
+        {
+            full = _fullScanRequested;
+            _fullScanRequested = false;
+        }
+
         SetStatus(_ => new NewReleasesStatusDto { IsScanning = true });
         try
         {
-            var scan = await FindReleasesAsync(progress, cancellationToken).ConfigureAwait(false);
+            var scan = await FindReleasesAsync(full, progress, cancellationToken).ConfigureAwait(false);
             SaveScan(scan);
             _logger.LogInformation(
                 "Found {Releases} new releases of {Artists} artists, {Failed} couldn't be checked",
@@ -140,7 +156,7 @@ public class NewReleasesService
         }
     }
 
-    private async Task<NewReleasesScanDto> FindReleasesAsync(IProgress<double> progress, CancellationToken cancellationToken)
+    private async Task<NewReleasesScanDto> FindReleasesAsync(bool full, IProgress<double> progress, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
         var minSongs = config.NewReleasesMinSongs;
@@ -152,6 +168,16 @@ public class NewReleasesService
                 .ToList()
             : library.Values.Where(artist => artist.SongCount >= minSongs).ToList();
         SetStatus(status => status with { ArtistCount = artists.Count });
+
+        // Saves looking up again what doesn't change between scans: which channel an artist has, and when a release came
+        // out. A full scan starts over, and what it finds replaces what earlier scans remembered.
+        var artistIds = new ConcurrentDictionary<string, string>(full ? [] : LoadArtistIds(), StringComparer.OrdinalIgnoreCase);
+        var previousReleases = full ? [] : LoadScan()?.Releases ?? [];
+        var releaseDates = previousReleases
+            .Where(release => release.ReleaseDate != null)
+            .GroupBy(release => release.Id)
+            .ToDictionary(group => group.Key, group => group.First().ReleaseDate);
+        var cache = new ScanCache(artistIds, releaseDates);
 
         var sinceYear = DateTime.UtcNow.Year - 1;
         var found = new List<NewReleaseDto>();
@@ -166,7 +192,7 @@ public class NewReleasesService
             {
                 try
                 {
-                    var releases = await FindReleasesAsync(artist, sinceYear, token).ConfigureAwait(false);
+                    var releases = await FindReleasesAsync(artist, sinceYear, cache, token).ConfigureAwait(false);
                     Interlocked.Exchange(ref failuresInARow, 0);
                     lock (found)
                     {
@@ -192,6 +218,10 @@ public class NewReleasesService
         {
             throw new HttpRequestException("YouTube Music keeps refusing requests");
         }
+        finally
+        {
+            SaveArtistIds(artistIds);
+        }
 
         if (artists.Count > 0 && failed == artists.Count)
         {
@@ -210,11 +240,9 @@ public class NewReleasesService
     }
 
     /// <summary>Empty if YouTube Music has no artist of exactly that name.</summary>
-    private async Task<List<NewReleaseDto>> FindReleasesAsync(OwnedArtist artist, int sinceYear, CancellationToken cancellationToken)
+    private async Task<List<NewReleaseDto>> FindReleasesAsync(OwnedArtist artist, int sinceYear, ScanCache cache, CancellationToken cancellationToken)
     {
-        var results = await _youTubeMusic.SearchArtistsAsync(artist.Name, cancellationToken).ConfigureAwait(false);
-        var match = results.FirstOrDefault(result => result.Name.Equals(artist.Name, StringComparison.OrdinalIgnoreCase));
-        var page = match == null ? null : await _youTubeMusic.GetArtistAsync(match.Id, cancellationToken).ConfigureAwait(false);
+        var (artistId, page) = await GetArtistPageAsync(artist.Name, cache.ArtistIds, cancellationToken).ConfigureAwait(false);
         if (page == null)
         {
             return [];
@@ -230,14 +258,52 @@ public class NewReleasesService
                 ReleaseType = release.ReleaseType,
                 Year = release.Year,
                 ThumbnailUrl = release.ThumbnailUrl,
-                ReleaseDate = await GetReleaseDateAsync(release.Id, cancellationToken).ConfigureAwait(false),
+                ReleaseDate = cache.ReleaseDates.GetValueOrDefault(release.Id)
+                    ?? await GetReleaseDateAsync(release.Id, cancellationToken).ConfigureAwait(false),
                 // As in the library, the results get matched with it by this name
                 Artist = artist.Name,
-                ArtistId = match!.Id,
+                ArtistId = artistId!,
             });
         }
 
         return releases;
+    }
+
+    /// <summary>
+    /// The page of the artist on YouTube Music of exactly that name, both null if there's none. Goes to the channel it
+    /// had before right away, and searches again only if that one is gone.
+    /// </summary>
+    private async Task<(string? Id, YouTubeArtistPageDto? Page)> GetArtistPageAsync(
+        string name,
+        ConcurrentDictionary<string, string> artistIds,
+        CancellationToken cancellationToken)
+    {
+        if (artistIds.TryGetValue(name, out var cachedId))
+        {
+            var cachedPage = await _youTubeMusic.GetArtistAsync(cachedId, cancellationToken).ConfigureAwait(false);
+            if (cachedPage != null)
+            {
+                return (cachedId, cachedPage);
+            }
+
+            artistIds.TryRemove(name, out _);
+        }
+
+        var results = await _youTubeMusic.SearchArtistsAsync(name, cancellationToken).ConfigureAwait(false);
+        var match = results.FirstOrDefault(result => result.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (match == null)
+        {
+            // Not remembered, as the artist may still turn up
+            return (null, null);
+        }
+
+        var page = await _youTubeMusic.GetArtistAsync(match.Id, cancellationToken).ConfigureAwait(false);
+        if (page != null)
+        {
+            artistIds[name] = match.Id;
+        }
+
+        return (match.Id, page);
     }
 
     private async Task<string?> GetReleaseDateAsync(string albumId, CancellationToken cancellationToken)
@@ -272,6 +338,36 @@ public class NewReleasesService
         lock (_lock)
         {
             _status = update(_status);
+        }
+    }
+
+    private Dictionary<string, string> LoadArtistIds()
+    {
+        try
+        {
+            return File.Exists(_artistIdsPath)
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(_artistIdsPath)) ?? []
+                : [];
+        }
+        catch (Exception e) when (e is IOException or JsonException)
+        {
+            _logger.LogWarning(e, "Could not read {Path}", _artistIdsPath);
+            return [];
+        }
+    }
+
+    private void SaveArtistIds(IDictionary<string, string> artistIds)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_artistIdsPath)!);
+            var partial = _artistIdsPath + ".part";
+            File.WriteAllText(partial, JsonSerializer.Serialize(artistIds.OrderBy(entry => entry.Key).ToDictionary()));
+            File.Move(partial, _artistIdsPath, true);
+        }
+        catch (IOException e)
+        {
+            _logger.LogWarning(e, "Could not save {Path}", _artistIdsPath);
         }
     }
 
@@ -318,3 +414,6 @@ public class NewReleasesService
         }
     }
 }
+
+/// <summary>What a scan takes over from earlier ones, see <see cref="NewReleasesService.ScanAsync"/>.</summary>
+internal sealed record ScanCache(ConcurrentDictionary<string, string> ArtistIds, IReadOnlyDictionary<string, string?> ReleaseDates);

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,7 +66,7 @@ fun NewReleasesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().touchSelection(albumTouchSelection, gridState),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Header(state, canScan, onScan = { viewModel.onEvent(NewReleasesEvent.Scan) }) }
+            item(span = { GridItemSpan(maxLineSpan) }) { Header(state, canScan, onScan = { full -> viewModel.onEvent(NewReleasesEvent.Scan(full)) }) }
 
             for ((year, releasesOfYear) in releases.groupBy { it.year }) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -99,7 +100,7 @@ fun NewReleasesScreen(
 }
 
 @Composable
-private fun Header(state: NewReleasesState, canScan: Boolean, onScan: () -> Unit) {
+private fun Header(state: NewReleasesState, canScan: Boolean, onScan: (full: Boolean) -> Unit) {
     val scan = state.scan
     val songsText = scan?.let { "${it.minSongs} ${if (it.minSongs == 1) "song" else "songs"}" }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -115,8 +116,14 @@ private fun Header(state: NewReleasesState, canScan: Boolean, onScan: () -> Unit
             Text("Last scan: ${daysAgo(scan.scannedAt)}", style = MaterialTheme.typography.bodySmall, color = SpotifyLightGray)
         }
         if (canScan) {
-            OutlinedButton(onClick = onScan, enabled = !state.isScanning, shape = RoundedCornerShape(0.dp)) {
-                Text(if (state.isScanning) "Scanning…" else "Scan now", fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onScan(false) }, enabled = !state.isScanning, shape = RoundedCornerShape(0.dp)) {
+                    Text(if (state.isScanning) "Scanning…" else "Scan now", fontWeight = FontWeight.Bold)
+                }
+                // Looks up again what quick scans take over from earlier ones, e.g. after an artist moved to another channel
+                OutlinedButton(onClick = { onScan(true) }, enabled = !state.isScanning, shape = RoundedCornerShape(0.dp)) {
+                    Text("Full scan", fontWeight = FontWeight.Bold)
+                }
             }
         }
         if (state.isScanning) {

@@ -17,8 +17,8 @@ data class NewReleasesState(
 sealed interface NewReleasesEvent {
     /** Shows what the server's latest scan found, and follows the scan if one is running. */
     data object Load : NewReleasesEvent
-    /** Has the server scan now, unless it already does. */
-    data object Scan : NewReleasesEvent
+    /** Has the server scan now, unless it already does; a [full] scan doesn't take over what earlier ones looked up. */
+    data class Scan(val full: Boolean = false) : NewReleasesEvent
     /** A server got connected; what was found on another one is dropped. */
     data object Connected : NewReleasesEvent
 }

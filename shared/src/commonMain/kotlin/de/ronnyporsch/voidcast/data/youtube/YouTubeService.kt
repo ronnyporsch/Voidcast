@@ -287,8 +287,11 @@ class YouTubeService(private val connection: MusicServerConnection) {
     /** What a running scan got to; cheaper than [getNewReleases]. */
     suspend fun getNewReleasesStatus(): NewReleasesStatusDto = connection.jellyfinApi.getNewReleasesStatus()
 
-    /** Has the server scan for new releases now, unless it already does. */
-    suspend fun startNewReleasesScan() = connection.jellyfinApi.startNewReleasesScan()
+    /**
+     * Has the server scan for new releases now, unless it already does. A [full] scan looks up again which channel each
+     * artist has and when releases came out, rather than taking that over from earlier scans.
+     */
+    suspend fun startNewReleasesScan(full: Boolean = false) = connection.jellyfinApi.startNewReleasesScan(full)
 
     /**
      * Marks those of [songs] that are already in the server's library, so they show as downloaded. Songs from
