@@ -156,6 +156,12 @@ class AudioPlayerJs : AudioPlayer {
         media.volume = volume * gain
     }
 
+    // Loading a source sets the playback rate back to the default one
+    override fun setSpeed(speed: Float) {
+        media.defaultPlaybackRate = speed.toDouble()
+        media.playbackRate = speed.toDouble()
+    }
+
     override fun stop() {
         media.pause()
         media.currentTime = 0.0

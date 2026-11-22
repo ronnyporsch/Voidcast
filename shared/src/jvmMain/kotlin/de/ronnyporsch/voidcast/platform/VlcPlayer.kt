@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 import kotlin.math.cbrt
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /** libVLC of an installed VLC (3.x), which plays songs and videos. */
 private object Vlc {
@@ -115,6 +116,17 @@ class VlcPlayer : AudioPlayer {
     private var level = 1f
     private var gainLevel = 1f
     @Volatile private var pauseRequested = false
+    /** See [setSpeed]; libVLC keeps it for what's loaded next. */
+    @Volatile private var rate = 1f
+    /**
+     * How much later than VLC's clock says what's loaded is played, in ms of the song, see [setSpeed]; libVLC sets it
+     * back to 0 for every song. Only used on the [commands] thread, like the rest below.
+     */
+    private var audioDelayMs = 0.0
+    /** What VLC delays playing everything by (its caching and ~200 ms of its own), at normal speed. */
+    private var vlcDelayMs = 0.0
+    /** Whether what's loaded is paused before any of it was played, see [prepare]. */
+    private var startPending = false
     /** What's loaded, to start it again; null after [stop]. */
     @Volatile private var currentUrl: String? = null
     @Volatile private var currentIsVideo = false
@@ -192,6 +204,11 @@ class VlcPlayer : AudioPlayer {
         val durationMs = if (url == currentUrl) _state.value.durationMs else 0
         currentUrl = url
         currentIsVideo = video
+        audioDelayMs = 0.0
+        // file-caching and network-caching are 1000 ms unless given
+        val cachingMs = if (!video && Vlc.viaJack && !url.startsWith("file:")) SONG_NETWORK_CACHING_MS else 1000
+        vlcDelayMs = (cachingMs + VLC_EXTRA_DELAY_MS).toDouble()
+        startPending = paused && startPositionMs == 0L
         if (!video) frames.clear()
         update { AudioPlayerState(isBuffering = !paused, positionMs = startPositionMs, durationMs = durationMs) }
         val options = buildList {
@@ -202,7 +219,7 @@ class VlcPlayer : AudioPlayer {
             if (!video) add(":demux=avformat")
             // A change of the volume is only heard after what VLC has buffered ahead (1 s of a stream by default),
             // which a crossfade would be late by
-            if (!video && Vlc.viaJack) add(":network-caching=300")
+            if (!video && Vlc.viaJack) add(":network-caching=$SONG_NETWORK_CACHING_MS")
             if (startPositionMs > 0) add(":start-time=${startPositionMs / 1000.0}")
             if (paused) add(":start-paused")
         }
@@ -218,6 +235,7 @@ class VlcPlayer : AudioPlayer {
 
     override fun resume() = command {
         pauseRequested = false
+        startPending = false
         val player = player ?: return@command
         if (!player.status().isPlayable) return@command player.controls().play()
         // Also when the pause hasn't taken effect yet, libVLC pauses asynchronously
@@ -240,6 +258,7 @@ class VlcPlayer : AudioPlayer {
 
     override fun stop() = command {
         pauseRequested = false
+        startPending = false
         currentUrl = null
         player?.controls()?.stop()
         frames.clear()
@@ -257,6 +276,34 @@ class VlcPlayer : AudioPlayer {
         applyVolume()
     }
 
+    /**
+     * libVLC (3) converts the timestamps of what it plays to the time to play it at with the rate, including the delay
+     * it plays everything with. Changing the rate moves the time of everything decoded after by
+     * delay * (1/new rate - 1/old rate), while what's decoded before plays as it was. Its audio output takes that for
+     * being far too late or early, and drops what it has buffered or plays silence: a short stop. Keeping
+     * (audio delay + VLC's delay) / rate the same instead keeps the times of what's played continuous.
+     *
+     * The audio delay can't go below 0 (VLC would add it to its own delay), so slowing down below the speed the song
+     * started at is only seamless in small steps; VLC then catches up by resampling, which isn't heard.
+     */
+    override fun setSpeed(speed: Float) = command {
+        val oldRate = rate
+        if (speed == oldRate) return@command
+        rate = speed
+        val player = player ?: return@command
+        val url = currentUrl
+        if (url != null && player.status().isPlayable) {
+            if (startPending) {
+                // What it decoded already is timed for the old rate, which would cut off or delay the start of the song
+                player.controls().setRate(speed)
+                return@command load(url, currentIsVideo, startPositionMs = 0, paused = true)
+            }
+            audioDelayMs = ((audioDelayMs + vlcDelayMs) * speed / oldRate - vlcDelayMs).coerceAtLeast(0.0)
+            player.audio().setDelay((audioDelayMs * 1000).roundToLong())
+        }
+        player.controls().setRate(speed)
+    }
+
     private fun applyVolume() {
         volume = (level * gainLevel * 100).roundToInt()
         player?.audio()?.setVolume(volume)
@@ -269,6 +316,12 @@ class VlcPlayer : AudioPlayer {
 }
 
 actual fun createAudioPlayer(): AudioPlayer = VlcPlayer()
+
+/** For songs: a change of the volume is only heard after what VLC has buffered ahead, see [VlcPlayer.load]. */
+private const val SONG_NETWORK_CACHING_MS = 300
+
+/** What VLC delays playing by on top of its caching (measured with VLC 3.0.24). */
+private const val VLC_EXTRA_DELAY_MS = 200
 
 
 /** Receives the decoded frames from libVLC and keeps the latest one for drawing. */

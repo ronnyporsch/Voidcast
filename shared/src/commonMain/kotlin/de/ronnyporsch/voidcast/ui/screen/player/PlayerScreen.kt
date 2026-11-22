@@ -35,6 +35,18 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedButton
+import kotlin.math.roundToInt
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.vector.ImageVector
+import kotlinx.coroutines.delay
 import de.ronnyporsch.voidcast.domain.model.STANDARD_VIDEO_QUALITIES
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -162,6 +174,13 @@ fun PlayerScreen(
                         quality = state.videoQuality,
                         heights = state.videoHeights,
                         onSelect = { viewModel.onEvent(PlayerEvent.SetVideoQuality(it)) },
+                    )
+                }
+                // Only this device's playback speed can be changed
+                if (state.remoteDevice == null) {
+                    PlaybackSpeedButton(
+                        speed = state.playbackSpeed,
+                        onChange = { viewModel.onEvent(PlayerEvent.SetPlaybackSpeed(it)) },
                     )
                 }
                 DevicesButton(state, viewModel::onEvent, tint = MaterialTheme.colorScheme.onBackground)
@@ -440,6 +459,116 @@ private fun VideoQualityButton(quality: Int, heights: List<Int>, onSelect: (Int)
             }
         }
     }
+}
+
+/** Opens a panel to play slower or faster, in steps of 0.01. */
+@Composable
+private fun PlaybackSpeedButton(speed: Float, onChange: (Float) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val isNormal = speed == 1f
+    Box {
+        TooltipIconButton(
+            onClick = { expanded = true },
+            icon = Icons.Default.Speed,
+            contentDescription = "Playback speed (${playbackSpeedLabel(speed)})",
+            tint = if (isNormal) MaterialTheme.colorScheme.onBackground else AccentColor,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            Column(Modifier.width(300.dp).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Playback speed",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        playbackSpeedLabel(speed),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isNormal) MaterialTheme.colorScheme.onSurface else AccentColor,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RepeatingIconButton(
+                        onStep = { onChange(speed - PLAYBACK_SPEED_STEP) },
+                        icon = Icons.Default.Remove,
+                        contentDescription = "Slower",
+                        enabled = speed > MIN_PLAYBACK_SPEED,
+                    )
+                    Slider(
+                        value = speed,
+                        onValueChange = onChange,
+                        valueRange = MIN_PLAYBACK_SPEED..MAX_PLAYBACK_SPEED,
+                        colors = SliderDefaults.colors(thumbColor = AccentColor),
+                        track = { PlainSliderTrack(it, SpotifySurface) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RepeatingIconButton(
+                        onStep = { onChange(speed + PLAYBACK_SPEED_STEP) },
+                        icon = Icons.Default.Add,
+                        contentDescription = "Faster",
+                        enabled = speed < MAX_PLAYBACK_SPEED,
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(playbackSpeedLabel(MIN_PLAYBACK_SPEED), style = MaterialTheme.typography.bodySmall, color = SpotifyLightGray)
+                    Text(playbackSpeedLabel(MAX_PLAYBACK_SPEED), style = MaterialTheme.typography.bodySmall, color = SpotifyLightGray)
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onChange(1f) },
+                    enabled = !isNormal,
+                    shape = RoundedCornerShape(0.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Normal speed")
+                }
+            }
+        }
+    }
+}
+
+private const val PLAYBACK_SPEED_STEP = 0.01f
+
+/** Steps once when clicked; held down, it keeps stepping, faster and faster. */
+@Composable
+private fun RepeatingIconButton(onStep: () -> Unit, icon: ImageVector, contentDescription: String, enabled: Boolean) {
+    // The step is of the value after the previous one
+    val currentOnStep by rememberUpdatedState(onStep)
+    val currentEnabled by rememberUpdatedState(enabled)
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    // Set while held down long enough to repeat, so letting go doesn't step once more
+    var repeated by remember { mutableStateOf(false) }
+    LaunchedEffect(pressed) {
+        if (!pressed) return@LaunchedEffect
+        // Not reset by the click if it reached the end while held down: it gets disabled and isn't clicked
+        repeated = false
+        delay(400)
+        var intervalMs = 150L
+        while (currentEnabled) {
+            repeated = true
+            currentOnStep()
+            delay(intervalMs)
+            intervalMs = (intervalMs * 0.85).toLong().coerceAtLeast(25)
+        }
+    }
+    TooltipIconButton(
+        onClick = {
+            if (repeated) repeated = false else currentOnStep()
+        },
+        icon = icon,
+        contentDescription = contentDescription,
+        enabled = enabled,
+        interactionSource = interactionSource,
+    )
+}
+
+/** E.g. "1.05×". */
+private fun playbackSpeedLabel(speed: Float): String {
+    val hundredths = (speed * 100).roundToInt()
+    return "${hundredths / 100}.${(hundredths % 100).toString().padStart(2, '0')}×"
 }
 
 private fun videoQualityLabel(height: Int) = if (height >= 2160) "${height}p 4K" else "${height}p"

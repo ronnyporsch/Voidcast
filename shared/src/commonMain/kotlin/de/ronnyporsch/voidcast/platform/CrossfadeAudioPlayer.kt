@@ -266,6 +266,11 @@ class CrossfadeAudioPlayer(
         playerB.setBoost(boostDb)
     }
 
+    override fun setSpeed(speed: Float) {
+        playerA.setSpeed(speed)
+        playerB.setSpeed(speed)
+    }
+
     override fun release() {
         crossfadeJob?.cancel()
         stateCollectionJob?.cancel()

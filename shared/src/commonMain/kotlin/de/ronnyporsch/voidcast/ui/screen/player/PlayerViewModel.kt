@@ -145,7 +145,7 @@ class PlayerViewModel(
                     // Pre-buffer the next track early, so skipping to it doesn't have to wait for it to load either.
                     // Not right away, in case this song gets skipped too; short songs need it before their transition
                     if (!hasPreparedNext && nextSong != null && crossfadePlayer != null) {
-                        val transitionLeadMs = if (settings.crossfadeEnabled) {
+                        val transitionLeadMs = currentState.playbackSpeed * if (settings.crossfadeEnabled) {
                             (settings.crossfadeDurationSeconds * 1000L) + 3000L
                         } else {
                             5000L
@@ -159,7 +159,8 @@ class PlayerViewModel(
                     // Start crossfade
                     if (settings.crossfadeEnabled && !hasCrossfadeStarted && nextSong != null) {
                         val crossfadeDurationMs = settings.crossfadeDurationSeconds * 1000L
-                        if (remainingMs <= crossfadeDurationMs) {
+                        // The rest of the song in media time, the crossfade in real time
+                        if (remainingMs <= crossfadeDurationMs * currentState.playbackSpeed) {
                             hasCrossfadeStarted = true
                             hasAutoAdvanced = true
                             crossfadePlayer?.startCrossfade(crossfadeDurationMs)
@@ -324,6 +325,13 @@ class PlayerViewModel(
                 onEvent(PlayerEvent.SeekTo((playback.positionMs + event.deltaMs).coerceIn(0, playback.durationMs)))
             }
             is PlayerEvent.SetVideoQuality -> setVideoQuality(event.height)
+            is PlayerEvent.SetPlaybackSpeed -> {
+                // Rounded, so stepping by hundredths doesn't drift off them
+                val speed = (kotlin.math.round(event.speed * 100) / 100).coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
+                if (speed == currentState.playbackSpeed) return
+                audioPlayer.setSpeed(speed)
+                setState { copy(playbackSpeed = speed) }
+            }
             is PlayerEvent.SelectDevice -> selectDevice(event.sessionId)
         }
     }
@@ -354,7 +362,7 @@ class PlayerViewModel(
         is PlayerEvent.SeekTo -> RemoteCommand.SeekTo(positionMs)
         is PlayerEvent.SeekBy -> RemoteCommand.SeekBy(deltaMs)
         PlayerEvent.ToggleCrossfade, PlayerEvent.ToggleLyrics, PlayerEvent.ShowLyrics,
-        is PlayerEvent.SetVideoQuality, is PlayerEvent.SelectDevice -> null
+        is PlayerEvent.SetVideoQuality, is PlayerEvent.SetPlaybackSpeed, is PlayerEvent.SelectDevice -> null
     }
 
     private fun sendToRemote(event: PlayerEvent) {

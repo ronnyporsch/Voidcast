@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 
-/** Plain progress bar for a 0..1 slider: the Material track has a stop indicator dot and a thumb gap. */
+/** Plain progress bar for a slider: the Material track has a stop indicator dot and a thumb gap. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlainSliderTrack(
@@ -22,6 +22,10 @@ fun PlainSliderTrack(
     inactiveColor: Color,
     height: Dp = 4.dp,
 ) {
+    val range = sliderState.valueRange
+    val fraction = if (range.endInclusive > range.start) {
+        ((sliderState.value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+    } else 0f
     Box(
         Modifier
             .fillMaxWidth()
@@ -30,7 +34,7 @@ fun PlainSliderTrack(
     ) {
         Box(
             Modifier
-                .fillMaxWidth(sliderState.value)
+                .fillMaxWidth(fraction)
                 .fillMaxHeight()
                 .background(AccentColor),
         )

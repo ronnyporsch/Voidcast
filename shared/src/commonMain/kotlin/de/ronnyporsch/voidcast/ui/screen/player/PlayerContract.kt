@@ -36,6 +36,8 @@ data class PlayerState(
     val remoteDevice: RemoteDevice? = null,
     /** The playlist, album or artist the queue got started from, until other songs replace it; null if none. */
     val source: PlaybackSource? = null,
+    /** How many times as fast as normal this device plays, see [PlayerEvent.SetPlaybackSpeed]. */
+    val playbackSpeed: Float = 1f,
 ) {
     /** Whether the songs of the queue can be moved, removed and jumped to. */
     val canEditQueue: Boolean get() = remoteDevice?.isVoidcast != false
@@ -93,11 +95,19 @@ sealed class PlayerEvent {
     /** Streams videos in the highest resolution up to this height from now on, the current one too. */
     data class SetVideoQuality(val height: Int) : PlayerEvent()
     /**
+     * Plays [speed] times as fast as normal on this device from now on (keeping the pitch), within
+     * [MIN_PLAYBACK_SPEED] and [MAX_PLAYBACK_SPEED]; until the app is closed.
+     */
+    data class SetPlaybackSpeed(val speed: Float) : PlayerEvent()
+    /**
      * Plays on the device with this session id from now on ([PlayerState.devices]), or on this device if null.
      * What's playing moves along.
      */
     data class SelectDevice(val sessionId: String?) : PlayerEvent()
 }
+
+const val MIN_PLAYBACK_SPEED = 0.5f
+const val MAX_PLAYBACK_SPEED = 2f
 
 sealed class PlayerEffect {
     data class PlaybackError(val message: String) : PlayerEffect()

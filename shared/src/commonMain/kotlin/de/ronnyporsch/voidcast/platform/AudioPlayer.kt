@@ -42,6 +42,12 @@ interface AudioPlayer {
      * [setVolume] and [setGain]; at most [de.ronnyporsch.voidcast.Platform.maxVolumeBoostDb], 0 plays it as it is.
      */
     fun setBoost(boostDb: Int) {}
+
+    /**
+     * Plays everything [speed] times as fast (1 plays it as it is), keeping its pitch, from now on and for whatever
+     * gets played next.
+     */
+    fun setSpeed(speed: Float) {}
     fun release()
 
     /** Whether [playVideo] shows the picture (see [VideoSurface]); if not, videos are played as audio only. */

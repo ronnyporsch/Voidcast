@@ -171,6 +171,11 @@ class AudioPlayerAndroid : AudioPlayer {
         }
     }
 
+    // Kept for the media items played after, it's a setting of the player
+    override fun setSpeed(speed: Float) {
+        player.setPlaybackSpeed(speed)
+    }
+
     override fun stop() {
         player.stop()
         positionJob?.cancel()

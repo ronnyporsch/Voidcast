@@ -1,5 +1,6 @@
 package de.ronnyporsch.voidcast.ui.components
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,6 +20,8 @@ fun TooltipIconButton(
     tint: Color = LocalContentColor.current,
     enabled: Boolean = true,
     iconSize: Dp = 24.dp,
+    /** E.g. to know whether it's being pressed. */
+    interactionSource: MutableInteractionSource? = null,
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -32,7 +35,8 @@ fun TooltipIconButton(
         IconButton(
             onClick = onClick,
             modifier = modifier,
-            enabled = enabled
+            enabled = enabled,
+            interactionSource = interactionSource,
         ) {
             Icon(
                 imageVector = icon,
