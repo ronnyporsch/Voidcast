@@ -8,15 +8,24 @@ import de.ronnyporsch.voidcast.domain.model.LibraryCategory
 import de.ronnyporsch.voidcast.domain.model.LibraryOrder
 import de.ronnyporsch.voidcast.domain.model.LibrarySort
 import de.ronnyporsch.voidcast.domain.model.LibraryViewSettings
+import de.ronnyporsch.voidcast.domain.model.PlaybackSource
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Song
 
-enum class LibraryDetailView { Artists, Albums, Playlists, FavoriteSongs, Genres }
+enum class LibraryDetailView {
+    /** All playlists at a glance; what the library starts with. */
+    PlaylistOverview,
+    Artists,
+    Albums,
+    Playlists,
+    FavoriteSongs,
+    Genres,
+}
 
 data class LibraryState(
     /** What the sidebar lists and how it orders it. */
     val view: LibraryViewSettings = LibraryViewSettings(),
-    val activeDetailView: LibraryDetailView = LibraryDetailView.Playlists,
+    val activeDetailView: LibraryDetailView = LibraryDetailView.PlaylistOverview,
     val artists: List<Artist> = emptyList(),
     val selectedArtistId: String? = null,
     val selectedArtist: Artist? = null,
@@ -73,6 +82,17 @@ val LibraryState.availableSorts: List<LibrarySort>
         }
     }
 
+/** The playlist, album or artist the detail pane shows, if it shows one. */
+val LibraryState.detailSource: PlaybackSource?
+    get() = when (activeDetailView) {
+        LibraryDetailView.Playlists -> selectedPlaylistId?.let { PlaybackSource.Playlist(it) }
+        LibraryDetailView.Albums -> selectedAlbumId?.ifEmpty { null }?.let { PlaybackSource.Album(it) }
+        LibraryDetailView.Artists -> selectedArtist?.toPlaybackSource()
+        LibraryDetailView.FavoriteSongs, LibraryDetailView.Genres, LibraryDetailView.PlaylistOverview -> null
+    }
+
+fun Artist.toPlaybackSource() = PlaybackSource.Artist(id.ifEmpty { null }, name)
+
 /** The songs the detail pane shows. */
 val LibraryState.detailSongs: List<Song>
     get() = when (activeDetailView) {
@@ -81,6 +101,7 @@ val LibraryState.detailSongs: List<Song>
         LibraryDetailView.Artists -> selectedArtistSongs
         LibraryDetailView.FavoriteSongs -> favoriteSongs
         LibraryDetailView.Genres -> selectedGenreSongs
+        LibraryDetailView.PlaylistOverview -> emptyList()
     }
 
 sealed class LibraryEvent {
@@ -186,5 +207,6 @@ sealed class LibraryEffect {
     data class NavigateToPlaylist(val playlistId: String) : LibraryEffect()
     data object NavigateToFavoriteSongs : LibraryEffect()
     data class NavigateToGenre(val genre: Genre) : LibraryEffect()
-    data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : LibraryEffect()
+    /** [source] is what the songs are of, if any. */
+    data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null, val source: PlaybackSource? = null) : LibraryEffect()
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -79,6 +80,7 @@ import de.ronnyporsch.voidcast.ui.screen.newreleases.NewReleasesViewModel
 import de.ronnyporsch.voidcast.ui.screen.wrapped.WrappedScreen
 import de.ronnyporsch.voidcast.ui.screen.wrapped.WrappedViewModel
 import de.ronnyporsch.voidcast.domain.model.ServerType
+import de.ronnyporsch.voidcast.domain.model.PlaybackSource
 import de.ronnyporsch.voidcast.ui.components.AppSnackbarHost
 import de.ronnyporsch.voidcast.ui.components.ServerUnreachableButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -140,7 +142,7 @@ fun App() {
     val youTubeCapabilities by youTube.capabilities.collectAsState(youTube.currentCapabilities)
     // With saved login info, start directly on the library while auto-login is still connecting in the background
     val loggedIn = remember { session.autoLoginStatus.value.let { it != AutoLoginStatus.None && it !is AutoLoginStatus.Rejected } }
-    val navigator = remember { Navigator(if (loggedIn) Screen.Library() else Screen.Login) }
+    val navigator = remember { Navigator(if (loggedIn) Screen.Library(LibrarySelection.PlaylistOverview) else Screen.Login) }
     val playerViewModel = session.playerViewModel
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -289,7 +291,7 @@ fun App() {
                 is LibraryEffect.NavigateToGenre ->
                     navigator.push(Screen.GenreSongs(effect.genre))
                 is LibraryEffect.PlaySongs ->
-                    playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
+                    playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle, effect.source)
             }
         }
     }
@@ -439,6 +441,10 @@ fun App() {
         val currentScreen = currentEntry.screen
         val playerState by playerViewModel.state.collectAsState()
         val hasSong = playerState.playback.currentSong != null
+        // What another device plays isn't known to be of a playlist, album or artist
+        val playbackSource = playerState.source.takeIf { hasSong && playerState.remoteDevice == null }
+        // Marked in the playlists sidebar
+        val playingPlaylistId = (playbackSource as? PlaybackSource.Playlist)?.id
         val isMobile = remember { getPlatform().isMobile }
 
         // System back (Android back button/gesture) navigates within the app while there is a previous screen.
@@ -660,6 +666,13 @@ fun App() {
                                 currentScreen,
                                 navigator,
                                 showVideos = (serverType ?: savedServerType) == ServerType.Jellyfin,
+                                playingScreen = when {
+                                    !hasSong -> null
+                                    playbackSource != null -> playbackSource.toScreen()
+                                    // Songs from elsewhere, e.g. a search or a radio: the queue shows what plays
+                                    else -> Screen.Queue(QueueTab.Queue)
+                                },
+                                playbackSource = playbackSource,
                             )
                         }
                     }
@@ -698,6 +711,7 @@ fun App() {
                 if (showSidebar) {
                     DesktopLibrarySidebar(
                         viewModel = libraryViewModel,
+                        playingPlaylistId = playingPlaylistId,
                         onOpen = { navigator.push(Screen.Library(it)) },
                         modifier = Modifier
                             .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
@@ -723,7 +737,7 @@ fun App() {
                         LaunchedEffect(vm) {
                             vm.effects.collectLatest { effect ->
                                 when (effect) {
-                                    LoginEffect.NavigateToLibrary -> navigator.replaceAll(Screen.Library())
+                                    LoginEffect.NavigateToLibrary -> navigator.replaceAll(Screen.Library(LibrarySelection.PlaylistOverview))
                                 }
                             }
                         }
@@ -744,6 +758,7 @@ fun App() {
                         LibraryScreen(
                             viewModel = libraryViewModel,
                             currentSongId = playerState.playback.currentSong?.id,
+                            playingPlaylistId = playingPlaylistId,
                             onOpen = { navigator.push(Screen.Library(it)) },
                         )
                     }
@@ -759,8 +774,10 @@ fun App() {
                                         navigator.push(Screen.AlbumSongs(effect.albumId))
                                     is ArtistAlbumsEffect.NavigateToArtist ->
                                         navigator.push(Screen.ArtistAlbums(effect.artistId, effect.artistName))
-                                    is ArtistAlbumsEffect.PlaySongs ->
-                                        playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
+                                    is ArtistAlbumsEffect.PlaySongs -> playSongs(
+                                        playerViewModel, effect.songs, effect.startIndex, effect.shuffle,
+                                        PlaybackSource.Artist(screen.artistId, screen.artistName),
+                                    )
                                 }
                             }
                         }
@@ -779,7 +796,7 @@ fun App() {
                             vm.effects.collectLatest { effect ->
                                 when (effect) {
                                     is AlbumDetailEffect.PlaySongs ->
-                                        playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
+                                        playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle, PlaybackSource.Album(screen.albumId))
                                     is AlbumDetailEffect.NavigateToArtist ->
                                         navigator.push(Screen.ArtistAlbums(effect.artistId, effect.artistName))
                                 }
@@ -800,7 +817,7 @@ fun App() {
                             vm.effects.collectLatest { effect ->
                                 when (effect) {
                                     is PlaylistDetailEffect.PlaySongs ->
-                                        playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle)
+                                        playSongs(playerViewModel, effect.songs, effect.startIndex, effect.shuffle, PlaybackSource.Playlist(screen.playlistId))
                                     is PlaylistDetailEffect.NavigateToArtist ->
                                         navigator.push(Screen.ArtistAlbums(null, effect.artistName))
                                     is PlaylistDetailEffect.NavigateToAlbum ->
@@ -1013,21 +1030,68 @@ private fun onFullscreenKey(event: KeyEvent): Boolean {
     return event.key == Key.F && GlobalShortcuts.requestToggleVideoFullscreen()
 }
 
-private fun playSongs(playerViewModel: PlayerViewModel, songs: List<Song>, startIndex: Int, shuffle: Boolean?) {
-    playerViewModel.onEvent(PlayerEvent.PlaySongs(songs, startIndex, shuffle))
+private fun playSongs(
+    playerViewModel: PlayerViewModel,
+    songs: List<Song>,
+    startIndex: Int,
+    shuffle: Boolean?,
+    source: PlaybackSource? = null,
+) {
+    playerViewModel.onEvent(PlayerEvent.PlaySongs(songs, startIndex, shuffle, source))
 }
 
+/** The screen of what the songs got started from. */
+private fun PlaybackSource.toScreen(): Screen = when (this) {
+    is PlaybackSource.Playlist -> Screen.PlaylistSongs(id)
+    is PlaybackSource.Album -> Screen.AlbumSongs(id)
+    is PlaybackSource.Artist -> Screen.ArtistAlbums(id, name)
+}
+
+/** Whether [screen] shows [source], also in the library's detail pane (desktop). */
+private fun showsSource(screen: Screen, source: PlaybackSource?): Boolean {
+    if (source == null) return false
+    if (screen == source.toScreen()) return true
+    val selection = (screen as? Screen.Library)?.selection ?: return false
+    return when (source) {
+        is PlaybackSource.Playlist -> selection is LibrarySelection.Playlist && selection.playlistId == source.id
+        is PlaybackSource.Album -> selection is LibrarySelection.Album && selection.album.id == source.id
+        is PlaybackSource.Artist -> selection is LibrarySelection.Artist &&
+            (if (source.id != null) selection.artist.id == source.id else selection.artist.name == source.name)
+    }
+}
+
+/**
+ * [playingScreen] is the screen of what is playing (the playlist, album or artist the songs got started from, else
+ * the queue), null while nothing is.
+ */
 @Composable
-private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, showVideos: Boolean) {
+private fun BottomNavigationBar(
+    currentScreen: Screen,
+    navigator: Navigator,
+    showVideos: Boolean,
+    playingScreen: Screen?,
+    playbackSource: PlaybackSource?,
+) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
+        // Shows the overview of the playlists, also from another item of the library
         BottomNavItem(
             selected = currentScreen is Screen.Library,
-            onClick = { navigator.replaceAll(Screen.Library()) },
+            onClick = { navigator.replaceAll(Screen.Library(LibrarySelection.PlaylistOverview)) },
+            clickableWhenSelected = (currentScreen as? Screen.Library)?.selection.let {
+                it != null && it != LibrarySelection.PlaylistOverview
+            },
             icon = Icons.Default.LibraryMusic,
             label = "Library",
+        )
+        BottomNavItem(
+            selected = playingScreen != null && (currentScreen == playingScreen || showsSource(currentScreen, playbackSource)),
+            onClick = { playingScreen?.let(navigator::push) },
+            icon = Icons.Default.PlayCircle,
+            label = "Playing",
+            enabled = playingScreen != null,
         )
         BottomNavItem(
             selected = currentScreen is Screen.NewReleases,
@@ -1055,7 +1119,8 @@ private fun BottomNavigationBar(currentScreen: Screen, navigator: Navigator, sho
 /**
  * Bottom bar entry whose hover/press highlight covers the entire clickable cell,
  * unlike Material's NavigationBarItem which confines it to the small pill around the icon.
- * [onClick] is only invoked when the item is not already selected.
+ * [onClick] is only invoked when the item is not already selected, unless [clickableWhenSelected]. A disabled item is
+ * grayed out.
  */
 @Composable
 private fun RowScope.BottomNavItem(
@@ -1063,15 +1128,22 @@ private fun RowScope.BottomNavItem(
     onClick: () -> Unit,
     icon: ImageVector,
     label: String,
+    clickableWhenSelected: Boolean = false,
+    enabled: Boolean = true,
 ) {
-    val color = if (selected) AccentColor else SpotifyLightGray
+    val color = when {
+        selected -> AccentColor
+        enabled -> SpotifyLightGray
+        else -> SpotifyLightGray.copy(alpha = 0.38f)
+    }
     Column(
         modifier = Modifier
             .weight(1f)
             .height(80.dp)
             .selectable(
                 selected = selected,
-                onClick = { if (!selected) onClick() },
+                enabled = enabled,
+                onClick = { if (!selected || clickableWhenSelected) onClick() },
                 role = Role.Tab,
             ),
         horizontalAlignment = Alignment.CenterHorizontally,

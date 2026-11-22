@@ -6,6 +6,8 @@ import de.ronnyporsch.voidcast.domain.model.Genre as GenreModel
 
 /** What the library's detail pane shows (desktop). Part of the library screen, so back returns to the previous item. */
 sealed class LibrarySelection {
+    /** All playlists at a glance. */
+    data object PlaylistOverview : LibrarySelection()
     data class Artist(val artist: ArtistModel) : LibrarySelection()
     data class Album(val album: AlbumModel) : LibrarySelection()
     data class Playlist(val playlistId: String) : LibrarySelection()
@@ -20,6 +22,7 @@ sealed class LibrarySelection {
             is Playlist -> "playlist:$playlistId"
             FavoriteSongs -> "favoriteSongs"
             is Genre -> "genre:" + genre.id
+            PlaylistOverview -> "playlistOverview"
         }
 }
 
@@ -30,4 +33,5 @@ val LibraryState.selection: LibrarySelection?
         LibraryDetailView.Playlists -> selectedPlaylistId?.let { LibrarySelection.Playlist(it) }
         LibraryDetailView.FavoriteSongs -> LibrarySelection.FavoriteSongs
         LibraryDetailView.Genres -> selectedGenre?.let { LibrarySelection.Genre(it) }
+        LibraryDetailView.PlaylistOverview -> LibrarySelection.PlaylistOverview
     }

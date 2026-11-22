@@ -4,6 +4,7 @@ import de.ronnyporsch.voidcast.data.remote.RemoteDevice
 import de.ronnyporsch.voidcast.domain.model.AudioStreamInfo
 import de.ronnyporsch.voidcast.domain.model.DEFAULT_VIDEO_QUALITY
 import de.ronnyporsch.voidcast.domain.model.Lyrics
+import de.ronnyporsch.voidcast.domain.model.PlaybackSource
 import de.ronnyporsch.voidcast.domain.model.PlaybackState
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.domain.model.VideoStreamInfo
@@ -33,6 +34,8 @@ data class PlayerState(
     val devices: List<RemoteDevice> = emptyList(),
     /** The device whose playback [playback] is and the events control; null for this device. */
     val remoteDevice: RemoteDevice? = null,
+    /** The playlist, album or artist the queue got started from, until other songs replace it; null if none. */
+    val source: PlaybackSource? = null,
 ) {
     /** Whether the songs of the queue can be moved, removed and jumped to. */
     val canEditQueue: Boolean get() = remoteDevice?.isVoidcast != false
@@ -49,9 +52,14 @@ sealed class PlayerEvent {
     /**
      * Plays [songs] from [startIndex]. [shuffle] true shuffles all of them (ignoring [startIndex]), null keeps the
      * shuffle mode and, if it's on, plays the song at [startIndex] first. The songs added to the queue that are yet to
-     * play stay, right after the first song played.
+     * play stay, right after the first song played. [source] is what the songs are of, if any.
      */
-    data class PlaySongs(val songs: List<Song>, val startIndex: Int, val shuffle: Boolean? = null) : PlayerEvent()
+    data class PlaySongs(
+        val songs: List<Song>,
+        val startIndex: Int,
+        val shuffle: Boolean? = null,
+        val source: PlaybackSource? = null,
+    ) : PlayerEvent()
     /**
      * Plays the radio [songs] of [seed] from the start, without shuffle; [loadMore] gets the radio's next songs as the
      * queue runs out, until it returns none. Playing other songs ends the radio. If [seed] is playing, it keeps playing

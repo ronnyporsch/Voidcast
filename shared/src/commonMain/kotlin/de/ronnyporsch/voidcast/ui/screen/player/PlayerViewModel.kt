@@ -11,6 +11,7 @@ import de.ronnyporsch.voidcast.domain.model.normalizationGain
 import de.ronnyporsch.voidcast.domain.model.PlaybackStatus
 import de.ronnyporsch.voidcast.domain.model.RepeatMode
 import de.ronnyporsch.voidcast.domain.model.SettingsHolder
+import de.ronnyporsch.voidcast.domain.model.PlaybackSource
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.mvi.MviStore
 import de.ronnyporsch.voidcast.platform.AudioPlayer
@@ -269,7 +270,7 @@ class PlayerViewModel(
             return
         }
         when (event) {
-            is PlayerEvent.PlaySongs -> playSongs(event.songs, event.startIndex, event.shuffle)
+            is PlayerEvent.PlaySongs -> playSongs(event.songs, event.startIndex, event.shuffle, source = event.source)
             is PlayerEvent.PlayRadio -> playRadio(event.seed, event.songs, event.loadMore)
             is PlayerEvent.PlayPause -> togglePlayPause()
             is PlayerEvent.Play -> when (currentState.playback.status) {
@@ -491,7 +492,8 @@ class PlayerViewModel(
                     repeatMode = playback.repeatMode,
                     positionMs = playback.positionMs,
                     status = PlaybackStatus.Buffering,
-                )
+                ),
+                source = null,
             )
         }
         playCurrent(PendingStart(playback.positionMs, paused))
@@ -557,7 +559,13 @@ class PlayerViewModel(
         }
     }
 
-    private fun playSongs(songs: List<Song>, startIndex: Int, shuffle: Boolean?, start: PendingStart? = null) {
+    private fun playSongs(
+        songs: List<Song>,
+        startIndex: Int,
+        shuffle: Boolean?,
+        start: PendingStart? = null,
+        source: PlaybackSource? = null,
+    ) {
         endRadio()
         val targetShuffle = shuffle ?: currentState.playback.shuffle
         val queued = currentState.playback.queuedSongs()
@@ -597,7 +605,8 @@ class PlayerViewModel(
                     queuedCount = keptQueued.size,
                     shuffle = targetShuffle,
                     status = PlaybackStatus.Buffering,
-                )
+                ),
+                source = source,
             )
         }
         playCurrent(start)
@@ -626,7 +635,8 @@ class PlayerViewModel(
                     currentIndex = 0,
                     queuedCount = queued.size,
                     shuffle = false,
-                )
+                ),
+                source = null,
             )
         }
         onUpcomingChanged()

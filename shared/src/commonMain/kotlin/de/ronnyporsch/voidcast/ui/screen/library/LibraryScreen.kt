@@ -63,6 +63,8 @@ import kotlinx.coroutines.launch
 fun LibraryScreen(
     viewModel: LibraryViewModel,
     currentSongId: String? = null,
+    /** The playlist the playing songs are of, marked in the sidebar. */
+    playingPlaylistId: String? = null,
     /** Desktop: opens an item of the sidebar in the detail pane, as a new entry of the back stack. */
     onOpen: (LibrarySelection) -> Unit = { viewModel.onEvent(LibraryEvent.Show(it)) },
 ) {
@@ -109,6 +111,7 @@ fun LibraryScreen(
                 state = state,
                 viewModel = viewModel,
                 currentSongId = currentSongId,
+                playingPlaylistId = playingPlaylistId,
                 onCreatePlaylist = { showCreatePlaylistDialog = true },
                 onOpen = onOpen,
             )
@@ -121,6 +124,7 @@ private fun LibrarySplitView(
     state: LibraryState,
     viewModel: LibraryViewModel,
     currentSongId: String?,
+    playingPlaylistId: String?,
     onCreatePlaylist: () -> Unit,
     onOpen: (LibrarySelection) -> Unit,
 ) {
@@ -130,6 +134,7 @@ private fun LibrarySplitView(
             state = state,
             viewModel = viewModel,
             onCreatePlaylist = onCreatePlaylist,
+            playingPlaylistId = playingPlaylistId,
             openItemScreens = true,
             modifier = Modifier.fillMaxSize(),
         )
@@ -141,6 +146,7 @@ private fun LibrarySplitView(
             state = state,
             viewModel = viewModel,
             onCreatePlaylist = onCreatePlaylist,
+            playingPlaylistId = playingPlaylistId,
             onOpen = onOpen,
             modifier = Modifier
                 .width(280.dp)
@@ -153,6 +159,7 @@ private fun LibrarySplitView(
             state = state,
             viewModel = viewModel,
             currentSongId = currentSongId,
+            onOpen = onOpen,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight(),
@@ -204,6 +211,7 @@ private fun CreatePlaylistDialog(viewModel: LibraryViewModel, onDismiss: () -> U
 fun DesktopLibrarySidebar(
     viewModel: LibraryViewModel,
     onOpen: (LibrarySelection) -> Unit,
+    playingPlaylistId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -215,6 +223,7 @@ fun DesktopLibrarySidebar(
         state = state,
         viewModel = viewModel,
         onCreatePlaylist = { showCreatePlaylistDialog = true },
+        playingPlaylistId = playingPlaylistId,
         onOpen = onOpen,
         modifier = modifier,
     )
@@ -225,6 +234,7 @@ private fun LibrarySidebar(
     state: LibraryState,
     viewModel: LibraryViewModel,
     onCreatePlaylist: () -> Unit,
+    playingPlaylistId: String? = null,
     openItemScreens: Boolean = false,
     /** Opens an item in the detail pane (not with [openItemScreens]). */
     onOpen: (LibrarySelection) -> Unit = {},
@@ -371,6 +381,7 @@ private fun LibrarySidebar(
                         entries = entries,
                         onFolderClick = { viewModel.onEvent(LibraryEvent.PlaylistFolderToggled(it.name)) },
                         selectedPlaylistId = state.selectedPlaylistId,
+                        playingPlaylistId = playingPlaylistId,
                         onPlaylistClick = {
                             open(LibrarySelection.Playlist(it.id), LibraryEvent.OpenPlaylistScreen(it))
                         },
@@ -601,6 +612,7 @@ private fun LibraryDetailPane(
     state: LibraryState,
     viewModel: LibraryViewModel,
     currentSongId: String?,
+    onOpen: (LibrarySelection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // One of each per visit of the library, so going back or forward to a visit shows the pane as it was scrolled
@@ -609,7 +621,20 @@ private fun LibraryDetailPane(
     val playlistDetailState = rememberLazyListState()
     val favoriteSongsState = rememberLazyListState()
     val genreDetailState = rememberLazyListState()
+    val playlistOverviewState = rememberLazyGridState()
     when (state.activeDetailView) {
+        LibraryDetailView.PlaylistOverview -> PlaylistOverviewPane(
+            playlists = state.playlists,
+            order = state.view.orderOf(LibraryCategory.Playlists),
+            downloads = if (state.canDownloadPlaylists) state.playlistDownloads else emptyMap(),
+            onPlaylistClick = { onOpen(LibrarySelection.Playlist(it.id)) },
+            onPlaylistDoubleClick = {
+                viewModel.onEvent(LibraryEvent.PlaylistDoubleClicked(it))
+                onOpen(LibrarySelection.Playlist(it.id))
+            },
+            state = playlistOverviewState,
+            modifier = modifier,
+        )
         LibraryDetailView.Artists -> ArtistDetailPane(
             artist = state.selectedArtist,
             albums = state.selectedArtistAlbums,
@@ -1273,11 +1298,152 @@ internal fun AlbumCard(album: Album, showArtist: Boolean = false, subtitle: Stri
 }
 
 
+/**
+ * All playlists as a grid of covers, in the order of the playlists sidebar: first those without a folder, then each
+ * folder's (see [PlaylistSidebarEntry]) under its name.
+ */
+@Composable
+private fun PlaylistOverviewPane(
+    playlists: List<Playlist>,
+    order: LibraryOrder,
+    downloads: Map<String, PlaylistDownloadStatus>,
+    onPlaylistClick: (Playlist) -> Unit,
+    onPlaylistDoubleClick: (Playlist) -> Unit,
+    state: LazyGridState,
+    modifier: Modifier = Modifier,
+) {
+    val sorted = remember(playlists, order) { playlists.sortedBy(order) }
+    val unfoldered = remember(sorted) { sorted.filter { it.folderAndName() == null } }
+    val folders = remember(sorted) {
+        sorted.mapNotNull { playlist -> playlist.folderAndName()?.let { (folder, name) -> folder to (playlist to name) } }
+            .groupBy({ it.first }, { it.second })
+    }
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(0.dp),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            LazyVerticalGrid(
+                state = state,
+                columns = GridCells.Adaptive(minSize = 160.dp),
+                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 100.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
+                    Column(Modifier.padding(horizontal = 8.dp)) {
+                        Text(
+                            text = "Playlists",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "${playlists.size} playlist${if (playlists.size != 1) "s" else ""}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (playlists.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
+                        Text(
+                            text = "No playlists",
+                            color = SpotifyLightGray,
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    }
+                }
+                items(unfoldered, key = { it.id }) { playlist ->
+                    PlaylistCard(playlist, playlist.name, downloads[playlist.id], onPlaylistClick, onPlaylistDoubleClick)
+                }
+                folders.forEach { (folder, entries) ->
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "folder:$folder") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp),
+                        ) {
+                            Icon(Icons.Default.Folder, contentDescription = null, tint = SpotifyLightGray, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = folder,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    items(entries, key = { "$folder/${it.first.id}" }) { (playlist, name) ->
+                        PlaylistCard(playlist, name, downloads[playlist.id], onPlaylistClick, onPlaylistDoubleClick)
+                    }
+                }
+            }
+            VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
+        }
+    }
+}
+
+/** A playlist of the [PlaylistOverviewPane]; songs dropped onto it get added to it. */
+@Composable
+private fun PlaylistCard(
+    playlist: Playlist,
+    name: String,
+    download: PlaylistDownloadStatus?,
+    onClick: (Playlist) -> Unit,
+    onDoubleClick: (Playlist) -> Unit,
+) {
+    val coverArt = LocalCoverArtUrlProvider.current
+    val playlistEditor = LocalPlaylistEditor.current
+    val dropTarget = rememberSongDropTarget { songs -> playlistEditor?.addToPlaylist(playlist, songs) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .songDropTarget(dropTarget)
+            .background(
+                when {
+                    dropTarget?.isHovered == true -> AccentColor.copy(alpha = 0.32f)
+                    dropTarget?.isActive == true -> AccentColor.copy(alpha = 0.08f)
+                    else -> Color.Transparent
+                }
+            )
+            .combinedClickable(onClick = { onClick(playlist) }, onDoubleClick = { onDoubleClick(playlist) })
+            .padding(8.dp),
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            CoverArtImage(
+                url = coverArt.getUrl(playlist.coverArtId),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                cornerRadius = 0.dp,
+                placeholderFontSize = 40.sp,
+            )
+            if (download?.isComplete == true) {
+                DownloadedIndicator(Modifier.padding(6.dp), size = 26.dp, onCover = true)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = name,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "${playlist.songCount} song${if (playlist.songCount != 1) "s" else ""}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun PlaylistSidebar(
     entries: List<PlaylistSidebarEntry>,
     onFolderClick: (PlaylistSidebarEntry.Folder) -> Unit,
     selectedPlaylistId: String?,
+    /** Marked slightly; a collapsed folder with it too. */
+    playingPlaylistId: String?,
     onPlaylistClick: (Playlist) -> Unit,
     onPlaylistDoubleClick: ((Playlist) -> Unit)?,
     state: LazyListState,
@@ -1302,11 +1468,13 @@ private fun PlaylistSidebar(
         emptyText = "No playlists",
     ) { _, entry ->
         if (entry is PlaylistSidebarEntry.Folder) {
-            PlaylistFolderRow(entry, onClick = { onFolderClick(entry) })
+            val isPlaying = !entry.isExpanded && entry.playlists.any { it.id == playingPlaylistId }
+            PlaylistFolderRow(entry, isPlaying = isPlaying, onClick = { onFolderClick(entry) })
             return@SidebarList
         }
         val (playlist, name, folder) = entry as PlaylistSidebarEntry.Item
         val isSelected = playlist.id == selectedPlaylistId
+        val isPlaying = playlist.id == playingPlaylistId
         val dropTarget = rememberSongDropTarget { songs -> playlistEditor?.addToPlaylist(playlist, songs) }
 
         Row(
@@ -1319,6 +1487,7 @@ private fun PlaylistSidebar(
                         dropTarget?.isHovered == true -> AccentColor.copy(alpha = 0.32f)
                         isSelected -> AccentColor.copy(alpha = 0.16f)
                         dropTarget?.isActive == true -> AccentColor.copy(alpha = 0.08f)
+                        isPlaying -> PLAYING_PLAYLIST_HIGHLIGHT
                         else -> Color.Transparent
                     }
                 )
@@ -1364,12 +1533,16 @@ private fun PlaylistSidebar(
     }
 }
 
+/** The background of the playlist being played in the sidebar, fainter than a selected item's. */
+private val PLAYING_PLAYLIST_HIGHLIGHT = AccentColor.copy(alpha = 0.07f)
+
 /** A folder of the playlists sidebar; a click expands or collapses it. */
 @Composable
-private fun PlaylistFolderRow(folder: PlaylistSidebarEntry.Folder, onClick: () -> Unit) {
+private fun PlaylistFolderRow(folder: PlaylistSidebarEntry.Folder, isPlaying: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(if (isPlaying) PLAYING_PLAYLIST_HIGHLIGHT else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,

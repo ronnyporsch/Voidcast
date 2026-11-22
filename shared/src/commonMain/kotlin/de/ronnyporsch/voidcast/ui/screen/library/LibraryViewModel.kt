@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import de.ronnyporsch.voidcast.data.offline.PlaylistDownloads
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
 import de.ronnyporsch.voidcast.data.repository.movedTo
+import de.ronnyporsch.voidcast.domain.model.PlaybackSource
 import de.ronnyporsch.voidcast.domain.model.Playlist
 import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.LibraryCategory
@@ -154,29 +155,29 @@ class LibraryViewModel(
                     }
                     repository.getSongsForArtist(event.artist.name, albumIds).onSuccess { songs ->
                         if (songs.isNotEmpty()) {
-                            emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+                            emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true, source = event.artist.toPlaybackSource()))
                         }
                     }
                 }
             }
             is LibraryEvent.PlayAllArtistSongs -> {
                 val songs = currentState.selectedArtistSongs
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, source = currentState.detailSource))
             }
             is LibraryEvent.ShuffleAllArtistSongs -> {
                 val songs = currentState.selectedArtistSongs
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true, source = currentState.detailSource))
             }
             is LibraryEvent.ArtistSongClicked -> {
                 if (getPlatform().isMobile) {
-                    emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index))
+                    emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index, source = currentState.detailSource))
                 } else {
                     setState { copy(selectedSongIds = setOf(event.song.id)) }
                 }
             }
             is LibraryEvent.ArtistSongDoubleClicked -> {
                 setState { copy(selectedSongIds = setOf(event.song.id)) }
-                emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index))
+                emitEffect(LibraryEffect.PlaySongs(currentState.selectedArtistSongs, event.index, source = currentState.detailSource))
             }
             is LibraryEvent.AlbumClicked -> {
                 setState {
@@ -207,18 +208,18 @@ class LibraryViewModel(
                 launch {
                     repository.getAlbum(event.album.id).onSuccess { fullAlbum ->
                         if (fullAlbum.songs.isNotEmpty()) {
-                            emitEffect(LibraryEffect.PlaySongs(fullAlbum.songs, 0, shuffle = true))
+                            emitEffect(LibraryEffect.PlaySongs(fullAlbum.songs, 0, shuffle = true, source = PlaybackSource.Album(event.album.id)))
                         }
                     }
                 }
             }
             is LibraryEvent.PlayAllAlbumSongs -> {
                 val songs = currentState.selectedAlbum?.songs.orEmpty()
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, source = currentState.detailSource))
             }
             is LibraryEvent.ShuffleAllAlbumSongs -> {
                 val songs = currentState.selectedAlbum?.songs.orEmpty()
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true, source = currentState.detailSource))
             }
             is LibraryEvent.PlaylistClicked -> selectPlaylist(event.playlist.id)
             is LibraryEvent.PlaylistDoubleClicked -> {
@@ -226,7 +227,7 @@ class LibraryViewModel(
                 launch {
                     repository.getPlaylist(event.playlist.id).onSuccess { fullPlaylist ->
                         if (fullPlaylist.songs.isNotEmpty()) {
-                            emitEffect(LibraryEffect.PlaySongs(fullPlaylist.songs, 0, shuffle = true))
+                            emitEffect(LibraryEffect.PlaySongs(fullPlaylist.songs, 0, shuffle = true, source = PlaybackSource.Playlist(event.playlist.id)))
                         }
                     }
                 }
@@ -240,17 +241,17 @@ class LibraryViewModel(
             is LibraryEvent.MoveSongsInPlaylist -> moveSongsInPlaylist(event.playlist, event.indices, event.before)
             is LibraryEvent.PlayAllPlaylistSongs -> {
                 val songs = currentState.selectedPlaylist?.songs.orEmpty()
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, source = currentState.detailSource))
             }
             is LibraryEvent.ShuffleAllPlaylistSongs -> {
                 val songs = currentState.selectedPlaylist?.songs.orEmpty()
-                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true))
+                if (songs.isNotEmpty()) emitEffect(LibraryEffect.PlaySongs(songs, 0, shuffle = true, source = currentState.detailSource))
             }
             is LibraryEvent.SongClicked -> {
                 val songs = currentState.detailSongs
                 if (songs.isNotEmpty()) {
                     if (getPlatform().isMobile) {
-                        emitEffect(LibraryEffect.PlaySongs(songs, event.index))
+                        emitEffect(LibraryEffect.PlaySongs(songs, event.index, source = currentState.detailSource))
                     } else {
                         setState { copy(selectedSongIds = setOf(event.song.id)) }
                     }
@@ -260,7 +261,7 @@ class LibraryViewModel(
                 setState { copy(selectedSongIds = setOf(event.song.id)) }
                 val songs = currentState.detailSongs
                 if (songs.isNotEmpty()) {
-                    emitEffect(LibraryEffect.PlaySongs(songs, event.index))
+                    emitEffect(LibraryEffect.PlaySongs(songs, event.index, source = currentState.detailSource))
                 }
             }
             is LibraryEvent.OpenArtistScreen ->
@@ -369,6 +370,23 @@ class LibraryViewModel(
         loadPlaylist(playlistId)
     }
 
+    private fun showPlaylistOverview() {
+        setState {
+            copy(
+                activeDetailView = LibraryDetailView.PlaylistOverview,
+                selectedPlaylistId = null,
+                selectedPlaylist = null,
+                selectedPlaylistLoading = false,
+                selectedArtistId = null,
+                selectedArtist = null,
+                selectedAlbumId = null,
+                selectedAlbum = null,
+                selectedGenre = null,
+                selectedSongIds = emptySet(),
+            )
+        }
+    }
+
     /** Shows the playlists and downloaded songs stored on the device, as long as the server isn't reachable. */
     private fun loadOffline() {
         launch {
@@ -384,7 +402,8 @@ class LibraryViewModel(
                     albums = emptyList(),
                     songs = emptyList(),
                     genres = emptyList(),
-                    activeDetailView = LibraryDetailView.Playlists,
+                    // Other items may not be stored on the device
+                    activeDetailView = if (activeDetailView == LibraryDetailView.Playlists) activeDetailView else LibraryDetailView.PlaylistOverview,
                 )
             }
             ensureDefaultSelection()
@@ -400,6 +419,7 @@ class LibraryViewModel(
             is LibrarySelection.Playlist -> selectPlaylist(selection.playlistId)
             LibrarySelection.FavoriteSongs -> onEvent(LibraryEvent.FavoriteSongsClicked)
             is LibrarySelection.Genre -> onEvent(LibraryEvent.GenreClicked(selection.genre))
+            LibrarySelection.PlaylistOverview -> showPlaylistOverview()
         }
     }
 
@@ -535,7 +555,7 @@ class LibraryViewModel(
                     loadPlaylist(playlist.id)
                 }
             }
-            LibraryDetailView.FavoriteSongs, LibraryDetailView.Genres -> {}
+            LibraryDetailView.FavoriteSongs, LibraryDetailView.Genres, LibraryDetailView.PlaylistOverview -> {}
         }
     }
 
