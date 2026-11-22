@@ -63,7 +63,8 @@ fun MiniPlayer(
     onQueueClick: (QueueTab) -> Unit = {},
     openQueueTab: QueueTab? = null,
 ) {
-    val state by viewModel.state.collectAsState()
+    // The position is read only where it's shown, see PositionText
+    val state by viewModel.stateWithoutPosition.collectAsState()
     val playback = state.playback
     val song = playback.currentSong ?: return
     val coverArt = LocalCoverArtUrlProvider.current
@@ -96,12 +97,6 @@ fun MiniPlayer(
         }
     }
 
-    val progress = if (playback.durationMs > 0) {
-        (playback.positionMs.toFloat() / playback.durationMs.toFloat()).coerceIn(0f, 1f)
-    } else {
-        0f
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,8 +108,14 @@ fun MiniPlayer(
         // Desktop: the player's own surface above the progress bar, so the bar doesn't sit on the content above
         if (!isMobile) Spacer(Modifier.fillMaxWidth().height(8.dp).background(SpotifySurface))
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            // Read here instead of above, so only the bar recomposes as the song plays
+            val positionMs by viewModel.positionMs.collectAsState()
             Slider(
-                value = progress,
+                value = if (playback.durationMs > 0) {
+                    (positionMs.toFloat() / playback.durationMs.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                },
                 onValueChange = {
                     viewModel.onEvent(PlayerEvent.SeekTo((it * playback.durationMs).toLong()))
                 },
@@ -300,17 +301,24 @@ fun MiniPlayer(
                 ) {
                     PlayingOnText(state, Modifier.weight(1f, fill = false).padding(end = 4.dp))
                     val durationMs = playback.durationMs.takeIf { it > 0 } ?: (song.duration * 1000L)
-                    Text(
-                        text = "${playback.positionMs.formatDurationMs()} / ${durationMs.formatDurationMs()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SpotifyLightGray,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    )
+                    PositionText(viewModel, durationMs)
                     DevicesButton(state, viewModel::onEvent, Modifier.size(buttonSize), iconSize = iconSize)
                     QueueButtons(openQueueTab, onQueueClick, Modifier.size(buttonSize), iconSize)
                 }
             }
         }
     }
+}
+
+/** "position / duration"; on its own so only it recomposes as the song plays. */
+@Composable
+private fun PositionText(viewModel: PlayerViewModel, durationMs: Long) {
+    val positionMs by viewModel.positionMs.collectAsState()
+    Text(
+        text = "${positionMs.formatDurationMs()} / ${durationMs.formatDurationMs()}",
+        style = MaterialTheme.typography.bodySmall,
+        color = SpotifyLightGray,
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 8.dp),
+    )
 }

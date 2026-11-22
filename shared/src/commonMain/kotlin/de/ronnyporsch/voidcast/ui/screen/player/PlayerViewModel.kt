@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 
 class PlayerViewModel(
     private val audioPlayer: AudioPlayer,
@@ -40,6 +43,22 @@ class PlayerViewModel(
         playback = settingsHolder.settings.value.playback.let { PlaybackState(shuffle = it.shuffle, repeatMode = it.repeatMode) },
     )
 ) {
+
+    /**
+     * [state] without [PlaybackState.positionMs], which changes several times a second while playing: for UI that
+     * doesn't show the position, so it doesn't recompose with it. The position is in [positionMs].
+     */
+    val stateWithoutPosition: StateFlow<PlayerState> = state
+        .map { it.withoutPosition() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), currentState.withoutPosition())
+
+    /** [PlaybackState.positionMs] of [state]. */
+    val positionMs: StateFlow<Long> = state
+        .map { it.playback.positionMs }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), currentState.playback.positionMs)
+
+    private fun PlayerState.withoutPosition() = copy(playback = playback.copy(positionMs = 0))
 
     private var hasAutoAdvanced = false
     private var hasPreparedNext = false

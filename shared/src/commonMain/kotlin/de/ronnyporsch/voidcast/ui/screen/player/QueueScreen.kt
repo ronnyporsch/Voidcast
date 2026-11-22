@@ -43,7 +43,7 @@ fun QueueScreen(
     onArtistClick: (String) -> Unit,
     onAlbumClick: (String) -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.stateWithoutPosition.collectAsState()
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TabRow(
             selectedTabIndex = tab.ordinal,

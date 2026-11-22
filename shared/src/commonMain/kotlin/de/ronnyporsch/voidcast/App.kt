@@ -439,7 +439,7 @@ fun App() {
         PendingYouTubeAdditionDialog(playlistEditor)
         val currentEntry by navigator.currentEntry.collectAsState()
         val currentScreen = currentEntry.screen
-        val playerState by playerViewModel.state.collectAsState()
+        val playerState by playerViewModel.stateWithoutPosition.collectAsState()
         val hasSong = playerState.playback.currentSong != null
         // What another device plays isn't known to be of a playlist, album or artist
         val playbackSource = playerState.source.takeIf { hasSong && playerState.remoteDevice == null }
