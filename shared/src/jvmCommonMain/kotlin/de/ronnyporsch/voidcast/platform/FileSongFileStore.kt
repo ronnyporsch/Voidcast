@@ -26,6 +26,8 @@ internal class FileSongFileStore(
         dir.listFiles()?.filter { !it.name.endsWith(".part") }?.forEach { add(it.name) }
     }
 
+    override fun isDownloaded(songId: String): Boolean = songFileName(songId) in downloaded
+
     override fun uriOf(songId: String): String? {
         val name = songFileName(songId)
         return if (name in downloaded) uriOf(File(dir, name)) else null

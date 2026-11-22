@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 @Serializable
 private data class DownloadedPlaylist(val server: String, val playlist: Playlist)
@@ -157,6 +160,8 @@ class PlaylistDownloads(
     /** Songs whose files are being downloaded right now. */
     val downloadingSongIds: StateFlow<Set<String>> = _downloadingSongIds.asStateFlow()
     private val transferring = mutableSetOf<String>()
+    /** When [publish] last ran, see [publishTransfer]. */
+    private var lastPublish: TimeMark? = null
 
     private val _pendingSongCount = MutableStateFlow(0)
     /**
@@ -413,7 +418,7 @@ class PlaylistDownloads(
             loadAlbums().filter { it.server == server }.flatMap { it.songs } +
             loadArtists().filter { it.server == server }.flatMap { it.songs })
             .distinctBy { it.id }
-            .filter { files.uriOf(it.id) != null }
+            .filter { files.isDownloaded(it.id) }
     }
 
     private suspend fun sync(server: String, playlistId: String) {
@@ -534,11 +539,11 @@ class PlaylistDownloads(
         // Also for songs downloaded before covers were kept
         downloadCovers(files, songs.map { it.coverArtId })
         for (song in songs.distinctBy { it.id }) {
-            if (files.uriOf(song.id) != null) continue
+            if (files.isDownloaded(song.id)) continue
             // Stays missing; the next sync downloads it
             if (serverKey() != server || !canDownload()) break
             transferring += song.id
-            publish()
+            publishTransfer(files, song.id)
             try {
                 files.download(song.id, repository.getDownloadUrl(song.id))
             } catch (e: CancellationException) {
@@ -548,7 +553,7 @@ class PlaylistDownloads(
             } finally {
                 transferring -= song.id
             }
-            publish()
+            publishTransfer(files, song.id)
         }
     }
 
@@ -586,9 +591,27 @@ class PlaylistDownloads(
             .forEach { files.deleteCover(it) }
     }
 
+    /**
+     * Shows that [songId] started or finished downloading. A full [publish] goes through all downloaded songs, too much
+     * for each song of a large download: in between the ones at most every [PUBLISH_INTERVAL], only this song's state
+     * changes. The full one when the sync is through brings everything up to date.
+     */
+    private suspend fun publishTransfer(files: SongFileStore, songId: String) {
+        if (lastPublish.let { it == null || it.elapsedNow() >= PUBLISH_INTERVAL }) return publish()
+        _downloadingSongIds.value = transferring.toSet()
+        if (songId in transferring) {
+            _queuedSongIds.value -= songId
+        } else if (files.isDownloaded(songId)) {
+            _downloadedSongIds.value += songId
+        }
+        _pendingSongCount.value = transferring.size + _queuedSongIds.value.size
+        _hasPendingDownloads.value = _pendingSongCount.value > 0
+    }
+
     private suspend fun publish() {
         val files = files ?: return
         files.awaitLoaded()
+        lastPublish = TimeSource.Monotonic.markNow()
         val server = serverKey()
         val entries = load().filter { it.server == server }
         val singleSongs = loadSongs().filter { it.server == server }
@@ -596,22 +619,24 @@ class PlaylistDownloads(
         val artists = loadArtists().filter { it.server == server }
         val collectionSongs = entries.flatMap { it.playlist.songs } + albums.flatMap { it.songs } + artists.flatMap { it.songs }
         _singleSongIds.value = singleSongs.mapTo(mutableSetOf()) { it.song.id }
-        _downloadedSongIds.value = (collectionSongs + singleSongs.map { it.song })
-            .mapNotNullTo(mutableSetOf()) { song -> song.id.takeIf { files.uriOf(it) != null } }
+        // Every song below is one of these, so the file store is asked once per song
+        val downloadedIds = (collectionSongs + singleSongs.map { it.song })
+            .mapNotNullTo(mutableSetOf()) { song -> song.id.takeIf { files.isDownloaded(it) } }
+        _downloadedSongIds.value = downloadedIds
         val pending = entries.filter { jobs[key(server, it.playlist.id)]?.isActive == true }.flatMap { it.playlist.songs } +
             albums.filter { jobs[albumKey(server, it.albumId)]?.isActive == true }.flatMap { it.songs } +
             artists.filter { jobs[artistKey(server, it.artistId)]?.isActive == true }.flatMap { it.songs } +
             (if (jobs[songsKey(server)]?.isActive == true) singleSongs.map { it.song } else emptyList())
         _downloadingSongIds.value = transferring.toSet()
         _queuedSongIds.value = pending.mapNotNullTo(mutableSetOf()) { song ->
-            song.id.takeIf { files.uriOf(it) == null && it !in transferring }
+            song.id.takeIf { it !in downloadedIds && it !in transferring }
         }
         _pendingSongCount.value = transferring.size + _queuedSongIds.value.size
         _hasPendingDownloads.value = _pendingSongCount.value > 0
         _status.value = entries
             .associate { entry ->
                 val songs = entry.playlist.songs.distinctBy { it.id }
-                val downloaded = songs.count { files.uriOf(it.id) != null }
+                val downloaded = songs.count { it.id in downloadedIds }
                 // Until the songs got fetched only the count is known
                 val total = if (songs.isEmpty()) entry.playlist.songCount else songs.size
                 entry.playlist.id to PlaylistDownloadStatus(
@@ -627,12 +652,12 @@ class PlaylistDownloads(
             artists = artists.map { it.toArtist() },
             songs = (singleSongs.map { it.song } + collectionSongs)
                 .distinctBy { it.id }
-                .filter { files.uriOf(it.id) != null },
+                .filter { it.id in downloadedIds },
         )
         _content.value = content
         _albumStatus.value = albums.associate { entry ->
             val songs = entry.songs.distinctBy { it.id }
-            val downloaded = songs.count { files.uriOf(it.id) != null }
+            val downloaded = songs.count { it.id in downloadedIds }
             entry.albumId to PlaylistDownloadStatus(
                 downloadedSongs = downloaded,
                 totalSongs = songs.size,
@@ -640,7 +665,7 @@ class PlaylistDownloads(
             )
         }
         _artistStatus.value = artists.associate { entry ->
-            val downloaded = entry.songs.count { files.uriOf(it.id) != null }
+            val downloaded = entry.songs.count { it.id in downloadedIds }
             entry.artistId to PlaylistDownloadStatus(
                 downloadedSongs = downloaded,
                 totalSongs = entry.songs.size,
@@ -725,6 +750,8 @@ class PlaylistDownloads(
         const val ALBUMS_FILE_NAME = "downloaded-albums.json"
         const val ARTISTS_FILE_NAME = "downloaded-artists.json"
         const val SYNC_INTERVAL = 15 * 60 * 1000L
+        /** How often a running download publishes everything at most, see [publishTransfer]. */
+        val PUBLISH_INTERVAL = 1.seconds
         /** Of the downloaded covers; large enough for the media notification, see AppSession. */
         const val COVER_SIZE = 512
     }

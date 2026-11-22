@@ -16,6 +16,9 @@ interface SongFileStore {
     /** URI the audio player can play the downloaded song from, or null if it isn't downloaded. */
     fun uriOf(songId: String): String?
 
+    /** Whether the song is downloaded, like [uriOf] returning a URI but without building one. */
+    fun isDownloaded(songId: String): Boolean = uriOf(songId) != null
+
     /** Downloads [url] as the file of [songId]. Throws if that fails. */
     suspend fun download(songId: String, url: String)
 
@@ -45,7 +48,9 @@ fun interface SongFileSharer {
 expect fun createSongFileSharer(): SongFileSharer?
 
 /** Name of the file of the downloaded song [songId]. */
-internal fun songFileName(songId: String) = songId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+internal fun songFileName(songId: String) = songId.replace(UNSAFE_FILE_NAME_CHARS, "_")
+
+private val UNSAFE_FILE_NAME_CHARS = Regex("[^A-Za-z0-9_-]")
 
 /** Name of the file of the downloaded cover art [coverArtId], which may be a long URL (YouTube Music thumbnails). */
 internal fun coverFileName(coverArtId: String) = md5(coverArtId)
