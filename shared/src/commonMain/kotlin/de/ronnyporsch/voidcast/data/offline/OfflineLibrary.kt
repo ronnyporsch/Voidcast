@@ -53,6 +53,10 @@ class OfflineLibrary(songs: List<Song>) {
     fun songsOfGenre(name: String): List<Song> =
         songs.filter { it.genre.equals(name, ignoreCase = true) }
 
+    /** Albums with a downloaded song of the genre [name], without their songs. */
+    fun albumsOfGenre(name: String): List<Album> =
+        albums.filter { album -> album.songs.any { it.genre.equals(name, ignoreCase = true) } }.map { it.copy(songs = emptyList()) }
+
     fun artist(name: String): Artist? = artists.firstOrNull { it.name.equals(name, ignoreCase = true) }
 
     /** Albums whose album artist is [artistId]. */

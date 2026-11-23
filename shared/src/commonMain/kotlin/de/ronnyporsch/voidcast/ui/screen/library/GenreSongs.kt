@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,12 +23,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.ronnyporsch.voidcast.data.repository.MusicRepository
+import de.ronnyporsch.voidcast.domain.model.Album
+import de.ronnyporsch.voidcast.domain.model.Artist
 import de.ronnyporsch.voidcast.domain.model.Genre
 import de.ronnyporsch.voidcast.domain.model.Song
 import de.ronnyporsch.voidcast.ui.components.*
 import de.ronnyporsch.voidcast.ui.theme.AccentColor
 
-/** Mobile: the songs of a genre on their own screen; tapping a song plays the list from there. */
+/** Mobile: the artists, albums and songs of a genre on their own screen; tapping a song plays the list from there. */
 @Composable
 fun GenreSongsScreen(
     genre: Genre,
@@ -35,6 +39,7 @@ fun GenreSongsScreen(
     onPlay: (songs: List<Song>, startIndex: Int, shuffle: Boolean?) -> Unit,
     onArtistClick: (String) -> Unit,
     onAlbumClick: (String) -> Unit,
+    onGenreArtistClick: (Artist) -> Unit,
     currentSongId: String? = null,
 ) {
     // Null while loading
@@ -42,6 +47,12 @@ fun GenreSongsScreen(
         value = repository.getGenreSongs(genre).getOrDefault(emptyList())
     }
     val songs = loadedSongs.orEmpty()
+    val albums by produceState(emptyList<Album>(), genre) {
+        value = repository.getGenreAlbums(genre).getOrDefault(emptyList())
+    }
+    val artists by produceState(emptyList<Artist>(), genre) {
+        value = repository.getGenreArtists(genre).getOrDefault(emptyList())
+    }
     val listState = rememberLazyListState()
     val headerState = rememberCollapsingHeaderState(listState)
     var selectedIds by remember { mutableStateOf(emptySet<String>()) }
@@ -67,6 +78,9 @@ fun GenreSongsScreen(
         GenreSongsList(
             genre = genre,
             songs = songs,
+            albums = albums,
+            artists = artists,
+            onGenreArtistClick = onGenreArtistClick,
             isLoading = loadedSongs == null,
             state = listState,
             headerState = headerState,
@@ -101,11 +115,17 @@ fun GenreImage(modifier: Modifier = Modifier) {
     }
 }
 
-/** Header, play buttons and rows of the songs of a genre. */
+/**
+ * Header, the artists and albums of a genre (also those whose songs don't have the genre themselves, e.g. as it came
+ * from online metadata) and play buttons and rows of its songs.
+ */
 @Composable
 fun GenreSongsList(
     genre: Genre,
     songs: List<Song>,
+    albums: List<Album>,
+    artists: List<Artist>,
+    onGenreArtistClick: (Artist) -> Unit,
     isLoading: Boolean,
     state: LazyListState,
     headerState: CollapsingHeaderState,
@@ -174,6 +194,36 @@ fun GenreSongsList(
                 }
             }
 
+            if (artists.isNotEmpty()) {
+                item {
+                    GenreSectionTitle("Artists")
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        items(artists, key = { it.id }) { artist ->
+                            ArtistCard(artist, onClick = { onGenreArtistClick(artist) }, modifier = Modifier.width(160.dp))
+                        }
+                    }
+                }
+            }
+
+            if (albums.isNotEmpty()) {
+                item {
+                    GenreSectionTitle("Albums")
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        items(albums, key = { it.id }) { album ->
+                            Box(Modifier.width(160.dp).clickable { onAlbumClick(album.id) }) {
+                                AlbumCard(album, showArtist = true)
+                            }
+                        }
+                    }
+                }
+            }
+
             if (isLoading) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -181,6 +231,8 @@ fun GenreSongsList(
                     }
                 }
             } else if (songs.isNotEmpty()) {
+                if (albums.isNotEmpty() || artists.isNotEmpty()) item { GenreSectionTitle("Songs") }
+
                 item {
                     Row(
                         modifier = Modifier
@@ -231,6 +283,16 @@ fun GenreSongsList(
         }
         VerticalScrollbar(Modifier.align(Alignment.CenterEnd).fillMaxHeight(), state)
     }
+}
+
+@Composable
+private fun GenreSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
 }
 
 @Composable

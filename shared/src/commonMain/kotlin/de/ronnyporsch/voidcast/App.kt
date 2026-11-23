@@ -852,6 +852,7 @@ fun App() {
                             onPlay = { songs, startIndex, shuffle -> playSongs(playerViewModel, songs, startIndex, shuffle) },
                             onArtistClick = { name -> navigator.push(Screen.ArtistAlbums(null, name)) },
                             onAlbumClick = { navigator.push(Screen.AlbumSongs(it)) },
+                            onGenreArtistClick = { navigator.push(Screen.ArtistAlbums(it.id.ifEmpty { null }, it.name)) },
                             currentSongId = playerState.playback.currentSong?.id,
                         )
                     }

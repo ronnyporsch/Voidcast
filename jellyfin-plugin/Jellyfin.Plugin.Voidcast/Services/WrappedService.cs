@@ -45,8 +45,9 @@ public class WrappedService
         }
 
         var tracks = new Dictionary<string, WrappedTrack>();
+        var artistGenres = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         var plays = ReadPlays(userId, toUtc)
-            .Select(row => new WrappedPlay(row.StartedUtc, TrackOf(row.ItemId, row.ItemName, tracks), row.Seconds))
+            .Select(row => new WrappedPlay(row.StartedUtc, TrackOf(row.ItemId, row.ItemName, tracks, artistGenres), row.Seconds))
             .ToList();
         var result = WrappedCalculator.Compute(plays, fromUtc, toUtc, utcOffset);
 
@@ -123,7 +124,11 @@ public class WrappedService
         return false;
     }
 
-    private WrappedTrack TrackOf(string itemId, string itemName, Dictionary<string, WrappedTrack> tracks)
+    private WrappedTrack TrackOf(
+        string itemId,
+        string itemName,
+        Dictionary<string, WrappedTrack> tracks,
+        Dictionary<string, IReadOnlyList<string>> artistGenres)
     {
         if (tracks.TryGetValue(itemId, out var known))
         {
@@ -131,17 +136,17 @@ public class WrappedService
         }
 
         var track = Guid.TryParse(itemId, out var id) && _libraryManager.GetItemById(id) is Audio audio
-            ? FromLibrary(audio)
+            ? FromLibrary(audio, name => ArtistGenres(name, artistGenres))
             : FromName(itemId, itemName);
         tracks[itemId] = track;
         return track;
     }
 
-    private static WrappedTrack FromLibrary(Audio audio)
+    private static WrappedTrack FromLibrary(Audio audio, Func<string, IReadOnlyList<string>> artistGenres)
     {
         var album = audio.AlbumEntity;
         var artists = audio.Artists.Count > 0 ? audio.Artists : audio.AlbumArtists;
-        var genres = audio.Genres.Length > 0 ? audio.Genres : album?.Genres ?? [];
+        var genres = GenresOf(audio.Genres, album?.Genres ?? [], audio.Artists, artistGenres);
         return new WrappedTrack(
             audio.Id.ToString("N"),
             audio.Id.ToString("N"),
@@ -153,6 +158,43 @@ public class WrappedService
             audio.AlbumArtists.Count > 0 ? string.Join(", ", audio.AlbumArtists) : null,
             genres,
             audio.RunTimeTicks is > 0 and var ticks ? TimeSpan.FromTicks(ticks).TotalSeconds : null);
+    }
+
+    /// <summary>
+    /// The genres a song counts for: its own, else its album's (which, for albums whose songs have none, usually come from
+    /// online metadata), else those of all its track artists. Album artists are left out, as on compilations they are
+    /// e.g. "Various Artists" rather than who made the song.
+    /// </summary>
+    public static IReadOnlyList<string> GenresOf(
+        IReadOnlyList<string> songGenres,
+        IReadOnlyList<string> albumGenres,
+        IReadOnlyList<string> trackArtists,
+        Func<string, IReadOnlyList<string>> artistGenres)
+    {
+        if (songGenres.Count > 0)
+        {
+            return songGenres;
+        }
+
+        if (albumGenres.Count > 0)
+        {
+            return albumGenres;
+        }
+
+        return trackArtists.SelectMany(artistGenres).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>The genres of the library's artist named <paramref name="name"/>, looked up once per <paramref name="known"/>.</summary>
+    private IReadOnlyList<string> ArtistGenres(string name, Dictionary<string, IReadOnlyList<string>> known)
+    {
+        if (!known.TryGetValue(name, out var genres))
+        {
+            var query = new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.MusicArtist], Name = name, Limit = 1 };
+            genres = _libraryManager.GetItemList(query).FirstOrDefault()?.Genres ?? [];
+            known[name] = genres;
+        }
+
+        return genres;
     }
 
     /// <summary>A song no longer in the library, from the name Playback Reporting noted: "Album artists - Title (Album)".</summary>

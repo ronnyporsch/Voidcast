@@ -80,6 +80,13 @@ class OfflineMusicRepository(
     override suspend fun getGenreSongs(genre: Genre): Result<List<Song>> =
         server.getGenreSongs(genre).recoverOffline { library().songsOfGenre(genre.name) }
 
+    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> =
+        server.getGenreAlbums(genre).recoverOffline { library().albumsOfGenre(genre.name) }
+
+    // Downloaded songs don't tell the genres of artists
+    override suspend fun getGenreArtists(genre: Genre): Result<List<Artist>> =
+        server.getGenreArtists(genre).recoverOffline { emptyList() }
+
     // Artists without an id are looked up by name again, so the songs crediting them get found
     override suspend fun findArtistByName(name: String): Result<Artist?> =
         server.findArtistByName(name).recoverOffline { library().artist(name)?.takeIf { it.id.isNotBlank() } }

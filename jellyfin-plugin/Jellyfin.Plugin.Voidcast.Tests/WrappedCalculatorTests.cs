@@ -173,6 +173,32 @@ public class WrappedCalculatorTests
         Assert.Null(track.Id);
     }
 
+    private static readonly Dictionary<string, string[]> ArtistGenres = new()
+    {
+        ["Main"] = ["pop"],
+        ["Featured"] = ["hip hop", "Pop"],
+        ["Various Artists"] = ["compilation"],
+    };
+
+    private static IReadOnlyList<string> GenresOf(string[] song, string[] album, params string[] trackArtists) =>
+        WrappedService.GenresOf(song, album, trackArtists, name => ArtistGenres.GetValueOrDefault(name, []));
+
+    [Fact]
+    public void SongGenresComeFirst() =>
+        Assert.Equal(["rock"], GenresOf(["rock"], ["jazz"], "Main"));
+
+    [Fact]
+    public void AlbumGenresStandInForMissingSongGenres() =>
+        Assert.Equal(["jazz"], GenresOf([], ["jazz"], "Main"));
+
+    [Fact]
+    public void TrackArtistsGenresStandInForMissingSongAndAlbumGenres() =>
+        Assert.Equal(["pop", "hip hop"], GenresOf([], [], "Main", "Featured"));
+
+    [Fact]
+    public void NoGenresWithoutAnyFromSongAlbumOrTrackArtists() =>
+        Assert.Empty(GenresOf([], [], "Unknown"));
+
     [Fact]
     public void LocalDatesAreReadAsLocalTime()
     {

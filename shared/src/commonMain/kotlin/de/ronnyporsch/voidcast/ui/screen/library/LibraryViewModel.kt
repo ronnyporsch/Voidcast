@@ -331,6 +331,8 @@ class LibraryViewModel(
                 selectedGenre = genre,
                 selectedGenreSongs = emptyList(),
                 selectedGenreSongsLoading = true,
+                selectedGenreAlbums = emptyList(),
+                selectedGenreArtists = emptyList(),
                 selectedArtistId = null,
                 selectedArtist = null,
                 selectedAlbumId = null,
@@ -344,6 +346,18 @@ class LibraryViewModel(
             val songs = repository.getGenreSongs(genre).getOrDefault(emptyList())
             if (currentState.selectedGenre?.id == genre.id) {
                 setState { copy(selectedGenreSongs = songs, selectedGenreSongsLoading = false) }
+            }
+        }
+        launch {
+            val albums = repository.getGenreAlbums(genre).getOrDefault(emptyList())
+            if (currentState.selectedGenre?.id == genre.id) {
+                setState { copy(selectedGenreAlbums = albums) }
+            }
+        }
+        launch {
+            val artists = repository.getGenreArtists(genre).getOrDefault(emptyList())
+            if (currentState.selectedGenre?.id == genre.id) {
+                setState { copy(selectedGenreArtists = artists) }
             }
         }
     }

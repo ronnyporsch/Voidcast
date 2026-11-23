@@ -38,6 +38,10 @@ interface MusicRepository {
     suspend fun getGenres(): Result<List<Genre>>
     /** The songs of [genre]. */
     suspend fun getGenreSongs(genre: Genre): Result<List<Song>>
+    /** The albums of [genre], also those whose songs don't have it (e.g. when the genre came from online metadata). */
+    suspend fun getGenreAlbums(genre: Genre): Result<List<Album>>
+    /** The artists that have [genre] themselves (usually from online metadata), not by their songs or albums. */
+    suspend fun getGenreArtists(genre: Genre): Result<List<Artist>>
     suspend fun getPlaylists(): Result<List<Playlist>>
     suspend fun getPlaylist(playlistId: String): Result<Playlist>
     suspend fun createPlaylist(name: String, songIds: List<String> = emptyList()): Result<Playlist>
@@ -201,6 +205,13 @@ class MusicRepositoryImpl(
         }
         songs
     }
+
+    override suspend fun getGenreAlbums(genre: Genre): Result<List<Album>> = runCatching {
+        albumList { offset -> api.getAlbumList2("byGenre", genre = genre.name, offset = offset) }
+    }
+
+    // Subsonic servers don't give genres to artists
+    override suspend fun getGenreArtists(genre: Genre): Result<List<Artist>> = Result.success(emptyList())
 
     /** All pages of getAlbumList2. */
     private suspend fun albumList(page: suspend (offset: Int) -> SubsonicResponse): List<Album> {

@@ -51,6 +51,10 @@ data class LibraryState(
     val selectedGenre: Genre? = null,
     val selectedGenreSongs: List<Song> = emptyList(),
     val selectedGenreSongsLoading: Boolean = false,
+    /** Includes albums whose songs don't have the genre themselves. */
+    val selectedGenreAlbums: List<Album> = emptyList(),
+    /** Artists that have the genre themselves. */
+    val selectedGenreArtists: List<Artist> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedSongIds: Set<String> = emptySet(),

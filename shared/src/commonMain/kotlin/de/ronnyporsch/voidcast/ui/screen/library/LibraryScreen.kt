@@ -735,6 +735,9 @@ private fun LibraryDetailPane(
                     GenreSongsList(
                         genre = genre,
                         songs = state.selectedGenreSongs,
+                        albums = state.selectedGenreAlbums,
+                        artists = state.selectedGenreArtists,
+                        onGenreArtistClick = { viewModel.onEvent(LibraryEvent.OpenArtistScreen(it)) },
                         isLoading = state.selectedGenreSongsLoading,
                         state = genreDetailState,
                         headerState = headerState,

@@ -61,7 +61,7 @@ fun SimilarArtists(artists: List<Artist>, onArtistClick: (Artist) -> Unit, modif
             for (row in shown.chunked(columns)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
                     for (artist in row) {
-                        SimilarArtistCard(artist, onClick = { onArtistClick(artist) }, modifier = Modifier.weight(1f))
+                        ArtistCard(artist, onClick = { onArtistClick(artist) }, modifier = Modifier.weight(1f))
                     }
                     // Keeps the cards of a partial last row as wide as the others
                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
@@ -71,8 +71,9 @@ fun SimilarArtists(artists: List<Artist>, onArtistClick: (Artist) -> Unit, modif
     }
 }
 
+/** An artist's round image with the name below; as wide as [modifier] makes it. */
 @Composable
-private fun SimilarArtistCard(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ArtistCard(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val coverArt = LocalCoverArtUrlProvider.current
     Column(
         modifier = modifier.clickable(onClick = onClick).padding(8.dp),
