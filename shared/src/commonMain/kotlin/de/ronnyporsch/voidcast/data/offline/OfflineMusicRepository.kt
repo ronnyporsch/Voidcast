@@ -37,13 +37,15 @@ class OfflineMusicRepository(
                 cache.putPlaylists(it)
                 downloads.onPlaylistsFetched(it)
             }
-            .recoverOffline {
-                val cached = cache.playlists()
-                val cachedIds = cached.mapTo(mutableSetOf()) { it.id }
-                (cached + downloads.playlists().filterNot { it.id in cachedIds }.map { it.copy(songs = emptyList()) })
-                    .sortedBy { it.name.lowercase() }
-                    .ifEmpty { null }
-            }
+            .recoverOffline { cachedPlaylists().ifEmpty { null } }
+
+    /** The playlists stored on the device (without songs): those last loaded from the server and the downloaded ones. */
+    suspend fun cachedPlaylists(): List<Playlist> {
+        val cached = cache.playlists()
+        val cachedIds = cached.mapTo(mutableSetOf()) { it.id }
+        return (cached + downloads.playlists().filterNot { it.id in cachedIds }.map { it.copy(songs = emptyList()) })
+            .sortedBy { it.name.lowercase() }
+    }
 
     override suspend fun getPlaylist(playlistId: String): Result<Playlist> =
         server.getPlaylist(playlistId)

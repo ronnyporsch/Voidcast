@@ -237,6 +237,7 @@ fun App() {
         LibraryViewModel(
             repository,
             awaitingConnection = loggedIn,
+            cachedPlaylists = repository::cachedPlaylists,
             playlistChanges = repository.playlistChanges,
             downloads = connection.downloads,
             favorites = connection.favorites,

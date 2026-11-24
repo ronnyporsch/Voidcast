@@ -31,6 +31,8 @@ class LibraryViewModel(
     private val repository: MusicRepository,
     /** Show the loading indicator until the first (auto-)login has connected the repository. */
     awaitingConnection: Boolean = false,
+    /** The playlists stored on the device, shown instead of the loading indicator while [awaitingConnection]. */
+    private val cachedPlaylists: suspend () -> List<Playlist> = { emptyList() },
     /** Ids of playlists changed elsewhere, e.g. through the song context menu. */
     playlistChanges: Flow<String> = emptyFlow(),
     private val downloads: PlaylistDownloads? = null,
@@ -49,9 +51,17 @@ class LibraryViewModel(
     /** What the sidebar's lists (artists, albums) are filtered by, kept the same way. */
     val sidebarFilters: SnapshotStateMap<LibraryCategory, String> = mutableStateMapOf()
 
+    /** Whether the library got (or is getting) loaded from the server since the view model was created. */
+    private var loadedFromServer = false
+
+    /** Whether the playlists shown are those stored on the device, until the server's arrive. */
+    private var showingCachedPlaylists = false
+
     init {
         if (repository.isConfigured) {
             loadAll()
+        } else if (awaitingConnection) {
+            showCachedPlaylists()
         }
         launch {
             playlistChanges.collect { playlistId ->
@@ -109,7 +119,8 @@ class LibraryViewModel(
                 // Desktop: what the detail pane shows may have changed on the server too
                 if (!getPlatform().isMobile) currentState.selection?.let(::show)
             }
-            is LibraryEvent.ConnectionFailed -> if (currentState.isLoading) loadOffline()
+            is LibraryEvent.ConnectionFailed ->
+                if (!currentState.isOffline && (currentState.isLoading || showingCachedPlaylists)) loadOffline()
             is LibraryEvent.DownloadPlaylist -> downloads?.download(event.playlist)
             is LibraryEvent.RemovePlaylistDownload -> downloads?.remove(event.playlist.id)
             is LibraryEvent.PlaylistFolderToggled -> {
@@ -437,9 +448,23 @@ class LibraryViewModel(
         }
     }
 
+    /** Shows the playlists stored on the device right away, instead of the loading indicator until the server answers. */
+    private fun showCachedPlaylists() {
+        launch {
+            val playlists = cachedPlaylists()
+            if (playlists.isEmpty() || loadedFromServer || currentState.isOffline) return@launch
+            showingCachedPlaylists = true
+            setState { copy(isLoading = false, playlists = playlists) }
+        }
+    }
+
     private fun loadAll() {
-        // Albums, songs and genres get loaded again when shown, they may be of a different server now
-        setState { copy(isLoading = true, isOffline = false, error = null, albums = emptyList(), songs = emptyList(), genres = emptyList()) }
+        loadedFromServer = true
+        // Albums, songs and genres get loaded again when shown, they may be of a different server now.
+        // The cached playlists stay visible meanwhile, instead of the loading indicator.
+        setState {
+            copy(isLoading = !showingCachedPlaylists, isOffline = false, error = null, albums = emptyList(), songs = emptyList(), genres = emptyList())
+        }
         launch {
             val artistsResult = repository.getArtists()
             val playlistsResult = repository.getPlaylists()
@@ -447,6 +472,7 @@ class LibraryViewModel(
             val artists = artistsResult.getOrDefault(emptyList())
             val playlists = playlistsResult.getOrDefault(emptyList())
 
+            showingCachedPlaylists = false
             setState {
                 copy(
                     isLoading = false,
@@ -711,7 +737,8 @@ class LibraryViewModel(
                     setState {
                         copy(
                             selectedPlaylistLoading = false,
-                            error = if (isOffline) null else error.message ?: "Unable to load playlist",
+                            // Also while the cached playlists are shown, before the server is connected
+                            error = if (isOffline || showingCachedPlaylists) null else error.message ?: "Unable to load playlist",
                         )
                     }
                 }
