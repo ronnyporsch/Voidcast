@@ -1,8 +1,15 @@
 <p align="center">
-  <img src="desktopApp/icons/icon.png" alt="Voidcast icon" width="512">
+  <img src="desktopApp/icons/icon.png" alt="Voidcast icon" width="128">
 </p>
 
 # Voidcast
+
+[![Jellyfin](https://img.shields.io/badge/jellyfin-12.2%2B-00A4DC?logo=jellyfin)](https://jellyfin.org/)
+![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
+![Windows](https://img.shields.io/badge/Windows-0078D6?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTEuNHYxMS40SDB6TTEyLjYgMEgyNHYxMS40SDEyLjZ6TTAgMTIuNmgxMS40VjI0SDB6TTEyLjYgMTIuNkgyNFYyNEgxMi42eiIvPjwvc3ZnPg==)
+![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
+![Web](https://img.shields.io/badge/Web-654FF0?logo=webassembly&logoColor=white)
 
 A music player for **Jellyfin** servers that brings **YouTube Music** right next to the music already in the library.
 
