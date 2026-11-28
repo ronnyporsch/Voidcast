@@ -12,7 +12,7 @@ pkgrel=1
 pkgdesc='Music player for Jellyfin with a Youtube Integration'
 arch=('x86_64' 'aarch64')
 url='https://github.com/ronnyporsch/Voidcast'
-license=('custom')
+license=('GPL-3.0-or-later')
 # pipewire-jack and vlc-plugin-jack: songs play through PipeWire's JACK, as VLC's PulseAudio output mutes moments at
 # the start of songs on Bluetooth headphones
 # libsecret (secret-tool) and org.freedesktop.secrets (a keyring like KWallet or GNOME Keyring): the login is kept in
