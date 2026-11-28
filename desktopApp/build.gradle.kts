@@ -26,7 +26,7 @@ compose.desktop {
         mainClass = "de.ronnyporsch.voidcast.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm)
             packageName = "de.ronnyporsch.voidcast"
             // Installers only accept <major>.<minor>.<patch>
             packageVersion = appVersion.substringBefore('-')
